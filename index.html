@@ -2374,7 +2374,8 @@ async function router(){
       break;
     case 'proveedores':
       if(!canManageCompras(Session.get().rol)){ outlet.innerHTML = viewNoPermiso(); return; }
-      outlet.innerHTML = await viewProveedoresList(); bindProveedoresListEvents();
+      if(param){ outlet.innerHTML = await viewProveedorDetalle(Number(param)); bindProveedorDetalleEvents(Number(param)); }
+      else{ outlet.innerHTML = await viewProveedoresList(); bindProveedoresListEvents(); }
       break;
     case 'compras':
       if(!canManageCompras(Session.get().rol)){ outlet.innerHTML = viewNoPermiso(); return; }
@@ -7109,6 +7110,171 @@ async function saldoPendienteProveedor(proveedorId){
   return pendienteCompras + (proveedor?.ajusteSaldoManual||0);
 }
 
+/* Historial de movimientos de cuenta corriente de un proveedor, para el
+   gráfico de evolución del saldo (mismo componente que usa Clientes). A
+   diferencia de Clientes, Proveedores no tiene un libro de movimientos con
+   fecha: se reconstruye a partir de cada compra (cargo, aumenta la deuda) y
+   cada pago ya registrado en Caja con referencia "compra:" (pago, la
+   reduce). El ajuste manual de saldo no tiene fecha propia, así que se
+   aplica como saldo base antes del primer movimiento en vez de aparecer
+   como un punto en la línea de tiempo. */
+async function movimientosCtaCteProveedor(proveedorId){
+  const proveedor = await DB.get('proveedores', proveedorId);
+  const compras = await DB.getAllByIndex('compras','proveedorId', proveedorId);
+  const comprasIds = new Set(compras.map(c=>c.id));
+  const movsCaja = await DB.getAll('caja');
+
+  const eventos = [];
+  compras.forEach(c=>{
+    eventos.push({
+      fecha: c.fechaCreacion || (c.fecha+'T00:00:00'),
+      tipo: 'cargo',
+      monto: c.total,
+      concepto: `Compra${c.numeroFactura?' — Factura Nº '+c.numeroFactura:' #'+c.id}`
+    });
+  });
+  movsCaja.filter(m=>m.tipo==='egreso' && (m.referencia||'').startsWith('compra:') && comprasIds.has(Number(m.referencia.split(':')[1]))).forEach(m=>{
+    eventos.push({ fecha:m.fecha, tipo:'pago', monto:m.monto, concepto:m.concepto });
+  });
+  eventos.sort((a,b)=> new Date(a.fecha)-new Date(b.fecha));
+
+  let saldo = proveedor?.ajusteSaldoManual || 0;
+  return eventos.map(e=>{
+    saldo += e.tipo==='cargo' ? e.monto : -e.monto;
+    return { ...e, saldoResultante: saldo };
+  });
+}
+
+/* Bloque de cuenta corriente de un proveedor — saldo actual, gráfico de
+   evolución y lista de movimientos. Mismo diseño que el bloque equivalente
+   de la ficha de Clientes (ctaCteClienteHTML), reutilizando drawSaldoHistorialChart. */
+function ctaCteProveedorHTML(proveedor, movimientosAsc, saldoActual){
+  const esAdministrador = Session.get().rol==='Administrador';
+  return `
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+      <div><div style="font-size:11.5px; color:var(--text-muted);">Deuda actual</div><div style="font-size:22px; font-weight:700;" class="${saldoActual>0.009?'saldo-deudor':'saldo-cero'}">$${saldoActual.toLocaleString('es-AR')}</div></div>
+      <div style="display:flex; gap:8px;">
+        ${esAdministrador?`<button class="btn btn-ghost btn-sm" id="pcc-ajustar-saldo">${svgIcon('gear')} Ajustar saldo</button>`:''}
+      </div>
+    </div>
+    ${movimientosAsc.length >= 2 ? `
+    <div class="report-chart-wrap" style="margin-bottom:16px;">
+      <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">Evolución de la deuda</div>
+      <div class="chart-canvas-box" style="height:210px;"><canvas id="pcc-saldo-chart"></canvas></div>
+    </div>` : ''}
+    ${movimientosAsc.length ? `<div class="doc-list">
+      ${movimientosAsc.slice().reverse().map(m=>`<div class="doc-item" style="justify-content:space-between;">
+        <span>${Utils.fmtFecha(m.fecha)} — ${Utils.escapeHTML(m.concepto)}</span>
+        <span class="font-mono ${m.tipo==='cargo'?'margen-negativo':'margen-positivo'}">${m.tipo==='cargo'?'+':'-'}$${m.monto.toLocaleString('es-AR')}</span>
+      </div>`).join('')}
+    </div>` : `<div class="empty-state" style="padding:30px;">${svgIcon('cuentascorrientes')}<h3>Sin movimientos todavía</h3><p>Se generan automáticamente al cargar compras y registrar pagos a este proveedor.</p></div>`}
+  `;
+}
+
+/* Ficha de un proveedor puntual — mismo patrón que la ficha de Clientes:
+   header con datos de contacto y, por defecto, la pestaña de Cuenta
+   corriente (saldo + gráfico + movimientos) al frente, con una pestaña
+   secundaria de Compras para ver el historial completo. */
+async function viewProveedorDetalle(id){
+  const proveedor = await DB.get('proveedores', id);
+  if(!proveedor){
+    return `<div class="empty-state">${svgIcon('proveedores')}<h3>Proveedor no encontrado</h3><a href="#/proveedores" class="btn btn-ghost btn-sm" style="margin-top:10px; display:inline-flex;">Volver a Proveedores</a></div>`;
+  }
+  const [movimientosAsc, saldoActual, compras] = await Promise.all([
+    movimientosCtaCteProveedor(id),
+    saldoPendienteProveedor(id),
+    DB.getAllByIndex('compras','proveedorId', id)
+  ]);
+  compras.sort((a,b)=> new Date(b.fecha)-new Date(a.fecha));
+
+  const comprasHTML = compras.length ? `
+    <div class="doc-list">
+      ${compras.map(c=>`<div class="doc-item" style="justify-content:space-between;">
+        <span>${new Date(c.fecha+'T00:00:00').toLocaleDateString('es-AR')} — ${c.numeroFactura?'Factura Nº '+Utils.escapeHTML(c.numeroFactura):'#'+c.id}</span>
+        <span style="display:flex; align-items:center; gap:10px;">
+          ${estadoPagoBadge(c.estadoPago)}
+          <span class="font-mono">$${c.total.toLocaleString('es-AR')}</span>
+          <button class="btn btn-ghost btn-sm btn-ver-compra-prov" data-id="${c.id}">Ver</button>
+        </span>
+      </div>`).join('')}
+    </div>` : `<div class="empty-state">${svgIcon('compras')}<h3>Sin compras registradas</h3></div>`;
+
+  return `
+    <a href="#/proveedores" class="back-link">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Volver a Proveedores
+    </a>
+    <div class="detail-header">
+      <div class="avatar-lg">${Utils.iniciales(proveedor.nombre)}</div>
+      <div class="detail-header-info">
+        <h1>${Utils.escapeHTML(proveedor.nombre)} ${proveedor.activo===false?'<span class="badge badge-neutral" style="margin-left:8px;">Baja</span>':''}</h1>
+        <div class="meta">
+          ${proveedor.cuit?`<span class="font-mono">${Utils.escapeHTML(proveedor.cuit)}</span>`:''}
+          ${proveedor.contacto?`<span>${Utils.escapeHTML(proveedor.contacto)}</span>`:''}
+          ${proveedor.telefono?`<span>${svgIcon('caja')}${Utils.escapeHTML(proveedor.telefono)}</span>`:''}
+          ${proveedor.email?`<span>${Utils.escapeHTML(proveedor.email)}</span>`:''}
+          ${proveedor.direccion?`<span>${Utils.escapeHTML(proveedor.direccion)}</span>`:''}
+          ${proveedor.condicionesPago?`<span class="tag-chip">${Utils.escapeHTML(proveedor.condicionesPago)}</span>`:''}
+        </div>
+      </div>
+      <div class="detail-header-actions">
+        <button class="btn btn-ghost" id="btn-editar-proveedor-detalle">Editar</button>
+        <button class="btn ${proveedor.activo===false?'btn-ghost':'btn-danger-ghost'}" id="btn-toggle-baja-proveedor-detalle">${proveedor.activo===false?'Dar de alta':'Dar de baja'}</button>
+      </div>
+    </div>
+
+    ${proveedor.observaciones?`<div class="card" style="margin-bottom:18px;"><div class="cfg-section-title" style="font-size:13px;">Observaciones</div><p style="font-size:13px; color:var(--text-secondary);">${Utils.escapeHTML(proveedor.observaciones)}</p></div>`:''}
+
+    <div class="cfg-layout">
+      <div class="cfg-tabs">
+        <button class="cfg-tab active" data-tab="cuentacorriente">${svgIcon('cuentascorrientes')} Cuenta corriente</button>
+        <button class="cfg-tab" data-tab="compras">${svgIcon('compras')} Compras <span class="badge badge-neutral" style="margin-left:auto;">${compras.length}</span></button>
+      </div>
+      <div class="cfg-panel">
+        <div class="cfg-panel-section active" data-panel="cuentacorriente">
+          ${ctaCteProveedorHTML(proveedor, movimientosAsc, saldoActual)}
+        </div>
+        <div class="cfg-panel-section" data-panel="compras">
+          ${comprasHTML}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function bindProveedorDetalleEvents(id){
+  document.querySelectorAll('.cfg-tab').forEach(tab=>{
+    tab.onclick = () => {
+      document.querySelectorAll('.cfg-tab').forEach(t=>t.classList.remove('active'));
+      document.querySelectorAll('.cfg-panel-section').forEach(p=>p.classList.remove('active'));
+      tab.classList.add('active');
+      document.querySelector(`.cfg-panel-section[data-panel="${tab.dataset.tab}"]`).classList.add('active');
+    };
+  });
+
+  // La pestaña de cuenta corriente está activa por defecto, así que el canvas
+  // ya tiene ancho real al momento de montar: se dibuja una sola vez acá.
+  const canvas = document.getElementById('pcc-saldo-chart');
+  if(canvas) movimientosCtaCteProveedor(id).then(movs => drawSaldoHistorialChart(canvas, movs));
+
+  const btnAjustar = document.getElementById('pcc-ajustar-saldo');
+  if(btnAjustar) btnAjustar.onclick = () => openAjustarSaldoProveedorModal(id);
+
+  document.getElementById('btn-editar-proveedor-detalle').onclick = async () => openProveedorModal(await DB.get('proveedores', id));
+  document.getElementById('btn-toggle-baja-proveedor-detalle').onclick = async () => {
+    const p = await DB.get('proveedores', id);
+    const nuevoEstado = !(p.activo!==false);
+    await DB.put('proveedores', { ...p, activo: nuevoEstado });
+    await Audit.log(nuevoEstado?'proveedor_alta':'proveedor_baja', `Proveedor ${p.nombre} ${nuevoEstado?'reactivado':'dado de baja'}.`);
+    Toast.show('success', nuevoEstado?'Proveedor reactivado':'Proveedor dado de baja', p.nombre);
+    router();
+  };
+
+  document.querySelectorAll('.btn-ver-compra-prov').forEach(btn=>{
+    btn.onclick = async () => openCompraDetalleModal(await DB.get('compras', Number(btn.dataset.id)));
+  });
+}
+
 async function viewProveedoresList(){
   const proveedores = (await DB.getAll('proveedores')).sort((a,b)=>a.nombre.localeCompare(b.nombre));
   const deudaPorProveedor = {};
@@ -7130,7 +7296,7 @@ async function viewProveedoresList(){
         <thead><tr><th>Nombre</th><th>CUIT</th><th>Contacto</th><th>Teléfono</th><th>Condiciones de pago</th><th>Deuda</th><th>Estado</th><th style="text-align:right;">Acciones</th></tr></thead>
         <tbody>
           ${proveedores.length ? proveedores.map(p => `<tr data-id="${p.id}" data-search="${Utils.escapeHTML((p.nombre+' '+(p.cuit||'')+' '+(p.contacto||'')).toLowerCase())}">
-            <td style="font-weight:700;">${Utils.escapeHTML(p.nombre)}</td>
+            <td style="font-weight:700;"><a href="#/proveedores/${p.id}">${Utils.escapeHTML(p.nombre)}</a></td>
             <td class="font-mono" style="font-size:12px;">${Utils.escapeHTML(p.cuit||'—')}</td>
             <td>${Utils.escapeHTML(p.contacto||'—')}</td>
             <td>${Utils.escapeHTML(p.telefono||'—')}</td>
