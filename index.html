@@ -164,6 +164,14 @@ a{ color:inherit; text-decoration:none; }
     radial-gradient(circle at 85% 80%, var(--teal-dim), transparent 40%),
     var(--bg-app);
 }
+#activation-screen{
+  position:fixed; inset:0; z-index:9000;
+  display:flex; align-items:center; justify-content:center;
+  background:
+    radial-gradient(circle at 15% 20%, var(--accent-dim), transparent 40%),
+    radial-gradient(circle at 85% 80%, var(--teal-dim), transparent 40%),
+    var(--bg-app);
+}
 .login-card{
   width:400px; max-width:92vw; background:var(--bg-panel);
   border:1px solid var(--border); border-radius:16px;
@@ -9142,22 +9150,48 @@ async function viewReportes(tipoParam){
   `;
 }
 
+/* Los campos que solo guardan la fecha sin hora (ej. "2026-08-04", típico
+   de Servicios y Compras) el navegador los interpreta como medianoche UTC:
+   en husos horarios negativos (Argentina, UTC-3) eso termina mostrando el
+   día anterior al hacer .toLocaleDateString(). Este helper los ancla a la
+   medianoche LOCAL antes de convertirlos a Date. Los que ya traen fecha y
+   hora (ISO completo, con offset) se dejan intactos porque ahí sí
+   corresponde convertir a hora local. */
+function parsearFechaSegura(fecha){
+  if(typeof fecha === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(fecha)) return new Date(fecha+'T00:00:00');
+  return new Date(fecha);
+}
+/* Agrupa una lista de registros por día calendario completo (no solo
+   "mes-día", para no mezclar el mismo día de años distintos si el rango
+   elegido es amplio) y devuelve las etiquetas ya en formato DD/MM,
+   ordenadas cronológicamente — para los gráficos de barras de Reportes. */
+function agruparPorDiaParaGrafico(items, getFechaValor, getMonto){
+  const porDia = {};
+  items.forEach(item=>{
+    const clave = Utils.fechaLocalYMD(parsearFechaSegura(getFechaValor(item)));
+    porDia[clave] = (porDia[clave]||0) + getMonto(item);
+  });
+  const claves = Object.keys(porDia).sort();
+  const labels = claves.map(c => new Date(c+'T00:00:00').toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit' }));
+  const values = claves.map(c => porDia[c]);
+  return { labels, values };
+}
+
 async function getReporteData(tipo, desde, hasta){
   const session = Session.get();
   const verCosto = canSeeCosto(session.rol);
   const cfg = Config.cache || await Config.load();
 
   if(tipo==='ventas'){
-    const ventas = (await DB.getAll('ventas')).filter(v=>v.estado==='completada' && v.fecha.slice(0,10)>=desde && v.fecha.slice(0,10)<=hasta).sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
+    const ventas = (await DB.getAll('ventas')).filter(v=>v.estado==='completada' && Utils.fechaLocalYMD(v.fecha)>=desde && Utils.fechaLocalYMD(v.fecha)<=hasta).sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
     const clientes = await DB.getAll('clientes'); const cliById={}; clientes.forEach(c=>cliById[c.id]=c);
     const headers = ['Fecha','Nº','Cliente','Medio de pago','Total'];
     const rows = ventas.map(v=>[new Date(v.fecha).toLocaleString('es-AR'), '#'+v.numero, v.clienteId&&cliById[v.clienteId]?clienteNombreCompleto(cliById[v.clienteId]):'Consumidor Final', v.medioPago, v.total.toFixed(2)]);
     const total = ventas.reduce((a,v)=>a+v.total,0);
-    const porDia = {};
-    ventas.forEach(v=>{ const d=v.fecha.slice(5,10); porDia[d]=(porDia[d]||0)+v.total; });
+    const { labels: chartLabels, values: chartValues } = agruparPorDiaParaGrafico(ventas, v=>v.fecha, v=>v.total);
     return { titulo:'Reporte de Ventas', headers, rows,
       summary:[{label:'Ventas',value:ventas.length},{label:'Total facturado',value:'$'+total.toLocaleString('es-AR')},{label:'Ticket promedio',value:'$'+(ventas.length?(total/ventas.length):0).toLocaleString('es-AR',{maximumFractionDigits:0})}],
-      chartLabels:Object.keys(porDia), chartValues:Object.values(porDia), chartColor: cfg.colorAccent||'#FF8C1A', chartTitulo:'Facturado por día', chartFormato:'moneda' };
+      chartLabels, chartValues, chartColor: cfg.colorAccent||'#FF8C1A', chartTitulo:'Facturado por día', chartFormato:'moneda' };
   }
 
   if(tipo==='servicios'){
@@ -9166,15 +9200,14 @@ async function getReporteData(tipo, desde, hasta){
     const vehiculos = await DB.getAll('vehiculos'); const vehById={}; vehiculos.forEach(v=>vehById[v.id]=v);
     const rows = historial.map(h=>{
       const veh = vehById[h.vehiculoId];
-      const base = [new Date(h.fecha).toLocaleDateString('es-AR'), veh?veh.dominio:'—', h.empleadoNombre||'—', (h.precio||0).toFixed(2)];
+      const base = [parsearFechaSegura(h.fecha).toLocaleDateString('es-AR'), veh?veh.dominio:'—', h.empleadoNombre||'—', (h.precio||0).toFixed(2)];
       return verCosto ? [...base, (h.costo||0).toFixed(2), ((h.precio||0)-(h.costo||0)).toFixed(2)] : base;
     });
     const totalFacturado = historial.reduce((a,h)=>a+(h.precio||0),0);
     const summary = [{label:'Servicios',value:historial.length},{label:'Facturado',value:'$'+totalFacturado.toLocaleString('es-AR')}];
     if(verCosto) summary.push({label:'Ganancia',value:'$'+historial.reduce((a,h)=>a+((h.precio||0)-(h.costo||0)),0).toLocaleString('es-AR')});
-    const porDia = {};
-    historial.forEach(h=>{ const d=h.fecha.slice(5,10); porDia[d]=(porDia[d]||0)+1; });
-    return { titulo:'Reporte de Servicios', headers, rows, summary, chartLabels:Object.keys(porDia), chartValues:Object.values(porDia), chartColor: cfg.colorAccent||'#FF8C1A', chartTitulo:'Servicios por día', chartFormato:'cantidad' };
+    const { labels: chartLabels, values: chartValues } = agruparPorDiaParaGrafico(historial, h=>h.fecha, ()=>1);
+    return { titulo:'Reporte de Servicios', headers, rows, summary, chartLabels, chartValues, chartColor: cfg.colorAccent||'#FF8C1A', chartTitulo:'Servicios por día', chartFormato:'cantidad' };
   }
 
   if(tipo==='stock'){
@@ -9200,7 +9233,7 @@ async function getReporteData(tipo, desde, hasta){
   }
 
   if(tipo==='caja'){
-    const movs = (await DB.getAll('caja')).filter(m=>m.fecha.slice(0,10)>=desde && m.fecha.slice(0,10)<=hasta).sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
+    const movs = (await DB.getAll('caja')).filter(m=>Utils.fechaLocalYMD(m.fecha)>=desde && Utils.fechaLocalYMD(m.fecha)<=hasta).sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
     const headers = ['Fecha','Tipo','Concepto','Medio','Monto','Saldo'];
     const rows = movs.map(m=>[new Date(m.fecha).toLocaleString('es-AR'), m.tipo, m.concepto, m.medioPago, (m.tipo==='ingreso'?'+':'-')+m.monto.toFixed(2), m.saldoResultante.toFixed(2)]);
     const ingresos = movs.filter(m=>m.tipo==='ingreso').reduce((a,m)=>a+m.monto,0);
@@ -9214,7 +9247,7 @@ async function getReporteData(tipo, desde, hasta){
     const compras = (await DB.getAll('compras')).filter(c=>c.fecha>=desde && c.fecha<=hasta).sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
     const proveedores = await DB.getAll('proveedores'); const provById={}; proveedores.forEach(p=>provById[p.id]=p);
     const headers = ['Fecha','Proveedor','Factura','Total','Estado'];
-    const rows = compras.map(c=>[new Date(c.fecha).toLocaleDateString('es-AR'), provById[c.proveedorId]?provById[c.proveedorId].nombre:'—', c.numeroFactura||'—', c.total.toFixed(2), c.estadoPago]);
+    const rows = compras.map(c=>[parsearFechaSegura(c.fecha).toLocaleDateString('es-AR'), provById[c.proveedorId]?provById[c.proveedorId].nombre:'—', c.numeroFactura||'—', c.total.toFixed(2), c.estadoPago]);
     const totalComprado = compras.reduce((a,c)=>a+c.total,0);
     const pendiente = compras.reduce((a,c)=>a+(c.total-c.montoPagado),0);
     return { titulo:'Reporte de Compras', headers, rows,
