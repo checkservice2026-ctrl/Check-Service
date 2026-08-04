@@ -2725,7 +2725,20 @@ async function viewDashboard(){
         <div class="kpi-value">$${saldoCajaActual.toLocaleString('es-AR')}</div>
         <div class="kpi-sub">saldo actual acumulado</div>
       </div>
-    </div>` : ''}
+    </div>
+    <div class="report-chart-wrap" style="margin-top:16px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+        <div style="font-size:12px; color:var(--text-muted);">Margen de ganancia — ventas, servicios y lavados</div>
+        <select class="toolbar-select" id="dash-margen-periodo" style="margin:0;">
+          <option value="dia">Por día</option>
+          <option value="semana">Por semana</option>
+          <option value="mes" selected>Por mes</option>
+          <option value="anio">Por año</option>
+        </select>
+      </div>
+      <div class="chart-canvas-box" style="height:260px;"><canvas id="dash-margen-chart"></canvas></div>
+    </div>
+    ` : ''}
 
     <div class="card" style="margin-top:22px;">
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
@@ -2763,12 +2776,90 @@ const noticiasCache = {}; // { argentina: {items, ts}, mundo: {items, ts} }
 const NOTICIAS_CACHE_MS = 15*60*1000; // 15 minutos
 
 async function bindDashboardEvents(){
+  const selMargen = document.getElementById('dash-margen-periodo');
+  if(selMargen){
+    drawDashboardMargenChart(selMargen.value);
+    selMargen.onchange = () => drawDashboardMargenChart(selMargen.value);
+  }
+
   const tabs = document.getElementById('noticias-tabs');
   if(!tabs) return; // el rol actual no ve la sección de Finanzas/Noticias
   document.querySelectorAll('#noticias-tabs .cfg-tab').forEach(btn=>{
     btn.onclick = () => { noticiasTabActual = btn.dataset.feed; renderNoticiasTab(); };
   });
   await renderNoticiasTab();
+}
+
+/* Margen de ganancia (ventas + servicios de taller + lavados) agrupado por
+   día/semana/mes/año, para el gráfico del Dashboard. Ventas y servicios
+   usan el costo actual del producto (mismo criterio que el resto del
+   Dashboard, no hay foto histórica del costo); la mano de obra y los
+   lavados no tienen costo cargado, así que su margen es el 100% de lo
+   cobrado. */
+async function calcularMargenPorPeriodo(periodo){
+  const CANTIDAD_BUCKETS = { dia:14, semana:8, mes:12, anio:5 };
+  const cantidad = CANTIDAD_BUCKETS[periodo] || 12;
+  const hoy = Utils.hoyLocal();
+
+  const claves = [];
+  for(let i=cantidad-1; i>=0; i--){
+    if(periodo==='dia') claves.push(sumarDias(hoy, -i));
+    else if(periodo==='semana') claves.push(inicioDeSemana(sumarDias(hoy, -i*7)));
+    else if(periodo==='anio') claves.push(String(new Date().getFullYear()-i));
+    else { const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()-i); claves.push(d.toISOString().slice(0,7)); }
+  }
+  const clavesUnicas = [...new Set(claves)];
+  const margenPorClave = {}; clavesUnicas.forEach(c=>margenPorClave[c]=0);
+
+  function claveBucket(fechaISO){
+    if(periodo==='dia') return Utils.fechaLocalYMD(fechaISO);
+    if(periodo==='semana') return inicioDeSemana(Utils.fechaLocalYMD(fechaISO));
+    if(periodo==='anio') return String(new Date(fechaISO).getFullYear());
+    return Utils.fechaLocalYMD(fechaISO).slice(0,7);
+  }
+
+  const [productos, ventas, historial, turnos] = await Promise.all([
+    DB.getAll('productos'),
+    DB.getAll('ventas'),
+    DB.getAll('historialServicios'),
+    DB.getAll('lavaderoTurnos')
+  ]);
+  const productosById = {}; productos.forEach(p=>productosById[p.id]=p);
+
+  ventas.filter(v=>v.estado==='completada').forEach(v=>{
+    const clave = claveBucket(v.fecha);
+    if(!(clave in margenPorClave)) return;
+    const margen = v.items.reduce((a,it)=>{
+      const costo = it.productoId ? (productosById[it.productoId]?.precioCosto||0) : 0;
+      return a + (it.precioUnitario-costo)*it.cantidad;
+    },0);
+    margenPorClave[clave] += margen;
+  });
+  historial.forEach(h=>{
+    const clave = claveBucket(h.fecha);
+    if(!(clave in margenPorClave)) return;
+    margenPorClave[clave] += (h.precio||0)-(h.costo||0);
+  });
+  turnos.filter(t=>t.estado==='Completado' && t.pagado).forEach(t=>{
+    const clave = claveBucket(t.fechaCompletado || (t.fecha+'T00:00:00'));
+    if(!(clave in margenPorClave)) return;
+    margenPorClave[clave] += t.precio||0; // lavado: sin costo cargado, margen 100%
+  });
+
+  const labels = clavesUnicas.map(c=>{
+    if(periodo==='dia' || periodo==='semana') return new Date(c+'T00:00:00').toLocaleDateString('es-AR',{ day:'2-digit', month:'2-digit' });
+    if(periodo==='anio') return c;
+    return new Date(c+'-01T00:00:00').toLocaleDateString('es-AR',{ month:'short', year:'2-digit' });
+  });
+  const valores = clavesUnicas.map(c=>margenPorClave[c]);
+  return { labels, valores };
+}
+
+async function drawDashboardMargenChart(periodo){
+  const canvas = document.getElementById('dash-margen-chart');
+  if(!canvas) return;
+  const { labels, valores } = await calcularMargenPorPeriodo(periodo);
+  drawBarChart(canvas, labels, valores, '#FF8C1A', (v)=>'$'+v.toLocaleString('es-AR'), 'Margen');
 }
 
 /* Convierte el XML crudo de un RSS en una lista simple {title, link,
@@ -4164,16 +4255,31 @@ async function viewClienteDetalle(id){
         </span>
       </div>`).join('')}
     </div>` : '';
+  const limite = Number(cliente.limiteCuentaCorriente||0);
+  const pctUsado = limite>0 ? Math.min(100, Math.round(saldoCtaCte/limite*100)) : 0;
+  const limiteHTML = limite>0 ? `
+    <div class="card" style="padding:12px 14px; margin-bottom:16px;">
+      <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted); margin-bottom:6px;">
+        <span>Límite de cuenta corriente</span>
+        <span class="font-mono">$${saldoCtaCte.toLocaleString('es-AR')} de $${limite.toLocaleString('es-AR')} (${pctUsado}%)</span>
+      </div>
+      <div style="height:8px; border-radius:5px; background:var(--bg-panel-alt); overflow:hidden;">
+        <div style="height:100%; width:${pctUsado}%; border-radius:5px; background:${pctUsado>=100?'var(--danger)':pctUsado>=80?'#F5A623':'var(--teal)'}; transition:width .3s;"></div>
+      </div>
+      ${pctUsado>=80?`<div style="font-size:11.5px; color:${pctUsado>=100?'var(--danger)':'#F5A623'}; margin-top:6px;">${pctUsado>=100?'Límite alcanzado — no se le puede cargar más saldo.':'Atención: superó el 80% de su límite.'}</div>`:''}
+    </div>` : '';
   const ctaCteClienteHTML = `
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
       <div><div style="font-size:11.5px; color:var(--text-muted);">Saldo actual</div><div style="font-size:22px; font-weight:700;" class="${saldoCtaCte>0?'saldo-deudor':'saldo-cero'}">$${saldoCtaCte.toLocaleString('es-AR')}</div></div>
       <div style="display:flex; gap:8px;">
         <button class="btn btn-ghost btn-sm" id="btn-estado-cuenta-ficha">Imprimir estado de cuenta</button>
         ${puedeCobrar?`<button class="btn btn-ghost btn-sm" id="btn-nota-credito-ficha">Nota de crédito</button>`:''}
+        ${Session.get().rol==='Administrador'?`<button class="btn btn-ghost btn-sm" id="btn-limite-ctacte-cliente">${svgIcon('gear')} Límite de crédito</button>`:''}
         ${Session.get().rol==='Administrador'?`<button class="btn btn-ghost btn-sm" id="btn-ajustar-saldo-cliente">${svgIcon('gear')} Ajustar saldo</button>`:''}
         ${(puedeCobrar && saldoCtaCte>0.009)?`<button class="btn btn-accent btn-sm" id="btn-cobrar-ctacte">Registrar pago</button>`:''}
       </div>
     </div>
+    ${limiteHTML}
     ${movimientosCtaCte.length >= 2 ? `
     <div class="report-chart-wrap" style="margin-bottom:16px;">
       <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">Evolución del saldo</div>
@@ -4287,6 +4393,8 @@ function bindClienteDetalleEvents(id){
   if(btnNotaCredito) btnNotaCredito.onclick = () => openNotaCreditoModal(id);
   const btnAjustarSaldoCliente = document.getElementById('btn-ajustar-saldo-cliente');
   if(btnAjustarSaldoCliente) btnAjustarSaldoCliente.onclick = () => openAjustarSaldoClienteModal(id);
+  const btnLimiteCtaCte = document.getElementById('btn-limite-ctacte-cliente');
+  if(btnLimiteCtaCte) btnLimiteCtaCte.onclick = () => openLimiteCtaCteModal(id);
   document.querySelectorAll('.btn-ver-nota-credito').forEach(btn=>{
     btn.onclick = async () => {
       const nc = await DB.get('notasCredito', Number(btn.dataset.id));
@@ -4804,10 +4912,16 @@ async function openRegistrarPagoHistorialModal(h){
     const medioPago = document.getElementById('rph-medio').value;
     if(!monto || monto<=0 || monto>saldo+0.01){ Toast.show('error','Monto inválido',''); return; }
     if(medioPago==='Cuenta corriente' && !h.clienteId){ Toast.show('error','Sin cliente','Este service no tiene un cliente registrado para cargar a cuenta corriente.'); return; }
+    let chequeoLimite = { ok:true };
+    if(medioPago==='Cuenta corriente'){
+      chequeoLimite = await chequearLimiteCtaCte(h.clienteId, monto);
+      if(!chequeoLimite.ok){ Toast.show('error','Límite de cuenta corriente superado', chequeoLimite.mensaje); return; }
+    }
 
     const motivo = `Pago service ${h.fecha}${vehiculo?' - '+vehiculo.dominio:''}`;
     if(medioPago === 'Cuenta corriente'){
       await registrarMovimientoCtaCte(h.clienteId, { tipo:'cargo', concepto:motivo, monto, referencia:`historial:${h.id}` });
+      avisarSiCercaDelLimite(chequeoLimite);
     }else{
       await registrarMovimientoCaja({ tipo:'ingreso', concepto:motivo, monto, medioPago, referencia:`historial:${h.id}` });
     }
@@ -6731,6 +6845,18 @@ async function finalizarVenta(){
     Toast.show('error','Falta el cliente','Para vender a cuenta corriente, seleccioná un cliente.');
     return;
   }
+  let chequeoLimitePOS = { ok:true };
+  if(medioPagoSel === 'Cuenta corriente'){
+    const subtotalChequeo = posCart.reduce((acc,i)=>acc+i.precioUnitario*i.cantidad,0);
+    const descPctChequeo = Number(document.getElementById('pos-descuento').value)||0;
+    const totalChequeo = subtotalChequeo - subtotalChequeo*(descPctChequeo/100);
+    chequeoLimitePOS = await chequearLimiteCtaCte(clienteIdSel, totalChequeo);
+    if(!chequeoLimitePOS.ok){
+      SoundFX.error();
+      Toast.show('error','Límite de cuenta corriente superado', chequeoLimitePOS.mensaje);
+      return;
+    }
+  }
   let montoRecibido = null, vuelto = null;
   if(medioPagoSel === 'Efectivo'){
     const subtotalPrev = posCart.reduce((acc,i)=>acc+i.precioUnitario*i.cantidad,0);
@@ -6788,6 +6914,7 @@ async function finalizarVenta(){
   // Conecta la venta con Caja o con la Cuenta Corriente del cliente, según el medio de pago.
   if(medioPago === 'Cuenta corriente'){
     await registrarMovimientoCtaCte(clienteId, { tipo:'cargo', concepto:`Venta #${numero}`, monto: total, referencia:`venta:${ventaId}` });
+    avisarSiCercaDelLimite(chequeoLimitePOS);
   }else{
     await registrarMovimientoCaja({ tipo:'ingreso', concepto:`Venta #${numero}`, monto: total, medioPago, referencia:`venta:${ventaId}` });
   }
@@ -6912,6 +7039,34 @@ async function registrarMovimientoCtaCte(clienteId, { tipo, concepto, monto, ref
     usuarioId: session.usuarioId, usuarioNombre: session.nombre
   });
   return saldoResultante;
+}
+
+/* Valida un cargo a cuenta corriente contra el límite de crédito del
+   cliente (0 o sin definir = sin límite). No modifica nada: quien llama
+   decide si bloquear (ok:false) o solo avisar (alerta80) antes de
+   confirmar la operación — se llama ANTES de crear la venta/service/turno,
+   para no dejar datos a medio guardar si se bloquea. */
+async function chequearLimiteCtaCte(clienteId, montoCargo){
+  if(!clienteId) return { ok:true };
+  const cliente = await DB.get('clientes', clienteId);
+  const limite = Number(cliente?.limiteCuentaCorriente || 0);
+  if(!limite || limite<=0) return { ok:true };
+  const saldoActual = await saldoCuentaCorriente(clienteId);
+  const saldoResultante = saldoActual + montoCargo;
+  if(saldoResultante > limite + 0.01){
+    return {
+      ok:false,
+      mensaje:`${clienteNombreCompleto(cliente)} tiene un límite de cuenta corriente de $${limite.toLocaleString('es-AR')}. Esta operación llevaría el saldo a $${saldoResultante.toLocaleString('es-AR')}, que lo supera.`
+    };
+  }
+  return { ok:true, alerta80: saldoResultante >= limite*0.8, saldoResultante, limite };
+}
+/* Muestra el aviso de "cerca del límite" (≥80%) sin bloquear nada — se usa
+   después de que una operación a cuenta corriente ya se confirmó. */
+function avisarSiCercaDelLimite(chequeo){
+  if(!chequeo || !chequeo.alerta80) return;
+  const pct = Math.round(chequeo.saldoResultante/chequeo.limite*100);
+  Toast.show('warn', `Cerca del límite de cuenta corriente (${pct}%)`, `Saldo: $${chequeo.saldoResultante.toLocaleString('es-AR')} de $${chequeo.limite.toLocaleString('es-AR')}.`, 6000);
 }
 
 /* Revierte todo lo cobrado de un service (uno o varios pagos, parciales o
@@ -8689,6 +8844,34 @@ async function openAjustarSaldoClienteModal(clienteId){
   };
 }
 
+async function openLimiteCtaCteModal(clienteId){
+  const cliente = await DB.get('clientes', clienteId);
+  const saldoActual = await saldoCuentaCorriente(clienteId);
+  const limiteActual = Number(cliente.limiteCuentaCorriente||0);
+  Modal.open(
+    'Límite de cuenta corriente — ' + clienteNombreCompleto(cliente),
+    `
+    <div class="card" style="padding:12px 14px; margin-bottom:14px;">
+      <div style="font-size:12px; color:var(--text-muted);">Saldo actual</div>
+      <div style="font-size:20px; font-weight:700;" class="${saldoActual>0?'saldo-deudor':'saldo-cero'}">$${saldoActual.toLocaleString('es-AR')}</div>
+    </div>
+    <div class="field"><label>Límite de crédito</label><input type="number" min="0" step="0.01" id="lcc-limite" value="${limiteActual||''}" placeholder="Dejar vacío o en 0 = sin límite"></div>
+    <p style="font-size:11.5px; color:var(--text-muted); margin:-8px 0 4px;">Al llegar al 80% del límite se muestra un aviso. Al superarlo, el sistema no deja seguir cargando ventas, servicios ni lavados a la cuenta corriente de este cliente (los pagos y ajustes manuales de saldo no se ven afectados).</p>
+    <div class="modal-actions"><button class="btn btn-ghost" id="lcc-cancel">Cancelar</button><button class="btn btn-accent" id="lcc-save">Guardar</button></div>
+    `,
+    { width:'420px' }
+  );
+  document.getElementById('lcc-cancel').onclick = () => Modal.close();
+  document.getElementById('lcc-save').onclick = async () => {
+    const limite = Math.max(0, Number(document.getElementById('lcc-limite').value)||0);
+    await DB.put('clientes', { ...cliente, limiteCuentaCorriente: limite });
+    await Audit.log('ctacte_limite_editado', `Límite de cuenta corriente de ${clienteNombreCompleto(cliente)} actualizado a ${limite>0?'$'+limite.toLocaleString('es-AR'):'sin límite'}.`);
+    Toast.show('success','Límite actualizado', limite>0?`$${limite.toLocaleString('es-AR')}`:'Sin límite');
+    Modal.close();
+    router();
+  };
+}
+
 async function openRegistrarPagoCtaCteModal(clienteId){
   const cliente = await DB.get('clientes', clienteId);
   const saldo = await saldoCuentaCorriente(clienteId);
@@ -9485,12 +9668,34 @@ async function openCotizacionTicketModal(c){
 /* -----------------------------------------------------------------------
    20-U. MÓDULO VENTAS — localizar por número, editar y anular (Fase extra)
 ----------------------------------------------------------------------- */
+let ventasMargenModo = 'monto'; // 'monto' | 'pct' — toggle global de la columna Margen en Ventas
+
 async function viewVentasList(){
   const ventas = (await DB.getAll('ventas')).sort((a,b)=> b.numero-a.numero);
   const clientes = await DB.getAll('clientes');
   const cliById = {}; clientes.forEach(c=>cliById[c.id]=c);
   const session = Session.get();
   const puedeEditar = canEditarVentas(session.rol);
+  const verMargen = canSeeCosto(session.rol);
+  let productosById = {};
+  if(verMargen){
+    const productos = await DB.getAll('productos');
+    productos.forEach(p=>productosById[p.id]=p);
+  }
+  /* Margen = precio de venta - costo actual del producto (mismo criterio que
+     el resto de la app: no se guarda una foto del costo al momento de la
+     venta). Los ítems sin producto vinculado (mano de obra, ítems libres) no
+     tienen costo, así que su margen es el 100% de lo cobrado por ese ítem. */
+  function margenDeVenta(v){
+    let margen = 0, costoTotal = 0;
+    v.items.forEach(it=>{
+      const costo = it.productoId ? (productosById[it.productoId]?.precioCosto||0) : 0;
+      margen += (it.precioUnitario-costo)*it.cantidad;
+      costoTotal += costo*it.cantidad;
+    });
+    const pct = costoTotal>0 ? (margen/costoTotal*100) : (margen>0?100:0);
+    return { margen, pct };
+  }
 
   return `
     <div class="page-header">
@@ -9511,19 +9716,21 @@ async function viewVentasList(){
     </div>
     <div class="card" style="padding:0; overflow-x:auto;">
       <table class="data-table" id="ventas-table">
-        <thead><tr><th>N°</th><th>Fecha</th><th>Cliente</th><th>Medio</th><th>Total</th><th>Estado</th><th style="text-align:right;">Acciones</th></tr></thead>
+        <thead><tr><th>N°</th><th>Fecha</th><th>Cliente</th><th>Medio</th><th>Total</th>${verMargen?`<th id="th-margen-venta" style="cursor:pointer;" title="Click para ver en %/$">Margen ${ventasMargenModo==='monto'?'($)':'(%)'} ⇄</th>`:''}<th>Estado</th><th style="text-align:right;">Acciones</th></tr></thead>
         <tbody>
           ${ventas.length ? ventas.map(v => {
             const cliente = v.clienteId ? cliById[v.clienteId] : null;
             const nombreCliente = cliente ? clienteNombreCompleto(cliente) : 'Consumidor Final';
             const anulada = v.estado === 'anulada';
             const searchTxt = (v.numero+' '+nombreCliente+' '+v.items.map(i=>i.nombre).join(' ')).toLowerCase();
+            const { margen, pct } = verMargen ? margenDeVenta(v) : { margen:0, pct:0 };
             return `<tr data-id="${v.id}" data-estado="${v.estado}" data-fecha="${v.fecha.slice(0,10)}" data-search="${Utils.escapeHTML(searchTxt)}">
               <td class="font-mono" style="font-weight:700;">#${v.numero}</td>
               <td class="font-mono" style="font-size:12px;">${Utils.fmtFecha(v.fecha)}</td>
               <td>${Utils.escapeHTML(nombreCliente)}</td>
               <td><span class="tag-chip">${Utils.escapeHTML(v.medioPago)}</span></td>
               <td class="font-mono">$${v.total.toLocaleString('es-AR')}</td>
+              ${verMargen?`<td class="font-mono venta-margen-cell ${margen>=0?'margen-positivo':'margen-negativo'}" data-margen="${margen}" data-pct="${pct}">${ventasMargenModo==='monto'?`$${margen.toLocaleString('es-AR')}`:`${pct.toFixed(1)}%`}</td>`:''}
               <td>${anulada?'<span class="badge badge-danger">Anulada</span>':'<span class="badge badge-ok">Completada</span>'}</td>
               <td style="text-align:right; white-space:nowrap;">
                 <button class="btn btn-ghost btn-sm btn-ver-venta" data-id="${v.id}">Ver</button>
@@ -9532,7 +9739,7 @@ async function viewVentasList(){
                 ${puedeEditar && anulada && session.rol==='Administrador'?`<button class="btn btn-danger-ghost btn-sm btn-eliminar-venta" data-id="${v.id}">Eliminar</button>`:''}
               </td>
             </tr>`;
-          }).join('') : `<tr><td colspan="7"><div class="empty-state">${svgIcon('ventas')}<h3>Todavía no hay ventas registradas</h3><p>Las ventas se generan desde el POS.</p></div></td></tr>`}
+          }).join('') : `<tr><td colspan="${verMargen?8:7}"><div class="empty-state">${svgIcon('ventas')}<h3>Todavía no hay ventas registradas</h3><p>Las ventas se generan desde el POS.</p></div></td></tr>`}
         </tbody>
       </table>
     </div>
@@ -9584,6 +9791,19 @@ function bindVentasListEvents(){
     document.getElementById(id).addEventListener('input', applyFilters);
     document.getElementById(id).addEventListener('change', applyFilters);
   });
+
+  const thMargen = document.getElementById('th-margen-venta');
+  if(thMargen){
+    thMargen.onclick = () => {
+      ventasMargenModo = ventasMargenModo==='monto' ? 'pct' : 'monto';
+      thMargen.textContent = `Margen ${ventasMargenModo==='monto'?'($)':'(%)'} ⇄`;
+      document.querySelectorAll('.venta-margen-cell').forEach(td=>{
+        td.textContent = ventasMargenModo==='monto'
+          ? `$${Number(td.dataset.margen).toLocaleString('es-AR')}`
+          : `${Number(td.dataset.pct).toFixed(1)}%`;
+      });
+    };
+  }
 }
 
 /* Revierte el efecto en stock y en Caja/Cuenta Corriente de una venta (usado al editar o anular) */
@@ -9734,6 +9954,19 @@ async function openVentaEditarModal(venta){
     const descuentoTotal = subtotal*(descuentoPct/100);
     const total = Math.max(0, subtotal-descuentoTotal);
 
+    let chequeoLimiteEdicion = { ok:true };
+    if(medioPago==='Cuenta corriente'){
+      // Si la venta ya estaba a cta cte del mismo cliente, lo que importa es el
+      // cambio neto (más abajo primero se revierte el cargo viejo y después se
+      // aplica el nuevo) — no el total completo de nuevo.
+      const yaEraCtaCteMismoCliente = venta.medioPago==='Cuenta corriente' && venta.clienteId===clienteId;
+      const montoNeto = yaEraCtaCteMismoCliente ? (total - venta.total) : total;
+      if(montoNeto > 0){
+        chequeoLimiteEdicion = await chequearLimiteCtaCte(clienteId, montoNeto);
+        if(!chequeoLimiteEdicion.ok){ Toast.show('error','Límite de cuenta corriente superado', chequeoLimiteEdicion.mensaje); return; }
+      }
+    }
+
     // 1) revierte lo que la venta original había generado
     await revertirEfectosVenta(venta, `Corrección por edición de venta #${venta.numero}`);
 
@@ -9758,6 +9991,7 @@ async function openVentaEditarModal(venta){
 
     // 3) aplica los nuevos efectos
     await aplicarEfectosVenta(ventaActualizada, `Venta #${venta.numero} (editada)`);
+    avisarSiCercaDelLimite(chequeoLimiteEdicion);
     await DB.put('ventas', ventaActualizada);
     await Audit.log('venta_editada', `Venta #${venta.numero} editada.`);
     Toast.show('success','Venta actualizada', '#'+venta.numero);
@@ -10149,8 +10383,15 @@ async function openCobrarTurnoModal(turno){
       clienteNombreParaCargo = clienteNombreCompleto(cliente);
     }
 
+    let chequeoLimiteTurno = { ok:true };
+    if(medioPago==='Cuenta corriente'){
+      chequeoLimiteTurno = await chequearLimiteCtaCte(clienteIdParaCargo, precio);
+      if(!chequeoLimiteTurno.ok){ Toast.show('error','Límite de cuenta corriente superado', chequeoLimiteTurno.mensaje); return; }
+    }
+
     const turnoActualizado = { ...turno, precio, medioPago, estado:'Completado', pagado:true, fechaCompletado:Utils.nowISO(), clienteId:clienteIdParaCargo, clienteNombre:clienteNombreParaCargo };
     await aplicarEfectosTurno(turnoActualizado, `Lavadero — turno del ${turno.fecha} ${turno.horaInicio} (${turnoActualizado.clienteNombre})`);
+    avisarSiCercaDelLimite(chequeoLimiteTurno);
     await DB.put('lavaderoTurnos', turnoActualizado);
     await Audit.log('turno_completado', `Turno de ${turnoActualizado.clienteNombre} cobrado: $${precio.toLocaleString('es-AR')} (${medioPago}).`);
     Toast.show('success','Turno cobrado', `$${precio.toLocaleString('es-AR')}`);
