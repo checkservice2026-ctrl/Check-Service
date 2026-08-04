@@ -1099,7 +1099,7 @@ var qrcode=function(){var qrcode=function(t,r){var e=t,n=c[r],o=null,i=0,a=null,
    0. CONSTANTES GLOBALES
 ----------------------------------------------------------------------- */
 const DB_NAME = 'CheckServiceDB';
-const DB_VERSION = 14; // Se agrega store 'marcas' (catálogo de marcas de productos, con logo)
+const DB_VERSION = 15; // Se agrega módulo Gastos: stores 'categoriasGastos' y 'gastos'
 const SESSION_KEY = 'cs_session';
 const REMEMBER_KEY = 'cs_remember_user';
 const THEME_KEY = 'cs_theme';
@@ -1117,6 +1117,7 @@ const UNIDADES_PRODUCTO = ['Unidad','Litro','Caja','Par','Juego'];
 const MEDIOS_PAGO = ['Efectivo','Transferencia','Tarjeta','QR','Cuenta corriente'];
 const MOTIVOS_NOTA_CREDITO = ['Devolución de mercadería','Error de facturación','Descuento posterior','Servicio no conforme','Otro'];
 const ESTADOS_PAGO_COMPRA = ['Pendiente','Parcial','Pagada'];
+const TIPOS_GASTO = ['Fijo','Variable'];
 
 // Ítems típicos de un service, registrados como checklist en cada Historial.
 const SERVICE_CHECKLIST_ITEMS = [
@@ -1154,6 +1155,8 @@ function canGestionarServiciosLavadero(rol){ return ['Administrador','Supervisor
 // Permisos de Fase 6: compras/proveedores (back-office) y caja (operativo).
 function canManageCompras(rol){ return ['Administrador','Supervisor'].includes(rol); }
 function canManageCaja(rol){ return ['Administrador','Supervisor','Caja'].includes(rol); }
+function canManageGastos(rol){ return ['Administrador','Supervisor','Caja'].includes(rol); }
+function canGestionarCategoriasGastos(rol){ return ['Administrador','Supervisor'].includes(rol); }
 
 // Roadmap de módulos aún no implementados, con la fase donde se entregan.
 const MODULE_ROADMAP = {};
@@ -1308,6 +1311,24 @@ const DB = (() => {
           // por marca se saltara productos sin querer.
           const st = db.createObjectStore('marcas', { keyPath:'id', autoIncrement:true });
           st.createIndex('activo', 'activo');
+        }
+        if(!db.objectStoreNames.contains('categoriasGastos')){
+          // Categorías de gastos que el propio usuario crea (ej: Alquiler,
+          // Sueldos, Insumos de limpieza), cada una marcada como Fijo o
+          // Variable. El tipo vive en la categoría para que todo gasto
+          // cargado con esa categoría herede el tipo automáticamente.
+          const st = db.createObjectStore('categoriasGastos', { keyPath:'id', autoIncrement:true });
+          st.createIndex('tipo', 'tipo');
+          st.createIndex('activo', 'activo');
+        }
+        if(!db.objectStoreNames.contains('gastos')){
+          // Cada gasto cargado también genera un egreso en Caja (referencia
+          // "gasto:ID"), así que Caja, Cierre de Caja y Resumen del día
+          // reflejan la salida de dinero automáticamente sin lógica aparte.
+          const st = db.createObjectStore('gastos', { keyPath:'id', autoIncrement:true });
+          st.createIndex('categoriaId', 'categoriaId');
+          st.createIndex('tipo', 'tipo');
+          st.createIndex('fecha', 'fecha');
         }
       };
 
@@ -2213,6 +2234,7 @@ const ICONS = {
   proveedores:'<path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/>',
   caja:'<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/>',
   cuentascorrientes:'<path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>',
+  gastos:'<path d="M2 8h20M2 8v11a2 2 0 002 2h16a2 2 0 002-2V8M2 8l3.5-5h13L22 8"/><path d="M9 13h6"/>',
   reportes:'<path d="M18 20V10M12 20V4M6 20v-6"/>',
   usuarios:'<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>',
   configuracion:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82A1.65 1.65 0 003 14.09H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019 9c.14.36.22.75.22 1.14.14 0 .28.02.42.05.14.03.28.07.41.14"/>',
@@ -2247,6 +2269,7 @@ const NAV_SECTIONS = [
     { key:'compras', label:'Compras', icon:'compras' },
     { key:'proveedores', label:'Proveedores', icon:'proveedores' },
     { key:'caja', label:'Caja', icon:'caja' },
+    { key:'gastos', label:'Gastos', icon:'gastos' },
     { key:'cuentascorrientes', label:'Cuentas Corrientes', icon:'cuentascorrientes' },
     { key:'reportes', label:'Reportes', icon:'reportes' }
   ]},
@@ -2281,6 +2304,8 @@ function renderSidebarNav(){
       if((item.key==='proveedores' || item.key==='compras') && session && !canManageCompras(session.rol)) return '';
       // Caja y Cuentas Corrientes: operativo/financiero
       if((item.key==='caja' || item.key==='cuentascorrientes') && session && !canManageCaja(session.rol)) return '';
+      // Gastos: mismos roles que Caja
+      if(item.key==='gastos' && session && !canManageGastos(session.rol)) return '';
       return `<a class="nav-item ${locked?'locked':''}" data-route="${item.key}" href="#/${item.key}" title="${locked?'Disponible en Fase '+MODULE_ROADMAP[item.key]:''}">
         ${svgIcon(item.icon)}<span class="nav-label">${item.label}</span>
         ${locked?`<span class="nav-badge">Fase ${MODULE_ROADMAP[item.key]}</span>`:''}
@@ -2384,6 +2409,10 @@ async function router(){
     case 'caja':
       if(!canManageCaja(Session.get().rol)){ outlet.innerHTML = viewNoPermiso(); return; }
       outlet.innerHTML = await viewCajaList(); bindCajaListEvents();
+      break;
+    case 'gastos':
+      if(!canManageGastos(Session.get().rol)){ outlet.innerHTML = viewNoPermiso(); return; }
+      outlet.innerHTML = await viewGastosList(); await bindGastosListEvents();
       break;
     case 'cuentascorrientes':
       if(!canManageCaja(Session.get().rol)){ outlet.innerHTML = viewNoPermiso(); return; }
@@ -8247,6 +8276,320 @@ async function openAjustarSaldoCajaModal(){
     Modal.close();
     router();
   };
+}
+
+/* -----------------------------------------------------------------------
+   20-O-bis. MÓDULO GASTOS
+   Gastos operativos del negocio (alquiler, sueldos, insumos, servicios,
+   etc), separados de Compras a proveedores. Cada categoría que el usuario
+   crea queda marcada como Fijo o Variable, y todo gasto cargado con esa
+   categoría hereda el tipo automáticamente. Registrar un gasto genera
+   además un egreso real en Caja (referencia "gasto:ID"), así que Caja,
+   Cierre de Caja y Resumen del día lo reflejan sin lógica aparte.
+----------------------------------------------------------------------- */
+let gastosMesSeleccionado = null; // 'YYYY-MM', se inicializa en bindGastosListEvents
+
+/* ---------- Categorías ---------- */
+function openCategoriaGastoModal(categoria=null){
+  Modal.open(
+    categoria ? 'Editar categoría' : 'Nueva categoría de gasto',
+    `
+    <div class="field"><label>Nombre</label><input type="text" id="cg-nombre" placeholder="Ej: Alquiler, Sueldos, Insumos de limpieza..." value="${categoria?Utils.escapeHTML(categoria.nombre):''}"></div>
+    <div class="field"><label>Tipo</label><select class="select-input" id="cg-tipo">${TIPOS_GASTO.map(t=>`<option value="${t}" ${categoria&&categoria.tipo===t?'selected':''}>${t}</option>`).join('')}</select></div>
+    <p style="font-size:11.5px; color:var(--text-muted); margin:-8px 0 4px;">Fijo: se repite todos los meses aprox. por el mismo monto (alquiler, sueldos). Variable: cambia mes a mes (insumos, mantenimiento, imprevistos).</p>
+    <div class="modal-actions"><button class="btn btn-ghost" id="cg-cancel">Cancelar</button><button class="btn btn-accent" id="cg-save">Guardar</button></div>
+    `,
+    { width:'400px' }
+  );
+  document.getElementById('cg-cancel').onclick = () => openCategoriasGastosModal();
+  document.getElementById('cg-save').onclick = async () => {
+    const nombre = document.getElementById('cg-nombre').value.trim();
+    const tipo = document.getElementById('cg-tipo').value;
+    if(!nombre){ Toast.show('error','Falta el nombre',''); return; }
+    if(categoria){
+      await DB.put('categoriasGastos', { ...categoria, nombre, tipo });
+      await Audit.log('categoria_gasto_editada', `Categoría de gasto editada: ${nombre} (${tipo}).`);
+      Toast.show('success','Categoría actualizada', nombre);
+    } else {
+      await DB.add('categoriasGastos', { nombre, tipo, activo:true });
+      await Audit.log('categoria_gasto_creada', `Categoría de gasto creada: ${nombre} (${tipo}).`);
+      Toast.show('success','Categoría creada', nombre);
+    }
+    openCategoriasGastosModal();
+  };
+}
+async function openCategoriasGastosModal(){
+  const categorias = (await DB.getAll('categoriasGastos')).sort((a,b)=>a.nombre.localeCompare(b.nombre));
+  Modal.open(
+    'Categorías de gastos',
+    `
+    <div style="display:flex; justify-content:flex-end; margin-bottom:12px;">
+      <button class="btn btn-accent btn-sm" id="cg-nueva">${svgIcon('gastos')} Nueva categoría</button>
+    </div>
+    <div class="doc-list">
+      ${categorias.length ? categorias.map(c=>`<div class="doc-item" style="justify-content:space-between;">
+        <span>${Utils.escapeHTML(c.nombre)} <span class="tag-chip" style="margin-left:8px;">${c.tipo}</span> ${c.activo===false?'<span class="badge badge-neutral" style="margin-left:6px;">Baja</span>':''}</span>
+        <span style="display:flex; gap:6px;">
+          <button class="btn btn-ghost btn-sm btn-editar-cat-gasto" data-id="${c.id}">Editar</button>
+          <button class="btn ${c.activo===false?'btn-ghost':'btn-danger-ghost'} btn-sm btn-toggle-cat-gasto" data-id="${c.id}">${c.activo===false?'Reactivar':'Baja'}</button>
+        </span>
+      </div>`).join('') : `<div class="empty-state" style="padding:24px;">${svgIcon('gastos')}<h3>Todavía no hay categorías</h3><p>Creá la primera para poder cargar gastos.</p></div>`}
+    </div>
+    <div class="modal-actions"><button class="btn btn-ghost" id="cg-cerrar">Cerrar</button></div>
+    `,
+    { width:'480px' }
+  );
+  document.getElementById('cg-cerrar').onclick = () => { Modal.close(); router(); };
+  document.getElementById('cg-nueva').onclick = () => openCategoriaGastoModal();
+  document.querySelectorAll('.btn-editar-cat-gasto').forEach(btn=>{
+    btn.onclick = async () => openCategoriaGastoModal(await DB.get('categoriasGastos', Number(btn.dataset.id)));
+  });
+  document.querySelectorAll('.btn-toggle-cat-gasto').forEach(btn=>{
+    btn.onclick = async () => {
+      const c = await DB.get('categoriasGastos', Number(btn.dataset.id));
+      const nuevoEstado = !(c.activo!==false);
+      await DB.put('categoriasGastos', { ...c, activo: nuevoEstado });
+      await Audit.log(nuevoEstado?'categoria_gasto_alta':'categoria_gasto_baja', `Categoría de gasto ${c.nombre} ${nuevoEstado?'reactivada':'dada de baja'}.`);
+      openCategoriasGastosModal();
+    };
+  });
+}
+
+/* ---------- Registro de gastos ---------- */
+async function registrarGasto({ categoriaId, fecha, monto, medioPago, concepto, observaciones }){
+  const categoria = await DB.get('categoriasGastos', categoriaId);
+  const session = Session.get();
+  const conceptoFinal = concepto || categoria.nombre;
+  const gastoId = await DB.add('gastos', {
+    categoriaId, categoriaNombre: categoria.nombre, tipo: categoria.tipo,
+    fecha, monto, medioPago, concepto: conceptoFinal, observaciones: observaciones||'',
+    fechaCreacion: Utils.nowISO(), usuarioId: session.usuarioId, usuarioNombre: session.nombre
+  });
+  await registrarMovimientoCaja({
+    tipo:'egreso',
+    concepto: `Gasto ${categoria.tipo.toLowerCase()} — ${categoria.nombre}: ${conceptoFinal}`,
+    monto, medioPago, referencia:`gasto:${gastoId}`
+  });
+  await Audit.log('gasto_registrado', `Gasto registrado — ${categoria.nombre} (${categoria.tipo}): $${monto.toLocaleString('es-AR')}.`);
+  return gastoId;
+}
+/* Revierte el egreso de Caja asociado (con un ingreso que lo compensa, para
+   no perder el rastro contable) y borra el registro del gasto. */
+async function eliminarGasto(gastoId){
+  const gasto = await DB.get('gastos', gastoId);
+  if(!gasto) return;
+  const refGasto = `gasto:${gastoId}`;
+  const egresos = (await DB.getAll('caja')).filter(m=>m.tipo==='egreso' && m.referencia===refGasto);
+  for(const m of egresos){
+    await registrarMovimientoCaja({ tipo:'ingreso', concepto:`Anulación — ${m.concepto}`, monto:m.monto, medioPago:m.medioPago, referencia:refGasto });
+  }
+  await DB.del('gastos', gastoId);
+  await Audit.log('gasto_eliminado', `Gasto eliminado — ${gasto.categoriaNombre}: $${gasto.monto.toLocaleString('es-AR')}.`);
+}
+
+async function openGastoModal(){
+  const categorias = await DB.getAll('categoriasGastos');
+  const categoriasActivas = categorias.filter(c=>c.activo!==false).sort((a,b)=>a.nombre.localeCompare(b.nombre));
+  if(!categoriasActivas.length){
+    Toast.show('error','Sin categorías','Primero creá al menos una categoría de gasto (botón "Categorías").');
+    return;
+  }
+  Modal.open(
+    'Nuevo gasto',
+    `
+    <div class="field"><label>Categoría</label>
+      <select class="select-input" id="gf-categoria">
+        <optgroup label="Fijos">${categoriasActivas.filter(c=>c.tipo==='Fijo').map(c=>`<option value="${c.id}">${Utils.escapeHTML(c.nombre)}</option>`).join('')}</optgroup>
+        <optgroup label="Variables">${categoriasActivas.filter(c=>c.tipo==='Variable').map(c=>`<option value="${c.id}">${Utils.escapeHTML(c.nombre)}</option>`).join('')}</optgroup>
+      </select>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Fecha</label><input type="date" id="gf-fecha" value="${Utils.hoyLocal()}" max="${Utils.hoyLocal()}"></div>
+      <div class="field"><label>Monto</label><input type="number" min="0.01" step="0.01" id="gf-monto" placeholder="0.00"></div>
+    </div>
+    <div class="field"><label>Medio de pago</label><select class="select-input" id="gf-medio">${MEDIOS_PAGO.filter(m=>m!=='Cuenta corriente').map(m=>`<option value="${m}">${m}</option>`).join('')}</select></div>
+    <div class="field"><label>Concepto / detalle</label><input type="text" id="gf-concepto" placeholder="Ej: Alquiler agosto, factura de luz..."></div>
+    <div class="field"><label>Observaciones (opcional)</label><textarea class="textarea-input" id="gf-observaciones"></textarea></div>
+    <div class="modal-actions"><button class="btn btn-ghost" id="gf-cancel">Cancelar</button><button class="btn btn-accent" id="gf-save">Registrar gasto</button></div>
+    `,
+    { width:'440px' }
+  );
+  document.getElementById('gf-cancel').onclick = () => Modal.close();
+  document.getElementById('gf-save').onclick = async () => {
+    const categoriaId = Number(document.getElementById('gf-categoria').value);
+    const fecha = document.getElementById('gf-fecha').value;
+    const monto = Number(document.getElementById('gf-monto').value);
+    const medioPago = document.getElementById('gf-medio').value;
+    const concepto = document.getElementById('gf-concepto').value.trim();
+    const observaciones = document.getElementById('gf-observaciones').value.trim();
+    if(!fecha){ Toast.show('error','Falta la fecha',''); return; }
+    if(!monto || monto<=0){ Toast.show('error','Monto inválido',''); return; }
+    await registrarGasto({ categoriaId, fecha, monto, medioPago, concepto, observaciones });
+    Toast.show('success','Gasto registrado', `$${monto.toLocaleString('es-AR')}`);
+    Modal.close();
+    router();
+  };
+}
+
+/* ---------- Vista principal: KPIs, gráficos y listado del mes ---------- */
+async function viewGastosList(){
+  if(gastosMesSeleccionado === null) gastosMesSeleccionado = Utils.hoyLocal().slice(0,7);
+  return `
+    <div class="page-header">
+      <div><h1>Gastos</h1><p>Gastos fijos y variables del negocio, separados de las compras a proveedores</p></div>
+      <div style="display:flex; gap:8px;">
+        ${canGestionarCategoriasGastos(Session.get().rol)?`<button class="btn btn-ghost" id="btn-categorias-gastos">${svgIcon('gear')} Categorías</button>`:''}
+        <button class="btn btn-accent" id="btn-nuevo-gasto">${svgIcon('gastos')} Nuevo gasto</button>
+      </div>
+    </div>
+    <div id="gastos-mes-content"></div>
+  `;
+}
+
+async function bindGastosListEvents(){
+  document.getElementById('btn-nuevo-gasto').onclick = () => openGastoModal();
+  const btnCat = document.getElementById('btn-categorias-gastos');
+  if(btnCat) btnCat.onclick = () => openCategoriasGastosModal();
+  await renderGastosMes();
+}
+
+async function renderGastosMes(){
+  const cont = document.getElementById('gastos-mes-content');
+  if(!cont) return;
+
+  const [ay, am] = gastosMesSeleccionado.split('-').map(Number);
+  const desde = `${gastosMesSeleccionado}-01`;
+  const hasta = new Date(ay, am, 0).toISOString().slice(0,10);
+  const mesAnteriorDate = new Date(ay, am-2, 1);
+  const mesAnteriorKey = mesAnteriorDate.toISOString().slice(0,7);
+
+  const todosLosGastos = await DB.getAll('gastos');
+  const gastosDelMes = todosLosGastos.filter(g => g.fecha>=desde && g.fecha<=hasta).sort((a,b)=> new Date(b.fecha)-new Date(a.fecha));
+  const gastosMesAnterior = todosLosGastos.filter(g => g.fecha.slice(0,7)===mesAnteriorKey);
+
+  const totalMes = gastosDelMes.reduce((a,g)=>a+g.monto,0);
+  const totalFijos = gastosDelMes.filter(g=>g.tipo==='Fijo').reduce((a,g)=>a+g.monto,0);
+  const totalVariables = gastosDelMes.filter(g=>g.tipo==='Variable').reduce((a,g)=>a+g.monto,0);
+  const totalMesAnterior = gastosMesAnterior.reduce((a,g)=>a+g.monto,0);
+  const variacion = totalMesAnterior>0 ? ((totalMes-totalMesAnterior)/totalMesAnterior*100) : (totalMes>0?100:0);
+
+  const porCategoria = {};
+  gastosDelMes.forEach(g=>{ porCategoria[g.categoriaNombre] = (porCategoria[g.categoriaNombre]||0) + g.monto; });
+  const categoriasOrdenadas = Object.entries(porCategoria).sort((a,b)=>b[1]-a[1]);
+
+  const mesLabel = new Date(gastosMesSeleccionado+'-01T00:00:00').toLocaleDateString('es-AR',{ month:'long', year:'numeric' });
+
+  cont.innerHTML = `
+    <div class="toolbar-filters" style="align-items:center;">
+      <button class="btn btn-ghost btn-sm" id="gastos-mes-anterior">‹</button>
+      <div style="font-weight:700; text-transform:capitalize; min-width:160px; text-align:center;">${mesLabel}</div>
+      <button class="btn btn-ghost btn-sm" id="gastos-mes-siguiente" ${gastosMesSeleccionado>=Utils.hoyLocal().slice(0,7)?'disabled':''}>›</button>
+      <button class="btn btn-ghost btn-sm" id="gastos-mes-actual">Mes actual</button>
+    </div>
+
+    <div class="grid-kpi">
+      <div class="kpi-card" style="--kpi-color:var(--danger)"><div class="kpi-label">Total del mes</div><div class="kpi-value">$${totalMes.toLocaleString('es-AR')}</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--accent)"><div class="kpi-label">Gastos Fijos</div><div class="kpi-value">$${totalFijos.toLocaleString('es-AR')}</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--teal)"><div class="kpi-label">Gastos Variables</div><div class="kpi-value">$${totalVariables.toLocaleString('es-AR')}</div></div>
+      <div class="kpi-card" style="--kpi-color:${variacion>0?'var(--danger)':'var(--teal)'}"><div class="kpi-label">Vs. mes anterior</div><div class="kpi-value">${variacion>=0?'+':''}${variacion.toFixed(1)}%</div></div>
+    </div>
+
+    ${gastosDelMes.length ? `
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:18px;">
+      <div class="report-chart-wrap" style="margin-bottom:0;">
+        <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">Fijos vs Variables</div>
+        <div class="chart-canvas-box" style="height:240px;"><canvas id="gastos-chart-tipo"></canvas></div>
+      </div>
+      <div class="report-chart-wrap" style="margin-bottom:0;">
+        <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">Gasto por categoría</div>
+        <div class="chart-canvas-box" style="height:240px;"><canvas id="gastos-chart-categorias"></canvas></div>
+      </div>
+    </div>
+    <div class="report-chart-wrap" style="margin-top:18px;">
+      <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">Evolución — últimos 6 meses</div>
+      <div class="chart-canvas-box" style="height:260px;"><canvas id="gastos-chart-evolucion"></canvas></div>
+    </div>
+    ` : ''}
+
+    <div class="card" style="padding:0; overflow-x:auto; margin-top:18px;">
+      <table class="data-table">
+        <thead><tr><th>Fecha</th><th>Categoría</th><th>Tipo</th><th>Concepto</th><th>Medio de pago</th><th>Monto</th><th style="text-align:right;">Acciones</th></tr></thead>
+        <tbody>
+          ${gastosDelMes.length ? gastosDelMes.map(g=>`<tr data-id="${g.id}">
+            <td class="font-mono" style="font-size:12px;">${new Date(g.fecha+'T00:00:00').toLocaleDateString('es-AR')}</td>
+            <td>${Utils.escapeHTML(g.categoriaNombre)}</td>
+            <td><span class="tag-chip">${g.tipo}</span></td>
+            <td>${Utils.escapeHTML(g.concepto)}</td>
+            <td>${Utils.escapeHTML(g.medioPago)}</td>
+            <td class="font-mono">$${g.monto.toLocaleString('es-AR')}</td>
+            <td style="text-align:right;"><button class="btn btn-danger-ghost btn-sm btn-eliminar-gasto" data-id="${g.id}">Eliminar</button></td>
+          </tr>`).join('') : `<tr><td colspan="7"><div class="empty-state">${svgIcon('gastos')}<h3>Sin gastos cargados este mes</h3></div></td></tr>`}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  document.getElementById('gastos-mes-anterior').onclick = () => { const d=new Date(ay, am-2, 1); gastosMesSeleccionado = d.toISOString().slice(0,7); renderGastosMes(); };
+  document.getElementById('gastos-mes-siguiente').onclick = () => { const d=new Date(ay, am, 1); gastosMesSeleccionado = d.toISOString().slice(0,7); renderGastosMes(); };
+  document.getElementById('gastos-mes-actual').onclick = () => { gastosMesSeleccionado = Utils.hoyLocal().slice(0,7); renderGastosMes(); };
+  document.querySelectorAll('.btn-eliminar-gasto').forEach(btn=>{
+    btn.onclick = async () => {
+      if(!confirm('¿Eliminar este gasto? Se genera un movimiento en Caja que revierte el egreso original.')) return;
+      await eliminarGasto(Number(btn.dataset.id));
+      Toast.show('success','Gasto eliminado','');
+      renderGastosMes();
+    };
+  });
+
+  if(gastosDelMes.length){
+    drawDoughnutChart(document.getElementById('gastos-chart-tipo'), ['Fijos','Variables'], [totalFijos, totalVariables], ['#FF8C1A','#17B8A6']);
+    const topCategorias = categoriasOrdenadas.slice(0,8);
+    drawHorizontalBarChart(document.getElementById('gastos-chart-categorias'), topCategorias.map(c=>c[0]), topCategorias.map(c=>c[1]), '#D6393E', 'Gasto');
+    await drawGastosEvolucionChart(document.getElementById('gastos-chart-evolucion'), gastosMesSeleccionado);
+  }
+}
+
+/* Barras apiladas Fijos/Variables de los últimos 6 meses hasta el mes
+   seleccionado (inclusive), para ver la tendencia del gasto total. */
+async function drawGastosEvolucionChart(canvas, mesHasta){
+  if(!canvas) return;
+  const [ay, am] = mesHasta.split('-').map(Number);
+  const meses = [];
+  for(let i=5;i>=0;i--){ const d=new Date(ay, am-1-i, 1); meses.push(d.toISOString().slice(0,7)); }
+  const todosLosGastos = await DB.getAll('gastos');
+  const fijos = meses.map(m => todosLosGastos.filter(g=>g.fecha.slice(0,7)===m && g.tipo==='Fijo').reduce((a,g)=>a+g.monto,0));
+  const variables = meses.map(m => todosLosGastos.filter(g=>g.fecha.slice(0,7)===m && g.tipo==='Variable').reduce((a,g)=>a+g.monto,0));
+  const labels = meses.map(m => new Date(m+'-01T00:00:00').toLocaleDateString('es-AR',{ month:'short', year:'2-digit' }));
+
+  destroyChartOn(canvas);
+  const theme = chartThemeColors();
+  new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label:'Fijos', data:fijos, backgroundColor:'#FF8C1A', borderRadius:5, maxBarThickness:38 },
+        { label:'Variables', data:variables, backgroundColor:'#17B8A6', borderRadius:5, maxBarThickness:38 }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 650, easing: 'easeOutQuart' },
+      plugins: {
+        legend: { position:'bottom', labels:{ color: theme.muted, boxWidth:12, boxHeight:12, font:{ size:11 }, usePointStyle:true, pointStyle:'circle' } },
+        tooltip: {
+          backgroundColor: theme.panel, titleColor: theme.text, bodyColor: theme.text,
+          borderColor: theme.grid, borderWidth: 1, padding: 10, cornerRadius: 8,
+          callbacks: { label: (item) => `${item.dataset.label}: $${item.parsed.y.toLocaleString('es-AR')}` }
+        }
+      },
+      scales: {
+        x: { stacked:true, grid:{ display:false }, ticks:{ color: theme.muted, font:{ size:10.5 } } },
+        y: { stacked:true, grid:{ color: theme.grid }, ticks:{ color: theme.muted, font:{ size:10.5 }, callback:(v)=> '$'+v.toLocaleString('es-AR') } }
+      }
+    }
+  });
 }
 
 /* -----------------------------------------------------------------------
