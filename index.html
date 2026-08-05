@@ -617,8 +617,9 @@ textarea.textarea-input{ resize:vertical; min-height:70px; }
 .picker-item:hover{ border-color:var(--accent-ring); }
 
 /* Productos / Stock */
-.prod-thumb{ width:38px; height:38px; border-radius:8px; overflow:hidden; background:var(--bg-panel-alt); display:flex; align-items:center; justify-content:center; flex-shrink:0; border:1px solid var(--border); }
+.prod-thumb{ width:38px; height:38px; border-radius:8px; overflow:hidden; background:var(--bg-panel-alt); display:flex; align-items:center; justify-content:center; flex-shrink:0; border:1px solid var(--border); position:relative; transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
 .prod-thumb img{ width:100%; height:100%; object-fit:cover; }
+.prod-thumb:has(img):hover{ transform:scale(2.6); z-index:50; box-shadow:0 10px 28px rgba(0,0,0,.4); border-color:var(--accent); cursor:zoom-in; }
 .star-btn{ color:var(--text-muted); width:26px; height:26px; display:flex; align-items:center; justify-content:center; border-radius:7px; }
 .star-btn.active{ color:var(--warning); }
 .star-btn svg{ width:16px; height:16px; }
@@ -2383,7 +2384,8 @@ async function router(){
       else{ outlet.innerHTML = await viewProductosList(); bindProductosListEvents(); }
       break;
     case 'stock':
-      outlet.innerHTML = await viewStockList(); bindStockListEvents();
+      if(param==='rotacion'){ outlet.innerHTML = await viewStockRotacion(); bindStockRotacionEvents(); }
+      else{ outlet.innerHTML = await viewStockList(); bindStockListEvents(); }
       break;
     case 'pos':
       if(!canUsarPOS(Session.get().rol)){ outlet.innerHTML = viewNoPermiso(); return; }
@@ -6192,7 +6194,7 @@ async function viewStockList(){
   const valorInventario = productos.reduce((acc,p)=> acc + (p.precioCosto||0)*(p.stockActual||0), 0);
 
   return `
-    <div class="page-header"><div><h1>Stock</h1><p>Control de inventario en tiempo real</p></div></div>
+    <div class="page-header"><div><h1>Stock</h1><p>Control de inventario en tiempo real</p></div><div><a href="#/stock/rotacion" class="btn btn-ghost">${svgIcon('reportes')} Rotación</a></div></div>
     <div class="grid-kpi">
       <div class="kpi-card" style="--kpi-color:var(--accent)"><div class="kpi-label">Productos activos</div><div class="kpi-value">${productos.length}</div></div>
       <div class="kpi-card" style="--kpi-color:var(--danger)"><div class="kpi-label">Stock crítico</div><div class="kpi-value">${criticos}</div><div class="kpi-sub">en o por debajo del mínimo</div></div>
@@ -6261,6 +6263,170 @@ function bindStockListEvents(){
   document.getElementById('stock-search').addEventListener('input', applyFilters);
   document.getElementById('stock-filtro-categoria').addEventListener('change', applyFilters);
   document.getElementById('stock-filtro-critico').addEventListener('change', applyFilters);
+}
+
+/* -----------------------------------------------------------------------
+   20-J-bis. ANÁLISIS DE ROTACIÓN DE STOCK
+   Usa el kardex (movimientosStock) para ver, producto por producto, hace
+   cuánto no se vende y cada cuánto se vende en promedio. Parámetros
+   definidos junto con el usuario: ventana de 60 días para medir velocidad
+   de venta reciente, y 45 días sin vender para considerar un producto
+   "sin movimiento".
+----------------------------------------------------------------------- */
+const ROTACION_VENTANA_DIAS = 60;
+const ROTACION_UMBRAL_SIN_MOVIMIENTO = 45;
+
+async function calcularRotacionStock(){
+  const productos = (await DB.getAll('productos')).filter(p=>p.activo!==false);
+  const movimientos = await DB.getAll('movimientosStock');
+  const egresosPorProducto = {};
+  movimientos.filter(m=>m.tipo==='egreso').forEach(m=>{
+    (egresosPorProducto[m.productoId] = egresosPorProducto[m.productoId]||[]).push(m);
+  });
+
+  const hoy = new Date();
+  const corteVentana = new Date(); corteVentana.setDate(corteVentana.getDate()-ROTACION_VENTANA_DIAS);
+
+  const filas = productos.map(p=>{
+    const egresos = (egresosPorProducto[p.id]||[]).sort((a,b)=> new Date(a.fecha)-new Date(b.fecha));
+    const ultimaVenta = egresos.length ? egresos[egresos.length-1].fecha : null;
+    const fechaReferencia = ultimaVenta ? new Date(ultimaVenta) : new Date(p.fechaCreacion || hoy);
+    const diasParado = Math.max(0, Math.floor((hoy - fechaReferencia) / 86400000));
+
+    const egresosVentana = egresos.filter(m=> new Date(m.fecha) >= corteVentana);
+    const unidadesVentana = egresosVentana.reduce((a,m)=>a+m.cantidad,0);
+    const velocidadDiaria = unidadesVentana / ROTACION_VENTANA_DIAS;
+
+    let promedioDiasEntreVentas = null;
+    if(egresos.length >= 2){
+      const diffs = [];
+      for(let i=1;i<egresos.length;i++) diffs.push((new Date(egresos[i].fecha) - new Date(egresos[i-1].fecha))/86400000);
+      promedioDiasEntreVentas = diffs.reduce((a,b)=>a+b,0)/diffs.length;
+    }
+
+    let diasParaAgotar = null;
+    if(velocidadDiaria > 0 && p.stockActual > 0) diasParaAgotar = Math.round(p.stockActual / velocidadDiaria);
+
+    let clasificacion;
+    if(egresos.length===0 || diasParado >= ROTACION_UMBRAL_SIN_MOVIMIENTO) clasificacion = 'Sin movimiento';
+    else if(diasParado <= 15) clasificacion = 'Alta rotación';
+    else if(diasParado <= 30) clasificacion = 'Rotación media';
+    else clasificacion = 'Baja rotación';
+
+    return { producto:p, ultimaVenta, diasParado, unidadesVentana, promedioDiasEntreVentas, diasParaAgotar, clasificacion, totalVentasHistorico: egresos.length };
+  });
+
+  filas.sort((a,b)=> b.diasParado - a.diasParado); // más parado primero, es lo más accionable
+  return filas;
+}
+
+async function viewStockRotacion(){
+  const filas = await calcularRotacionStock();
+  const sinMovimiento = filas.filter(f=>f.clasificacion==='Sin movimiento');
+  const conVentas = filas.filter(f=>f.totalVentasHistorico>0);
+  const rotacionPromedioDias = conVentas.length ? (conVentas.reduce((a,f)=>a+f.diasParado,0)/conVentas.length) : null;
+  const masParado = filas[0];
+
+  const CLASIF_COLORES = { 'Alta rotación':'#17B8A6', 'Rotación media':'#F5A623', 'Baja rotación':'#FF8C1A', 'Sin movimiento':'#D6393E' };
+  const CLASIF_BADGE = { 'Alta rotación':'badge-ok', 'Rotación media':'badge-neutral', 'Baja rotación':'badge-warn', 'Sin movimiento':'badge-danger' };
+
+  const top10Parados = filas.slice(0,10);
+  const porClasificacion = {};
+  filas.forEach(f=>{ porClasificacion[f.clasificacion] = (porClasificacion[f.clasificacion]||0)+1; });
+
+  return `
+    <a href="#/stock" class="back-link">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Volver a Stock
+    </a>
+    <div class="page-header"><div><h1>Rotación de Stock</h1><p>Qué tan rápido se vende cada producto — ventana de ${ROTACION_VENTANA_DIAS} días, sin movimiento a partir de ${ROTACION_UMBRAL_SIN_MOVIMIENTO} días sin vender</p></div></div>
+
+    <div class="grid-kpi">
+      <div class="kpi-card" style="--kpi-color:var(--danger)"><div class="kpi-label">Sin movimiento</div><div class="kpi-value">${sinMovimiento.length}</div><div class="kpi-sub">de ${filas.length} productos</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--accent)"><div class="kpi-label">Rotación promedio</div><div class="kpi-value">${rotacionPromedioDias!=null?Math.round(rotacionPromedioDias)+' días':'—'}</div><div class="kpi-sub">entre productos con ventas</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--teal)"><div class="kpi-label">Más parado</div><div class="kpi-value" style="font-size:16px;">${masParado?Utils.escapeHTML(masParado.producto.nombre):'—'}</div><div class="kpi-sub">${masParado?masParado.diasParado+' días sin venderse':''}</div></div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:18px;">
+      <div class="report-chart-wrap" style="margin-bottom:0;">
+        <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">Top 10 — más días sin venderse</div>
+        <div class="chart-canvas-box" style="height:280px;"><canvas id="rot-chart-top10"></canvas></div>
+      </div>
+      <div class="report-chart-wrap" style="margin-bottom:0;">
+        <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">Productos por clasificación</div>
+        <div class="chart-canvas-box" style="height:280px;"><canvas id="rot-chart-clasificacion"></canvas></div>
+      </div>
+    </div>
+
+    <div class="toolbar-filters" style="margin-top:18px;">
+      <div class="toolbar-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input type="text" id="rot-search" placeholder="Buscar por código o nombre...">
+      </div>
+      <select class="toolbar-select" id="rot-filtro-categoria">
+        <option value="">Todas las categorías</option>
+        ${CATEGORIAS_PRODUCTO.map(c=>`<option value="${c}">${c}</option>`).join('')}
+      </select>
+      <select class="toolbar-select" id="rot-filtro-clasificacion">
+        <option value="">Todas las clasificaciones</option>
+        <option value="Sin movimiento">Sin movimiento</option>
+        <option value="Baja rotación">Baja rotación</option>
+        <option value="Rotación media">Rotación media</option>
+        <option value="Alta rotación">Alta rotación</option>
+      </select>
+    </div>
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table class="data-table" id="rot-table">
+        <thead><tr><th>Producto</th><th>Categoría</th><th>Stock actual</th><th>Última venta</th><th>Días parado</th><th>Ventas (${ROTACION_VENTANA_DIAS}d)</th><th>Cada cuánto se vende</th><th>Días para agotar stock</th><th>Clasificación</th></tr></thead>
+        <tbody>
+          ${filas.length ? filas.map(f=>{
+            const p = f.producto;
+            return `<tr data-id="${p.id}" data-categoria="${p.categoria}" data-clasificacion="${f.clasificacion}" data-search="${Utils.escapeHTML((p.codigo+' '+p.nombre).toLowerCase())}">
+              <td style="font-weight:700;">${Utils.escapeHTML(p.nombre)}</td>
+              <td><span class="tag-chip">${Utils.escapeHTML(p.categoria)}</span></td>
+              <td>${p.stockActual} ${Utils.escapeHTML(p.unidad)}</td>
+              <td class="font-mono" style="font-size:12px;">${f.ultimaVenta?parsearFechaSegura(f.ultimaVenta).toLocaleDateString('es-AR'):'Nunca'}</td>
+              <td class="font-mono" style="font-weight:700; ${f.diasParado>=ROTACION_UMBRAL_SIN_MOVIMIENTO?'color:var(--danger)':''}">${f.diasParado} días</td>
+              <td class="font-mono">${f.unidadesVentana}</td>
+              <td class="font-mono">${f.promedioDiasEntreVentas!=null?Math.round(f.promedioDiasEntreVentas)+' días':'—'}</td>
+              <td class="font-mono">${f.diasParaAgotar!=null?f.diasParaAgotar+' días':'—'}</td>
+              <td><span class="badge ${CLASIF_BADGE[f.clasificacion]}">${f.clasificacion}</span></td>
+            </tr>`;
+          }).join('') : `<tr><td colspan="9"><div class="empty-state">${svgIcon('stock')}<h3>Sin productos activos</h3></div></td></tr>`}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function bindStockRotacionEvents(){
+  function applyFilters(){
+    const q = document.getElementById('rot-search').value.trim().toLowerCase();
+    const cat = document.getElementById('rot-filtro-categoria').value;
+    const clasif = document.getElementById('rot-filtro-clasificacion').value;
+    document.querySelectorAll('#rot-table tbody tr[data-id]').forEach(tr=>{
+      const matchQ = !q || tr.dataset.search.includes(q);
+      const matchCat = !cat || tr.dataset.categoria === cat;
+      const matchClasif = !clasif || tr.dataset.clasificacion === clasif;
+      tr.style.display = (matchQ && matchCat && matchClasif) ? '' : 'none';
+    });
+  }
+  document.getElementById('rot-search').addEventListener('input', applyFilters);
+  document.getElementById('rot-filtro-categoria').addEventListener('change', applyFilters);
+  document.getElementById('rot-filtro-clasificacion').addEventListener('change', applyFilters);
+
+  calcularRotacionStock().then(filas=>{
+    const top10 = filas.slice(0,10);
+    const canvasTop10 = document.getElementById('rot-chart-top10');
+    if(canvasTop10) drawHorizontalBarChart(canvasTop10, top10.map(f=>f.producto.nombre), top10.map(f=>f.diasParado), '#D6393E', 'Días parado');
+
+    const CLASIF_COLORES = { 'Alta rotación':'#17B8A6', 'Rotación media':'#F5A623', 'Baja rotación':'#FF8C1A', 'Sin movimiento':'#D6393E' };
+    const porClasificacion = {};
+    filas.forEach(f=>{ porClasificacion[f.clasificacion] = (porClasificacion[f.clasificacion]||0)+1; });
+    const labelsClasif = Object.keys(porClasificacion);
+    const canvasClasif = document.getElementById('rot-chart-clasificacion');
+    if(canvasClasif) drawDoughnutChart(canvasClasif, labelsClasif, labelsClasif.map(l=>porClasificacion[l]), labelsClasif.map(l=>CLASIF_COLORES[l]));
+  });
 }
 
 function openAjusteStockModal(producto){
