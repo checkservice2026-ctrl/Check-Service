@@ -7550,6 +7550,7 @@ function ctaCteProveedorHTML(proveedor, movimientosAsc, saldoActual){
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
       <div><div style="font-size:11.5px; color:var(--text-muted);">Deuda actual</div><div style="font-size:22px; font-weight:700;" class="${saldoActual>0.009?'saldo-deudor':'saldo-cero'}">$${saldoActual.toLocaleString('es-AR')}</div></div>
       <div style="display:flex; gap:8px;">
+        ${saldoActual>0.009?`<button class="btn btn-accent btn-sm" id="pcc-registrar-pago">${svgIcon('caja')} Registrar pago</button>`:''}
         ${esAdministrador?`<button class="btn btn-ghost btn-sm" id="pcc-ajustar-saldo">${svgIcon('gear')} Ajustar saldo</button>`:''}
       </div>
     </div>
@@ -7655,6 +7656,9 @@ function bindProveedorDetalleEvents(id){
 
   const btnAjustar = document.getElementById('pcc-ajustar-saldo');
   if(btnAjustar) btnAjustar.onclick = () => openAjustarSaldoProveedorModal(id);
+
+  const btnRegistrarPago = document.getElementById('pcc-registrar-pago');
+  if(btnRegistrarPago) btnRegistrarPago.onclick = () => openRegistrarPagoProveedorModal(id);
 
   document.getElementById('btn-editar-proveedor-detalle').onclick = async () => openProveedorModal(await DB.get('proveedores', id));
   document.getElementById('btn-toggle-baja-proveedor-detalle').onclick = async () => {
@@ -7831,6 +7835,128 @@ async function openAjustarSaldoProveedorModal(proveedorId){
     await DB.put('proveedores', { ...proveedor, ajusteSaldoManual: nuevoAjuste });
     await Audit.log('proveedor_ajuste_saldo', `Ajuste manual de deuda — ${proveedor.nombre}: de $${deudaActual.toLocaleString('es-AR')} a $${nuevaDeuda.toLocaleString('es-AR')}. Motivo: ${motivo}`);
     Toast.show('success','Deuda ajustada', `Nueva deuda: $${nuevaDeuda.toLocaleString('es-AR')}`);
+    Modal.close();
+    router();
+  };
+}
+
+/* Registrar pago a un proveedor, con selección opcional de facturas
+   (compras) pendientes de pago.
+   - Si se seleccionan una o más facturas, el monto a pagar se autocompleta
+     con la suma de sus saldos pendientes (editable).
+   - El pago se aplica en orden de prioridad: primero las facturas
+     seleccionadas (en orden cronológico), y luego, si sobra monto, el
+     resto de las facturas pendientes de más vieja a más nueva. Así, un
+     "pago a cuenta" sin ninguna factura seleccionada impacta directamente
+     en las facturas más viejas primero.
+   - Si el monto supera la deuda total (todas las facturas quedan saldadas
+     y todavía sobra), el excedente se guarda como ajuste de saldo a favor
+     del proveedor (mismo campo que usa "Ajustar saldo"), para ser
+     descontado de deuda futura. */
+async function openRegistrarPagoProveedorModal(proveedorId){
+  const proveedor = await DB.get('proveedores', proveedorId);
+  const todasCompras = await DB.getAllByIndex('compras','proveedorId', proveedorId);
+  const pendientes = todasCompras
+    .filter(c => (c.total - c.montoPagado) > 0.009)
+    .sort((a,b)=> new Date(a.fecha) - new Date(b.fecha)); // más vieja primero
+  const saldoTotal = await saldoPendienteProveedor(proveedorId);
+
+  const filasHTML = pendientes.length ? `
+    <div style="font-size:12px; color:var(--text-muted); margin-bottom:6px;">Elegí las facturas a pagar (opcional). Si no elegís ninguna, el pago se registra como pago a cuenta y se aplica automáticamente a las facturas más viejas primero.</div>
+    <div class="doc-list" style="max-height:220px; overflow-y:auto; margin-bottom:10px; border:1px solid var(--border-soft); border-radius:10px;">
+      ${pendientes.map(c=>{
+        const saldoC = c.total - c.montoPagado;
+        return `<label class="rpp-fila" style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-bottom:1px solid var(--border-soft); cursor:pointer;">
+          <input type="checkbox" class="rpp-check" data-id="${c.id}" data-saldo="${saldoC.toFixed(2)}">
+          <span style="flex:1; font-size:12.5px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            ${new Date(c.fecha+'T00:00:00').toLocaleDateString('es-AR')} — ${c.numeroFactura?'Factura Nº '+Utils.escapeHTML(c.numeroFactura):'#'+c.id}
+            ${estadoPagoBadge(c.estadoPago)}
+          </span>
+          <span class="font-mono" style="font-weight:600;">$${saldoC.toLocaleString('es-AR')}</span>
+        </label>`;
+      }).join('')}
+    </div>
+  ` : `<div class="empty-state" style="padding:20px;">${svgIcon('compras')}<h3>Sin facturas pendientes</h3><p>Este pago se va a registrar como pago a cuenta.</p></div>`;
+
+  Modal.open(
+    'Registrar pago — ' + proveedor.nombre,
+    `
+    <div class="card" style="padding:12px 14px; margin-bottom:14px;">
+      <div style="font-size:12px; color:var(--text-muted);">Deuda total</div>
+      <div style="font-size:20px; font-weight:700;" class="${saldoTotal>0.009?'saldo-deudor':'saldo-cero'}">$${saldoTotal.toLocaleString('es-AR')}</div>
+    </div>
+    ${filasHTML}
+    <div class="field"><label>Monto a pagar</label><input type="number" min="0.01" step="0.01" id="rpp-monto" value="0"></div>
+    <div id="rpp-hint" style="font-size:11.5px; color:var(--text-muted); margin:-8px 0 14px;"></div>
+    <div class="field"><label>Medio de pago</label><select class="select-input" id="rpp-medio">${MEDIOS_PAGO.filter(m=>m!=='Cuenta corriente').map(m=>`<option value="${m}">${m}</option>`).join('')}</select></div>
+    <div class="modal-actions"><button class="btn btn-ghost" id="rpp-cancel">Cancelar</button><button class="btn btn-accent" id="rpp-save">Confirmar pago</button></div>
+    `,
+    { width:'460px' }
+  );
+
+  const inputMonto = document.getElementById('rpp-monto');
+  const hint = document.getElementById('rpp-hint');
+  const checks = () => Array.from(document.querySelectorAll('.rpp-check'));
+
+  function actualizarSeleccion(){
+    const seleccionados = checks().filter(ch=>ch.checked);
+    document.querySelectorAll('.rpp-fila').forEach(f=>{
+      const chk = f.querySelector('.rpp-check');
+      f.style.background = chk.checked ? 'var(--accent-dim)' : '';
+    });
+    if(seleccionados.length){
+      const suma = seleccionados.reduce((a,ch)=>a+Number(ch.dataset.saldo),0);
+      inputMonto.value = suma.toFixed(2);
+      hint.textContent = `${seleccionados.length} factura(s) seleccionada(s) — suma $${suma.toLocaleString('es-AR')}. Podés reducir el monto para un pago parcial.`;
+    } else {
+      hint.textContent = pendientes.length ? 'Pago a cuenta: se va a aplicar a las facturas más viejas primero.' : 'Pago a cuenta.';
+    }
+  }
+  checks().forEach(ch => ch.addEventListener('change', actualizarSeleccion));
+  actualizarSeleccion();
+
+  document.getElementById('rpp-cancel').onclick = () => Modal.close();
+  document.getElementById('rpp-save').onclick = async () => {
+    const monto = Number(inputMonto.value);
+    if(!monto || monto<=0){ Toast.show('error','Monto inválido',''); return; }
+    const medioPago = document.getElementById('rpp-medio').value;
+    const idsSeleccionados = new Set(checks().filter(ch=>ch.checked).map(ch=>Number(ch.dataset.id)));
+
+    // Orden de aplicación del pago: primero las facturas seleccionadas
+    // (respetando su orden cronológico), y después el resto de las
+    // pendientes de más vieja a más nueva.
+    const prioridad = [
+      ...pendientes.filter(c=>idsSeleccionados.has(c.id)),
+      ...pendientes.filter(c=>!idsSeleccionados.has(c.id))
+    ];
+
+    let restante = monto;
+    const detalleAplicado = [];
+    for(const c of prioridad){
+      if(restante <= 0.009) break;
+      const saldoC = c.total - c.montoPagado;
+      if(saldoC <= 0.009) continue;
+      const aplicado = Math.min(restante, saldoC);
+      const nuevoMontoPagado = c.montoPagado + aplicado;
+      const nuevoEstado = nuevoMontoPagado >= c.total - 0.009 ? 'Pagada' : 'Parcial';
+      await DB.put('compras', { ...c, montoPagado: nuevoMontoPagado, estadoPago: nuevoEstado });
+      await registrarMovimientoCaja({ tipo:'egreso', concepto:`Pago a proveedor ${proveedor.nombre}${c.numeroFactura?' - Factura '+c.numeroFactura:''}`, monto: aplicado, medioPago, referencia:`compra:${c.id}` });
+      detalleAplicado.push(`Factura ${c.numeroFactura||'#'+c.id}: $${aplicado.toLocaleString('es-AR')}`);
+      restante -= aplicado;
+    }
+
+    if(restante > 0.009){
+      // No quedan facturas pendientes a las que aplicar el resto: queda
+      // como pago a cuenta / adelanto (crédito a favor del proveedor),
+      // guardado en el mismo campo que usa "Ajustar saldo".
+      const nuevoAjuste = (proveedor.ajusteSaldoManual||0) - restante;
+      await DB.put('proveedores', { ...proveedor, ajusteSaldoManual: nuevoAjuste });
+      await registrarMovimientoCaja({ tipo:'egreso', concepto:`Pago a cuenta — proveedor ${proveedor.nombre}`, monto: restante, medioPago, referencia:`proveedor-adelanto:${proveedorId}` });
+      detalleAplicado.push(`Pago a cuenta (adelanto): $${restante.toLocaleString('es-AR')}`);
+    }
+
+    await Audit.log('proveedor_pago_registrado', `Pago de $${monto.toLocaleString('es-AR')} registrado para ${proveedor.nombre}. ${detalleAplicado.join(' · ')}`);
+    Toast.show('success','Pago registrado', `$${monto.toLocaleString('es-AR')}`);
     Modal.close();
     router();
   };
