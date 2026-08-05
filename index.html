@@ -40,6 +40,8 @@
   --danger-dim:rgba(229,72,77,.14);
   --warning:#F5A623;
   --warning-dim:rgba(245,166,35,.14);
+  --info:#4C9AFF;
+  --info-dim:rgba(76,154,255,.14);
   --shadow-lift: 0 8px 24px rgba(0,0,0,.35);
   --shadow-soft: 0 2px 8px rgba(0,0,0,.25);
 }
@@ -63,6 +65,8 @@
   --danger-dim:rgba(214,57,62,.10);
   --warning:#C97F0E;
   --warning-dim:rgba(201,127,14,.10);
+  --info:#2C6ECB;
+  --info-dim:rgba(44,110,203,.10);
   --shadow-lift: 0 8px 24px rgba(20,23,26,.10);
   --shadow-soft: 0 2px 8px rgba(20,23,26,.06);
 }
@@ -422,6 +426,22 @@ a{ color:inherit; text-decoration:none; }
 .kpi-label{ font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:700; }
 .kpi-value{ font-size:26px; font-weight:700; margin-top:6px; font-family:'Consolas','SF Mono',monospace; }
 .kpi-sub{ font-size:11.5px; color:var(--text-secondary); margin-top:4px; }
+
+/* Desglose de saldo de Caja: Efectivo vs Cuentas bancarias */
+.caja-saldo-breakdown{ display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:14px; margin-bottom:10px; }
+.csb-card{ background:var(--bg-panel); border:1px solid var(--border); border-radius:14px; padding:18px 20px; position:relative; overflow:hidden; }
+.csb-card::before{ content:''; position:absolute; top:0; left:0; width:4px; height:100%; background:var(--csb-color,var(--accent)); }
+.csb-head{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.csb-icon{ width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:17px; background:var(--csb-bg,var(--accent-dim)); flex-shrink:0; }
+.csb-label{ font-size:11.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:700; }
+.csb-value{ font-size:24px; font-weight:700; font-family:'Consolas','SF Mono',monospace; }
+.csb-chips{ display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+.csb-chip{ display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--text-secondary); background:var(--bg-panel-alt); border:1px solid var(--border-soft); border-radius:20px; padding:4px 10px 4px 8px; }
+.csb-chip-dot{ width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.csb-chip b{ color:var(--text-primary); font-family:'Consolas','SF Mono',monospace; font-weight:700; }
+.caja-saldo-bar{ height:8px; border-radius:6px; overflow:hidden; display:flex; background:var(--bg-panel-alt); margin-bottom:18px; border:1px solid var(--border-soft); }
+.caja-saldo-bar-seg{ height:100%; transition:width .3s ease; }
+.caja-saldo-bar-legend{ display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted); margin:-12px 0 18px; }
 
 /* Calendario Financiero (Dashboard) */
 .calfin-grid-header{ display:grid; grid-template-columns:repeat(7,1fr); gap:8px; margin-bottom:8px; }
@@ -4723,7 +4743,7 @@ async function openVehiculoModal(vehiculo=null, clienteIdFijo=null){
 ----------------------------------------------------------------------- */
 function historialGarantiaBadge(h){
   if(!h.garantiaDias) return `<span class="badge badge-neutral">Sin garantía</span>`;
-  const vencimiento = new Date(new Date(h.fecha).getTime() + h.garantiaDias*86400000);
+  const vencimiento = new Date(parsearFechaSegura(h.fecha).getTime() + h.garantiaDias*86400000);
   const vigente = vencimiento >= new Date();
   return `<span class="badge ${vigente?'badge-garantia-ok':'badge-garantia-venc'}">${vigente?'En garantía hasta '+vencimiento.toLocaleDateString('es-AR'):'Garantía vencida'}</span>`;
 }
@@ -4741,7 +4761,7 @@ function historialSaldoPendiente(h){
 function historialProximoTexto(h){
   const partes = [];
   if(h.proximoServiceKm) partes.push(Number(h.proximoServiceKm).toLocaleString('es-AR')+' km');
-  if(h.proximoServiceFecha) partes.push(new Date(h.proximoServiceFecha).toLocaleDateString('es-AR'));
+  if(h.proximoServiceFecha) partes.push(parsearFechaSegura(h.proximoServiceFecha).toLocaleDateString('es-AR'));
   return partes.length ? partes.join(' / ') : '—';
 }
 function historialItemsRealizados(h){
@@ -4845,7 +4865,7 @@ function historialTimelineCardHTML(h, vehiculo, puedeGestionar, verCosto){
   return `<div class="timeline-item">
     <div class="timeline-card">
       <div class="timeline-card-head">
-        <div><span class="tch-fecha">${new Date(h.fecha).toLocaleDateString('es-AR')}</span> <span class="tch-km">${h.kilometraje?Number(h.kilometraje).toLocaleString('es-AR')+' km':''}</span></div>
+        <div><span class="tch-fecha">${parsearFechaSegura(h.fecha).toLocaleDateString('es-AR')}</span> <span class="tch-km">${h.kilometraje?Number(h.kilometraje).toLocaleString('es-AR')+' km':''}</span></div>
         <div style="display:flex; gap:6px;">${historialEntregaBadge(h)}${estadoPagoBadge(historialEstadoPagoEfectivo(h))}${historialGarantiaBadge(h)}</div>
       </div>
       <div style="font-size:12.8px; color:var(--text-secondary);">${Utils.escapeHTML(h.aceiteMarca||'')} ${Utils.escapeHTML(h.aceiteTipo||'')} ${h.aceiteCantidadLts?'· '+h.aceiteCantidadLts+'L':''}</div>
@@ -4940,7 +4960,7 @@ async function openRegistrarPagoHistorialModal(h){
   const cliente = h.clienteId ? await DB.get('clientes', h.clienteId) : null;
 
   Modal.open(
-    'Registrar pago — service ' + new Date(h.fecha).toLocaleDateString('es-AR'),
+    'Registrar pago — service ' + parsearFechaSegura(h.fecha).toLocaleDateString('es-AR'),
     `
     <div class="card" style="padding:12px 14px; margin-bottom:14px;">
       <div style="font-size:12px; color:var(--text-muted);">Vehículo</div>
@@ -5232,7 +5252,7 @@ function openHistorialDetailModal(h){
   const session = Session.get();
   const verCosto = canSeeCosto(session.rol);
   Modal.open(
-    'Detalle del service — ' + new Date(h.fecha).toLocaleDateString('es-AR'),
+    'Detalle del service — ' + parsearFechaSegura(h.fecha).toLocaleDateString('es-AR'),
     `<div style="display:flex; flex-direction:column; gap:12px;">
       <div style="display:flex; gap:6px; flex-wrap:wrap;">${historialEntregaBadge(h)}${estadoPagoBadge(historialEstadoPagoEfectivo(h))}${historialGarantiaBadge(h)} <span class="badge badge-neutral">${h.kilometraje?Number(h.kilometraje).toLocaleString('es-AR')+' km':''}</span></div>
       <div><b>Aceite:</b> ${Utils.escapeHTML(h.aceiteMarca||'—')} ${Utils.escapeHTML(h.aceiteTipo||'')} ${h.aceiteCantidadLts?'· '+h.aceiteCantidadLts+'L':''}</div>
@@ -5299,7 +5319,7 @@ async function viewHistorialList(){
             const saldo = historialSaldoPendiente(h);
             const entregado = historialEstadoEntregaEfectivo(h) === 'Entregado';
             return `<tr data-id="${h.id}" data-empleado="${h.empleadoId||''}" data-fecha="${h.fecha}" data-search="${Utils.escapeHTML(((veh?veh.dominio:'')+' '+(cli?clienteNombreCompleto(cli):'')+' '+(h.aceiteMarca||'')).toLowerCase())}">
-              <td class="font-mono" style="font-size:12px;">${new Date(h.fecha).toLocaleDateString('es-AR')}</td>
+              <td class="font-mono" style="font-size:12px;">${parsearFechaSegura(h.fecha).toLocaleDateString('es-AR')}</td>
               <td>${veh?`<a href="#/vehiculos/${veh.id}" class="vmc-dominio font-mono">${Utils.escapeHTML(veh.dominio)}</a>`:'—'}</td>
               <td>${cli?`<a href="#/clientes/${cli.id}">${Utils.escapeHTML(clienteNombreCompleto(cli))}</a>`:'—'}</td>
               <td>${h.kilometraje?Number(h.kilometraje).toLocaleString('es-AR'):'—'}</td>
@@ -6007,7 +6027,7 @@ async function sincronizarEquivalentes(productoId, nuevosIds, idsAnteriores){
   }
 }
 
-async function openProductoModal(producto=null){
+async function openProductoModal(producto=null, onCreated=null){
   const codigoSugerido = producto ? producto.codigo : await siguienteCodigoSugerido();
   const marcasTodas = (await DB.getAll('marcas')).sort((a,b)=>a.nombre.localeCompare(b.nombre));
   const marcasSelect = marcasTodas.filter(m=>m.activo!==false || m.id===(producto&&producto.marcaId));
@@ -6192,7 +6212,11 @@ async function openProductoModal(producto=null){
       }
       await sincronizarEquivalentes(productoId, payload.equivalentes, producto?(producto.equivalentes||[]):[]);
       Modal.close();
-      router();
+      if(onCreated){
+        await onCreated(await DB.get('productos', productoId));
+      }else{
+        router();
+      }
     }catch(err){
       console.error(err);
       Toast.show('error','Error al guardar','No se pudo guardar el producto.');
@@ -7202,6 +7226,19 @@ async function cajaSaldoActual(){
   const movs = await DB.getAll('caja');
   return movs.reduce((acc,m)=> acc + (m.tipo==='ingreso'?m.monto:-m.monto), 0);
 }
+/* Saldo acumulado de Caja discriminado por medio de pago (todos los
+   movimientos históricos, no solo el período abierto). Se usa para mostrar
+   el saldo separado en Efectivo vs Cuentas bancarias (Transferencia +
+   Tarjeta + QR) en el módulo de Caja. */
+async function cajaSaldoPorMedio(){
+  const movs = await DB.getAll('caja');
+  const porMedio = {};
+  movs.forEach(m=>{
+    const medio = m.medioPago || '—';
+    porMedio[medio] = (porMedio[medio]||0) + (m.tipo==='ingreso'?m.monto:-m.monto);
+  });
+  return porMedio;
+}
 async function ultimaFechaCierre(){
   const cierres = await DB.getAll('cierresCaja');
   if(!cierres.length) return null;
@@ -7997,7 +8034,7 @@ async function viewComprasList(){
           ${compras.length ? compras.map(c => {
             const prov = provById[c.proveedorId];
             return `<tr data-id="${c.id}" data-estado="${c.estadoPago}" data-search="${Utils.escapeHTML(((prov?prov.nombre:'')+' '+(c.numeroFactura||'')).toLowerCase())}">
-              <td class="font-mono" style="font-size:12px;">${new Date(c.fecha).toLocaleDateString('es-AR')}</td>
+              <td class="font-mono" style="font-size:12px;">${parsearFechaSegura(c.fecha).toLocaleDateString('es-AR')}</td>
               <td>${prov?Utils.escapeHTML(prov.nombre):'(eliminado)'}</td>
               <td class="font-mono">${Utils.escapeHTML(c.numeroFactura||'—')}</td>
               <td class="font-mono">$${c.total.toLocaleString('es-AR')}</td>
@@ -8031,45 +8068,70 @@ function bindComprasListEvents(){
   }
 }
 
-async function openCompraModal(){
+async function openCompraModal(estadoPrevio=null){
   const proveedores = (await DB.getAll('proveedores')).filter(p=>p.activo!==false);
   if(!proveedores.length){ Toast.show('error','Sin proveedores','Registrá al menos un proveedor activo antes de cargar una compra.'); return; }
   const productos = await DB.getAll('productos');
-  let compraItems = [];
+  let compraItems = estadoPrevio ? estadoPrevio.compraItems : [];
 
   Modal.open(
     'Nueva compra',
     `
     <div class="field">
       <label>Proveedor</label>
-      <select class="select-input" id="cf-proveedorId">${proveedores.map(p=>`<option value="${p.id}">${Utils.escapeHTML(p.nombre)}</option>`).join('')}</select>
+      <select class="select-input" id="cf-proveedorId">${proveedores.map(p=>`<option value="${p.id}" ${estadoPrevio&&estadoPrevio.proveedorId===p.id?'selected':''}>${Utils.escapeHTML(p.nombre)}</option>`).join('')}</select>
     </div>
     <div class="field-row">
-      <div class="field"><label>Fecha</label><input type="date" id="cf-fecha" value="${new Date().toISOString().slice(0,10)}"></div>
-      <div class="field"><label>Nº de factura</label><input type="text" id="cf-numeroFactura"></div>
+      <div class="field"><label>Fecha</label><input type="date" id="cf-fecha" value="${estadoPrevio?estadoPrevio.fecha:new Date().toISOString().slice(0,10)}"></div>
+      <div class="field"><label>Nº de factura</label><input type="text" id="cf-numeroFactura" value="${estadoPrevio?Utils.escapeHTML(estadoPrevio.numeroFactura):''}"></div>
     </div>
     <div class="field">
       <label>Agregar producto</label>
-      <div class="autocomplete-wrap">
-        <input type="text" id="cf-producto-search" placeholder="Buscar producto por código o nombre...">
-        <div class="autocomplete-results hidden" id="cf-autocomplete-results"></div>
+      <div style="display:flex; gap:8px; align-items:flex-start;">
+        <div class="autocomplete-wrap" style="flex:1;">
+          <input type="text" id="cf-producto-search" placeholder="Buscar producto por código o nombre...">
+          <div class="autocomplete-results hidden" id="cf-autocomplete-results"></div>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" id="cf-nuevo-producto" style="white-space:nowrap;">${svgIcon('productos')} Nuevo producto</button>
       </div>
     </div>
     <div class="compra-items-list" id="cf-items-list"></div>
-    <div class="field" style="max-width:calc(50% - 6px);"><label>Descuento ($)</label><input type="number" min="0" step="0.01" id="cf-descuento" value="0"></div>
+    <div class="field" style="max-width:calc(50% - 6px);"><label>Descuento ($)</label><input type="number" min="0" step="0.01" id="cf-descuento" value="${estadoPrevio?estadoPrevio.descuento:0}"></div>
     <div style="text-align:right; font-size:14px; font-weight:700; margin:6px 0 14px;">Total: <span id="cf-total">$0</span></div>
     <div class="field-row">
       <div class="field"><label>Estado de pago</label>
-        <select class="select-input" id="cf-estadoPago">${ESTADOS_PAGO_COMPRA.map(e=>`<option value="${e}">${e}</option>`).join('')}</select>
+        <select class="select-input" id="cf-estadoPago">${ESTADOS_PAGO_COMPRA.map(e=>`<option value="${e}" ${estadoPrevio&&estadoPrevio.estadoPago===e?'selected':''}>${e}</option>`).join('')}</select>
       </div>
-      <div class="field" id="cf-montoPagado-wrap" style="display:none;"><label>Monto pagado ahora</label><input type="number" min="0" step="0.01" id="cf-montoPagado" value="0"></div>
+      <div class="field" id="cf-montoPagado-wrap" style="display:${estadoPrevio&&estadoPrevio.estadoPago==='Parcial'?'':'none'};"><label>Monto pagado ahora</label><input type="number" min="0" step="0.01" id="cf-montoPagado" value="${estadoPrevio?estadoPrevio.montoPagado:0}"></div>
     </div>
-    <div class="field"><label>Fecha de vencimiento (opcional)</label><input type="date" id="cf-fechaVencimiento"></div>
-    <div class="field"><label>Observaciones</label><textarea class="textarea-input" id="cf-observaciones"></textarea></div>
+    <div class="field"><label>Fecha de vencimiento (opcional)</label><input type="date" id="cf-fechaVencimiento" value="${estadoPrevio&&estadoPrevio.fechaVencimiento?estadoPrevio.fechaVencimiento:''}"></div>
+    <div class="field"><label>Observaciones</label><textarea class="textarea-input" id="cf-observaciones">${estadoPrevio?Utils.escapeHTML(estadoPrevio.observaciones):''}</textarea></div>
     <div class="modal-actions"><button class="btn btn-ghost" id="cf-cancel">Cancelar</button><button class="btn btn-accent" id="cf-save">Guardar compra</button></div>
     `,
     { width:'560px' }
   );
+
+  function leerEstadoActual(){
+    return {
+      proveedorId: Number(document.getElementById('cf-proveedorId').value),
+      fecha: document.getElementById('cf-fecha').value,
+      numeroFactura: document.getElementById('cf-numeroFactura').value.trim(),
+      compraItems,
+      descuento: Number(document.getElementById('cf-descuento').value)||0,
+      estadoPago: document.getElementById('cf-estadoPago').value,
+      montoPagado: Number(document.getElementById('cf-montoPagado').value)||0,
+      fechaVencimiento: document.getElementById('cf-fechaVencimiento').value || null,
+      observaciones: document.getElementById('cf-observaciones').value.trim()
+    };
+  }
+
+  document.getElementById('cf-nuevo-producto').onclick = () => {
+    const estadoActual = leerEstadoActual();
+    openProductoModal(null, async (productoNuevo) => {
+      estadoActual.compraItems.push({ productoId:productoNuevo.id, nombre:productoNuevo.nombre, cantidad:1, costoUnitario:productoNuevo.precioCosto||0 });
+      await openCompraModal(estadoActual);
+    });
+  };
 
   function renderItemsList(){
     const cont = document.getElementById('cf-items-list');
@@ -8253,7 +8315,7 @@ async function openCompraDetalleModal(compra){
   Modal.open(
     'Compra ' + (compra.numeroFactura?'Nº '+compra.numeroFactura:'#'+compra.id),
     `
-    <div style="margin-bottom:10px;"><b>${Utils.escapeHTML(proveedor?proveedor.nombre:'(proveedor eliminado)')}</b> — ${new Date(compra.fecha).toLocaleDateString('es-AR')}</div>
+    <div style="margin-bottom:10px;"><b>${Utils.escapeHTML(proveedor?proveedor.nombre:'(proveedor eliminado)')}</b> — ${parsearFechaSegura(compra.fecha).toLocaleDateString('es-AR')}</div>
     <div class="doc-list" style="margin-bottom:14px;">
       ${compra.items.map(it=>`<div class="doc-item" style="justify-content:space-between;"><span>${it.cantidad} x ${Utils.escapeHTML(it.nombre)}</span><span class="font-mono">$${it.subtotal.toLocaleString('es-AR')}</span></div>`).join('')}
     </div>
@@ -8315,8 +8377,19 @@ async function viewCajaList(){
   const ingresosHoy = hoy.filter(m=>m.tipo==='ingreso').reduce((acc,m)=>acc+m.monto,0);
   const egresosHoy = hoy.filter(m=>m.tipo==='egreso').reduce((acc,m)=>acc+m.monto,0);
   const saldoActual = await cajaSaldoActual();
+  const saldoPorMedio = await cajaSaldoPorMedio();
   const desdeUltimoCierre = await ultimaFechaCierre();
   const cierres = (await DB.getAll('cierresCaja')).sort((a,b)=> new Date(b.fecha)-new Date(a.fecha));
+
+  // Efectivo vs Cuentas bancarias (QR + Tarjeta + Transferencia). Cualquier
+  // medio de pago que no sea "Efectivo" se considera cuenta bancaria.
+  const saldoEfectivo = saldoPorMedio['Efectivo'] || 0;
+  const mediosBancarios = Object.keys(saldoPorMedio).filter(m => m !== 'Efectivo');
+  const saldoBancario = mediosBancarios.reduce((acc,m)=>acc+saldoPorMedio[m], 0);
+  const totalDiscriminado = saldoEfectivo + saldoBancario;
+  const pctEfectivo = totalDiscriminado > 0.009 ? Math.max(0, saldoEfectivo/totalDiscriminado*100) : 50;
+  const pctBancario = 100 - pctEfectivo;
+  const DOT_COLORS = { 'Transferencia':'var(--info)', 'Tarjeta':'var(--warning)', 'QR':'var(--teal)' };
 
   const session = Session.get();
   return `
@@ -8329,8 +8402,34 @@ async function viewCajaList(){
         <button class="btn btn-accent" id="btn-cerrar-caja">${svgIcon('lock')} Cerrar caja</button>
       </div>
     </div>
+
+    <div class="caja-saldo-breakdown">
+      <div class="csb-card" style="--csb-color:var(--teal); --csb-bg:var(--teal-dim);">
+        <div class="csb-head">
+          <div class="csb-icon">💵</div>
+          <div><div class="csb-label">Efectivo</div></div>
+        </div>
+        <div class="csb-value" style="color:${saldoEfectivo>=0?'inherit':'var(--danger)'};">$${saldoEfectivo.toLocaleString('es-AR')}</div>
+      </div>
+      <div class="csb-card" style="--csb-color:var(--info); --csb-bg:var(--info-dim);">
+        <div class="csb-head">
+          <div class="csb-icon">🏦</div>
+          <div><div class="csb-label">Cuentas bancarias</div></div>
+        </div>
+        <div class="csb-value" style="color:${saldoBancario>=0?'inherit':'var(--danger)'};">$${saldoBancario.toLocaleString('es-AR')}</div>
+        <div class="csb-chips">
+          ${['QR','Tarjeta','Transferencia'].map(m=>`<span class="csb-chip"><span class="csb-chip-dot" style="background:${DOT_COLORS[m]};"></span>${m} <b>$${(saldoPorMedio[m]||0).toLocaleString('es-AR')}</b></span>`).join('')}
+        </div>
+      </div>
+    </div>
+    <div class="caja-saldo-bar">
+      <div class="caja-saldo-bar-seg" style="width:${pctEfectivo}%; background:var(--teal);"></div>
+      <div class="caja-saldo-bar-seg" style="width:${pctBancario}%; background:var(--info);"></div>
+    </div>
+    <div class="caja-saldo-bar-legend"><span>💵 Efectivo ${pctEfectivo.toFixed(0)}%</span><span>🏦 Bancarias ${pctBancario.toFixed(0)}%</span></div>
+
     <div class="grid-kpi">
-      <div class="kpi-card" style="--kpi-color:${saldoActual>=0?'var(--teal)':'var(--danger)'}"><div class="kpi-label">Saldo actual</div><div class="kpi-value">$${saldoActual.toLocaleString('es-AR')}</div></div>
+      <div class="kpi-card" style="--kpi-color:${saldoActual>=0?'var(--teal)':'var(--danger)'}"><div class="kpi-label">Saldo total</div><div class="kpi-value">$${saldoActual.toLocaleString('es-AR')}</div></div>
       <div class="kpi-card" style="--kpi-color:var(--teal)"><div class="kpi-label">Ingresos hoy</div><div class="kpi-value">$${ingresosHoy.toLocaleString('es-AR')}</div></div>
       <div class="kpi-card" style="--kpi-color:var(--danger)"><div class="kpi-label">Egresos hoy</div><div class="kpi-value">$${egresosHoy.toLocaleString('es-AR')}</div></div>
     </div>
@@ -8513,9 +8612,17 @@ async function calcularResumenCobradoDia(fecha, incluirCtaCte){
   const ctaCtePorCategoria = { Ventas:0, Servicios:0, Lavados:0 };
   if(incluirCtaCte){
     const movsCtaCte = await DB.getAll('cuentasCorrientes');
+    // Un cargo a cta cte (venta, service o lavado facturado) que luego se
+    // anula se revierte con un movimiento tipo "pago" que reutiliza
+    // exactamente la misma referencia (a diferencia de los pagos reales
+    // del cliente, que usan referencia 'manual' o 'ajuste-saldo'). Esos
+    // cargos revertidos no deben contarse como facturado del día.
+    const referenciasRevertidas = new Set(
+      movsCtaCte.filter(m=>m.tipo==='pago' && CATEGORIAS[(m.referencia||'').split(':')[0]]).map(m=>m.referencia)
+    );
     ctaCteMovs = movsCtaCte.filter(m=>{
       const prefijo = (m.referencia||'').split(':')[0];
-      return CATEGORIAS[prefijo] && m.tipo==='cargo' && Utils.fechaLocalYMD(m.fecha)===fecha;
+      return CATEGORIAS[prefijo] && m.tipo==='cargo' && Utils.fechaLocalYMD(m.fecha)===fecha && !referenciasRevertidas.has(m.referencia);
     });
     ctaCteMovs.forEach(m=>{
       const cat = CATEGORIAS[m.referencia.split(':')[0]];
@@ -8710,62 +8817,107 @@ async function openMovimientoCajaModal(){
   };
 }
 
-/* Ajuste directo del "Saldo actual" acumulado de Caja (solo Administrador).
-   A diferencia de "Nuevo movimiento" (que pide un monto de ingreso/egreso) y
-   de "Cerrar caja" (que solo corrige el efectivo del período abierto), esto
-   permite fijar directamente cuál debería ser el saldo TOTAL acumulado (todos
-   los medios de pago) y registra un único movimiento con la diferencia
-   necesaria para llegar a ese valor. Útil, por ejemplo, después de limpiar
-   datos de prueba (ventas/servicios eliminados) si quedó un saldo que no
-   corresponde a la operatoria real del negocio. */
+/* Ajuste directo del saldo acumulado de Caja (solo Administrador), separado
+   en Efectivo y Cuentas bancarias (QR + Tarjeta + Transferencia). El saldo
+   TOTAL no se edita directo: es la suma de ambos y se recalcula solo a
+   medida que se ajusta cualquiera de los dos. Por cada bucket que cambie
+   se registra un movimiento de ajuste independiente (así el desglose de
+   Caja siempre cierra con la realidad). Útil, por ejemplo, después de
+   limpiar datos de prueba (ventas/servicios eliminados) si quedó un saldo
+   que no corresponde a la operatoria real del negocio. */
 async function openAjustarSaldoCajaModal(){
-  const saldoActual = await cajaSaldoActual();
+  const saldoPorMedio = await cajaSaldoPorMedio();
+  const saldoEfectivoActual = saldoPorMedio['Efectivo'] || 0;
+  const mediosBancariosDisponibles = MEDIOS_PAGO.filter(m => m!=='Efectivo' && m!=='Cuenta corriente');
+  const saldoBancarioActual = Object.keys(saldoPorMedio).filter(m=>m!=='Efectivo').reduce((acc,m)=>acc+saldoPorMedio[m], 0);
+  const saldoTotalActual = saldoEfectivoActual + saldoBancarioActual;
+
   Modal.open(
     'Ajustar saldo de Caja',
     `
-    <div class="card" style="padding:12px 14px; margin-bottom:14px;">
-      <div style="font-size:12px; color:var(--text-muted);">Saldo actual (acumulado, todos los medios)</div>
-      <div style="font-size:22px; font-weight:700;">$${saldoActual.toLocaleString('es-AR')}</div>
+    <div class="card" style="padding:12px 14px; margin-bottom:14px; display:flex; gap:18px; flex-wrap:wrap;">
+      <div><div style="font-size:11px; color:var(--text-muted);">💵 Efectivo</div><div style="font-size:17px; font-weight:700;">$${saldoEfectivoActual.toLocaleString('es-AR')}</div></div>
+      <div><div style="font-size:11px; color:var(--text-muted);">🏦 Cuentas bancarias</div><div style="font-size:17px; font-weight:700;">$${saldoBancarioActual.toLocaleString('es-AR')}</div></div>
+      <div><div style="font-size:11px; color:var(--text-muted);">Total actual</div><div style="font-size:17px; font-weight:700;">$${saldoTotalActual.toLocaleString('es-AR')}</div></div>
     </div>
-    <p style="font-size:11.5px; color:var(--text-muted); margin-bottom:14px;">Esto registra un único movimiento de ajuste por la diferencia entre el saldo actual y el que indiques. Quedará en el historial de Caja y en Auditoría.</p>
-    <div class="field"><label>Nuevo saldo</label><input type="number" step="0.01" id="asc-nuevo-saldo" value="${saldoActual.toFixed(2)}"></div>
-    <div id="asc-diferencia-preview" style="font-size:12.5px; margin:-8px 0 14px;"></div>
-    <div class="field"><label>Medio de pago del ajuste</label><select class="select-input" id="asc-medio">${MEDIOS_PAGO.filter(m=>m!=='Cuenta corriente').map(m=>`<option value="${m}">${m}</option>`).join('')}</select></div>
+    <p style="font-size:11.5px; color:var(--text-muted); margin-bottom:14px;">Ajustá Efectivo y/o Cuentas bancarias por separado. El saldo total se recalcula solo, como suma de los dos. Por cada uno que cambie se registra un movimiento de ajuste independiente en el historial de Caja y en Auditoría.</p>
+
+    <div class="field"><label>Nuevo saldo — Efectivo</label><input type="number" step="0.01" id="asc-nuevo-efectivo" value="${saldoEfectivoActual.toFixed(2)}"></div>
+    <div class="field"><label>Nuevo saldo — Cuentas bancarias</label><input type="number" step="0.01" id="asc-nuevo-bancario" value="${saldoBancarioActual.toFixed(2)}"></div>
+    <div class="field" id="asc-medio-bancario-wrap" style="display:none;">
+      <label>¿A qué medio bancario imputar la diferencia?</label>
+      <select class="select-input" id="asc-medio-bancario">${mediosBancariosDisponibles.map(m=>`<option value="${m}">${m}</option>`).join('')}</select>
+    </div>
+    <div id="asc-diferencia-preview" style="font-size:12.5px; margin:-6px 0 14px; display:flex; flex-direction:column; gap:4px;"></div>
+
     <div class="field"><label>Motivo del ajuste</label><textarea class="textarea-input" id="asc-motivo" placeholder="Ej: limpieza de datos de prueba, corrección de saldo inicial..."></textarea></div>
     <div class="modal-actions"><button class="btn btn-ghost" id="asc-cancel">Cancelar</button><button class="btn btn-accent" id="asc-save">Confirmar ajuste</button></div>
     `,
-    { width:'440px' }
+    { width:'460px' }
   );
 
-  function updateDiferenciaPreview(){
-    const nuevo = Number(document.getElementById('asc-nuevo-saldo').value);
-    const el = document.getElementById('asc-diferencia-preview');
-    if(isNaN(nuevo)){ el.innerHTML = ''; return; }
-    const dif = nuevo - saldoActual;
-    if(Math.abs(dif)<0.01){ el.innerHTML = `<span class="diferencia-cero">Sin diferencia.</span>`; }
-    else if(dif>0){ el.innerHTML = `<span class="diferencia-positiva">Se va a registrar un ingreso de $${dif.toLocaleString('es-AR')}</span>`; }
-    else{ el.innerHTML = `<span class="diferencia-negativa">Se va a registrar un egreso de $${Math.abs(dif).toLocaleString('es-AR')}</span>`; }
+  const inputEfectivo = document.getElementById('asc-nuevo-efectivo');
+  const inputBancario = document.getElementById('asc-nuevo-bancario');
+  const medioBancarioWrap = document.getElementById('asc-medio-bancario-wrap');
+
+  function lineaDif(label, dif){
+    if(Math.abs(dif)<0.01) return `<span class="diferencia-cero">${label}: sin diferencia.</span>`;
+    if(dif>0) return `<span class="diferencia-positiva">${label}: se va a registrar un ingreso de $${dif.toLocaleString('es-AR')}</span>`;
+    return `<span class="diferencia-negativa">${label}: se va a registrar un egreso de $${Math.abs(dif).toLocaleString('es-AR')}</span>`;
   }
-  document.getElementById('asc-nuevo-saldo').addEventListener('input', updateDiferenciaPreview);
-  updateDiferenciaPreview();
+
+  function updatePreview(){
+    const nuevoEfectivo = Number(inputEfectivo.value);
+    const nuevoBancario = Number(inputBancario.value);
+    const el = document.getElementById('asc-diferencia-preview');
+    if(isNaN(nuevoEfectivo) || isNaN(nuevoBancario)){ el.innerHTML = ''; return; }
+    const difEfectivo = nuevoEfectivo - saldoEfectivoActual;
+    const difBancario = nuevoBancario - saldoBancarioActual;
+    medioBancarioWrap.style.display = Math.abs(difBancario)>=0.01 ? '' : 'none';
+    const nuevoTotal = nuevoEfectivo + nuevoBancario;
+    el.innerHTML = `
+      ${lineaDif('Efectivo', difEfectivo)}
+      ${lineaDif('Cuentas bancarias', difBancario)}
+      <span style="color:var(--text-secondary); font-weight:700; margin-top:2px;">Nuevo saldo total: $${nuevoTotal.toLocaleString('es-AR')}</span>
+    `;
+  }
+  inputEfectivo.addEventListener('input', updatePreview);
+  inputBancario.addEventListener('input', updatePreview);
+  updatePreview();
 
   document.getElementById('asc-cancel').onclick = () => Modal.close();
   document.getElementById('asc-save').onclick = async () => {
-    const nuevoSaldo = Number(document.getElementById('asc-nuevo-saldo').value);
-    const medioPago = document.getElementById('asc-medio').value;
+    const nuevoEfectivo = Number(inputEfectivo.value);
+    const nuevoBancario = Number(inputBancario.value);
     const motivo = document.getElementById('asc-motivo').value.trim();
-    if(isNaN(nuevoSaldo)){ Toast.show('error','Monto inválido',''); return; }
-    if(!motivo){ Toast.show('error','Falta el motivo','Es obligatorio indicar el motivo del ajuste.'); return; }
-    const diferencia = nuevoSaldo - saldoActual;
-    if(Math.abs(diferencia) < 0.01){ Toast.show('info','Sin diferencia','El saldo indicado es igual al actual.'); return; }
+    if(isNaN(nuevoEfectivo) || isNaN(nuevoBancario)){ Toast.show('error','Monto inválido',''); return; }
 
-    await registrarMovimientoCaja({
-      tipo: diferencia>0?'ingreso':'egreso',
-      concepto: `Ajuste manual de saldo: ${motivo}`,
-      monto: Math.abs(diferencia), medioPago, referencia:'ajuste-saldo'
-    });
-    await Audit.log('caja_ajuste_saldo', `Ajuste manual de saldo de Caja: de $${saldoActual.toLocaleString('es-AR')} a $${nuevoSaldo.toLocaleString('es-AR')}. Motivo: ${motivo}`);
-    Toast.show('success','Saldo ajustado', `Nuevo saldo: $${nuevoSaldo.toLocaleString('es-AR')}`);
+    const difEfectivo = nuevoEfectivo - saldoEfectivoActual;
+    const difBancario = nuevoBancario - saldoBancarioActual;
+    if(Math.abs(difEfectivo) < 0.01 && Math.abs(difBancario) < 0.01){ Toast.show('info','Sin diferencia','Los saldos indicados son iguales a los actuales.'); return; }
+    if(!motivo){ Toast.show('error','Falta el motivo','Es obligatorio indicar el motivo del ajuste.'); return; }
+
+    const detalle = [];
+    if(Math.abs(difEfectivo) >= 0.01){
+      await registrarMovimientoCaja({
+        tipo: difEfectivo>0?'ingreso':'egreso',
+        concepto: `Ajuste manual de saldo (Efectivo): ${motivo}`,
+        monto: Math.abs(difEfectivo), medioPago:'Efectivo', referencia:'ajuste-saldo'
+      });
+      detalle.push(`Efectivo: de $${saldoEfectivoActual.toLocaleString('es-AR')} a $${nuevoEfectivo.toLocaleString('es-AR')}`);
+    }
+    if(Math.abs(difBancario) >= 0.01){
+      const medioBancario = document.getElementById('asc-medio-bancario').value;
+      await registrarMovimientoCaja({
+        tipo: difBancario>0?'ingreso':'egreso',
+        concepto: `Ajuste manual de saldo (Cuentas bancarias — ${medioBancario}): ${motivo}`,
+        monto: Math.abs(difBancario), medioPago:medioBancario, referencia:'ajuste-saldo'
+      });
+      detalle.push(`Cuentas bancarias: de $${saldoBancarioActual.toLocaleString('es-AR')} a $${nuevoBancario.toLocaleString('es-AR')} (imputado a ${medioBancario})`);
+    }
+
+    await Audit.log('caja_ajuste_saldo', `Ajuste manual de saldo de Caja. ${detalle.join(' · ')}. Motivo: ${motivo}`);
+    Toast.show('success','Saldo ajustado', `Nuevo saldo total: $${(nuevoEfectivo+nuevoBancario).toLocaleString('es-AR')}`);
     Modal.close();
     router();
   };
