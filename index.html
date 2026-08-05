@@ -617,9 +617,12 @@ textarea.textarea-input{ resize:vertical; min-height:70px; }
 .picker-item:hover{ border-color:var(--accent-ring); }
 
 /* Productos / Stock */
-.prod-thumb{ width:38px; height:38px; border-radius:8px; overflow:hidden; background:var(--bg-panel-alt); display:flex; align-items:center; justify-content:center; flex-shrink:0; border:1px solid var(--border); position:relative; transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+.prod-thumb{ width:38px; height:38px; border-radius:8px; overflow:hidden; background:var(--bg-panel-alt); display:flex; align-items:center; justify-content:center; flex-shrink:0; border:1px solid var(--border); position:relative; transition:border-color .15s ease; }
 .prod-thumb img{ width:100%; height:100%; object-fit:cover; }
-.prod-thumb:has(img):hover{ transform:scale(2.6); z-index:50; box-shadow:0 10px 28px rgba(0,0,0,.4); border-color:var(--accent); cursor:zoom-in; }
+.prod-thumb:has(img):hover{ border-color:var(--accent); cursor:zoom-in; }
+.prod-thumb-zoom{ position:fixed; width:180px; height:180px; border-radius:12px; overflow:hidden; background:var(--bg-panel-alt); border:2px solid var(--accent); box-shadow:0 16px 40px rgba(0,0,0,.45); z-index:9999; pointer-events:none; animation:prodThumbZoomIn .12s ease; }
+.prod-thumb-zoom img{ width:100%; height:100%; object-fit:cover; }
+@keyframes prodThumbZoomIn{ from{ opacity:0; transform:scale(.85); } to{ opacity:1; transform:scale(1); } }
 .star-btn{ color:var(--text-muted); width:26px; height:26px; display:flex; align-items:center; justify-content:center; border-radius:7px; }
 .star-btn.active{ color:var(--warning); }
 .star-btn svg{ width:16px; height:16px; }
@@ -2476,6 +2479,41 @@ const TeclasNav = {
     fila.scrollIntoView({ block:'nearest', behavior:'smooth' });
   }
 };
+
+/* Vista ampliada flotante de la miniatura de producto al pasar el cursor.
+   Se arma en position:fixed y se cuelga directo de <body> (no dentro de la
+   tabla), así nunca queda recortada por el contenedor con scroll de la
+   tabla — a diferencia de un simple transform:scale in-place, que sí se
+   recorta porque el "overflow-x:auto" de la tarjeta obliga al navegador a
+   tratar también el eje vertical como recortable. */
+(function initProductThumbZoom(){
+  let zoomEl = null;
+  function quitarZoom(){ if(zoomEl){ zoomEl.remove(); zoomEl = null; } }
+  document.addEventListener('mouseover', (e) => {
+    const thumb = e.target.closest && e.target.closest('.prod-thumb');
+    if(!thumb) return;
+    const img = thumb.querySelector('img');
+    if(!img) return;
+    quitarZoom();
+    const rect = thumb.getBoundingClientRect();
+    const size = 180;
+    zoomEl = document.createElement('div');
+    zoomEl.className = 'prod-thumb-zoom';
+    zoomEl.innerHTML = `<img src="${img.src}">`;
+    document.body.appendChild(zoomEl);
+    let left = rect.left + rect.width/2 - size/2;
+    let top = rect.top + rect.height/2 - size/2;
+    left = Math.max(8, Math.min(left, window.innerWidth - size - 8));
+    top = Math.max(8, Math.min(top, window.innerHeight - size - 8));
+    zoomEl.style.left = left+'px';
+    zoomEl.style.top = top+'px';
+  });
+  document.addEventListener('mouseout', (e) => {
+    const thumb = e.target.closest && e.target.closest('.prod-thumb');
+    if(thumb) quitarZoom();
+  });
+  window.addEventListener('scroll', quitarZoom, true);
+})();
 
 document.addEventListener('keydown', (e) => {
   const elementoActivo = document.activeElement;
