@@ -458,10 +458,10 @@ a{ color:inherit; text-decoration:none; }
 .plan-legend-dot{ width:10px; height:10px; border-radius:50%; flex-shrink:0; }
 .plan-scroll-wrap{ border:1px solid var(--border); border-radius:14px; overflow-x:auto; background:var(--bg-panel); }
 .plan-grid-inner{ min-width:1180px; position:relative; }
-.plan-row{ display:grid; grid-template-columns:610px 1fr; border-bottom:1px solid var(--border-soft); align-items:stretch; }
+.plan-row{ display:grid; grid-template-columns:660px 1fr; border-bottom:1px solid var(--border-soft); align-items:stretch; }
 .plan-row:last-child{ border-bottom:none; }
 .plan-row.plan-row-head{ position:sticky; top:0; z-index:3; background:var(--bg-panel-raised); }
-.plan-info-cols{ display:grid; grid-template-columns:150px 175px 90px 100px 100px; align-items:center; padding:10px 14px; gap:6px; }
+.plan-info-cols{ display:grid; grid-template-columns:145px 160px 80px 95px 95px 57px; align-items:center; padding:10px 14px; gap:6px; }
 .plan-row-head .plan-info-cols{ background:var(--bg-panel-raised); font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; font-weight:700; color:var(--text-muted); padding:12px 14px; }
 .plan-info-cols > div{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .plan-vehiculo-nombre{ font-weight:700; font-size:13px; }
@@ -483,6 +483,10 @@ a{ color:inherit; text-decoration:none; }
 .plan-timeline-circle-label{ position:absolute; top:50%; margin-top:-8px; font-size:12px; font-weight:700; white-space:nowrap; font-family:'Consolas','SF Mono',monospace; }
 .plan-hoy-linea{ position:absolute; top:46px; bottom:0; width:0; border-left:2px dashed var(--danger); z-index:2; pointer-events:none; }
 .plan-hoy-label{ position:absolute; bottom:-24px; transform:translateX(-50%); font-size:10.5px; font-weight:700; color:var(--danger); text-transform:uppercase; letter-spacing:.05em; white-space:nowrap; }
+.plan-btn-recordar{ width:34px; height:34px; border-radius:9px; border:1px solid var(--border-soft); background:var(--teal-dim); color:var(--teal); display:flex; align-items:center; justify-content:center; font-size:16px; cursor:pointer; transition:filter .15s ease; }
+.plan-btn-recordar:hover{ filter:brightness(1.15); }
+.plan-btn-recordar[disabled]{ opacity:.3; cursor:not-allowed; }
+.plan-btn-recordar.recordado{ background:var(--info-dim); color:var(--info); }
 
 /* Calendario Financiero (Dashboard) */
 .calfin-grid-header{ display:grid; grid-template-columns:repeat(7,1fr); gap:8px; margin-bottom:8px; }
@@ -780,6 +784,9 @@ textarea.textarea-input{ resize:vertical; min-height:70px; }
 .compra-item-row .cir-remove{ color:var(--danger); width:22px; height:22px; display:flex; align-items:center; justify-content:center; }
 .autocomplete-wrap{ position:relative; }
 .autocomplete-results{ position:absolute; top:100%; left:0; right:0; background:var(--bg-panel-raised); border:1px solid var(--border); border-radius:9px; margin-top:4px; max-height:200px; overflow-y:auto; z-index:50; box-shadow:var(--shadow-lift); }
+.visc-manage-wrap{ position:relative; }
+.visc-manage-popover{ position:absolute; top:calc(100% + 6px); right:0; width:230px; background:var(--bg-panel-raised); border:1px solid var(--border); border-radius:10px; padding:12px; z-index:50; box-shadow:var(--shadow-lift); }
+.visc-manage-popover input[type="text"]{ background:var(--bg-panel); border:1px solid var(--border-soft); border-radius:7px; padding:6px 8px; font-size:12.5px; color:var(--text-primary); }
 .autocomplete-item{ padding:9px 12px; font-size:12.5px; cursor:pointer; }
 .autocomplete-item:hover{ background:var(--bg-panel-alt); }
 
@@ -1249,7 +1256,8 @@ const DEFAULT_CONFIG = {
   impresora:{ nombre:'', anchoPapel:'80mm' },
   intentosMaximos:5, minutosBloqueo:15, minutosInactividad:10,
   tema:'dark',
-  diasRecordatorioBackup:7, ultimoBackupFecha:null
+  diasRecordatorioBackup:7, ultimoBackupFecha:null,
+  viscosidadesAceite:['0W20','0W30','5W20','5W30','5W40','10W30','10W40','10W60','15W40','15W50','20W50']
 };
 
 /* -----------------------------------------------------------------------
@@ -4535,7 +4543,7 @@ async function renderSaldoHistorialChart(clienteId){
 
 function bindClienteDetalleEvents(id){
   const btnCobrar = document.getElementById('btn-cobrar-ctacte');
-  if(btnCobrar) btnCobrar.onclick = () => openRegistrarPagoCtaCteModal(id);
+  if(btnCobrar) btnCobrar.onclick = () => openRegistrarPagoClienteModal(id);
   const btnEstadoCuenta = document.getElementById('btn-estado-cuenta-ficha');
   if(btnEstadoCuenta) btnEstadoCuenta.onclick = () => abrirEstadoCuentaModal(id);
   const btnNotaCredito = document.getElementById('btn-nota-credito-ficha');
@@ -5014,31 +5022,43 @@ async function viewHistorialPlanificacion(){
     ${!filas.length ? `<div class="empty-state">${svgIcon('historial')}<h3>No hay services con próxima fecha programada</h3><p>Cargá la "fecha de próximo service" al registrar un service para que aparezca acá.</p></div>` : `
     <div class="plan-scroll-wrap">
       <div class="plan-grid-inner">
-        <div class="plan-hoy-linea" style="left:calc(610px + (100% - 610px) * ${(pctHoyGlobal/100).toFixed(4)});">
+        <div class="plan-hoy-linea" style="left:calc(660px + (100% - 660px) * ${(pctHoyGlobal/100).toFixed(4)});">
           <div class="plan-hoy-label">Hoy</div>
         </div>
         <div class="plan-row plan-row-head">
           <div class="plan-info-cols">
-            <div>Cliente</div><div>Vehículo</div><div>Patente</div><div>Último service</div><div>Próximo service</div>
+            <div>Cliente</div><div>Vehículo</div><div>Patente</div><div>Último service</div><div>Próximo service</div><div></div>
           </div>
           <div class="plan-timeline-col">
             <div class="plan-timeline-months">${meses.map(m=>`<div style="width:${m.pctWidth}%;">${m.label}</div>`).join('')}</div>
             <div class="plan-timeline-weeks">${ticks.map(t=>`<div class="plan-timeline-week-tick" style="left:${t.pct}%;">${t.label}</div>`).join('')}</div>
           </div>
         </div>
-        ${filas.map(f=>`
+        ${filas.map(f=>{
+          const whatsappDestino = (f.cliente && f.cliente.whatsapp) ? f.cliente.whatsapp.replace(/\D/g,'') : '';
+          const fechaTarget = parsearFechaSegura(f.proximoServiceFecha).toLocaleDateString('es-AR');
+          const nombreCliente = f.cliente ? clienteNombreCompleto(f.cliente) : '';
+          const vehiculoDesc = `${f.vehiculo.marca} ${f.vehiculo.modelo} (${f.vehiculo.dominio})`;
+          const mensaje = f.estado==='vencido'
+            ? `Hola ${nombreCliente}! Te escribimos de ${Config.cache.nombreEmpresa} porque el service de tu ${vehiculoDesc} venció el ${fechaTarget}. ¿Coordinamos un turno para ponerlo al día?`
+            : `Hola ${nombreCliente}! Te recordamos que el próximo service de tu ${vehiculoDesc} está programado para el ${fechaTarget}${f.proximoServiceKm?` (aprox. ${Number(f.proximoServiceKm).toLocaleString('es-AR')} km)`:''}. ¡Te esperamos en ${Config.cache.nombreEmpresa}!`;
+          return `
         <div class="plan-row">
           <div class="plan-info-cols">
-            <div class="plan-cliente-nombre" title="${f.cliente?Utils.escapeHTML(clienteNombreCompleto(f.cliente)):''}">${f.cliente?`<a href="#/clientes/${f.cliente.id}">${Utils.escapeHTML(clienteNombreCompleto(f.cliente))}</a>`:'—'}</div>
+            <div class="plan-cliente-nombre" title="${f.cliente?Utils.escapeHTML(nombreCliente):''}">${f.cliente?`<a href="#/clientes/${f.cliente.id}">${Utils.escapeHTML(nombreCliente)}</a>`:'—'}</div>
             <div title="${Utils.escapeHTML(f.vehiculo.marca)} ${Utils.escapeHTML(f.vehiculo.modelo)}"><a href="#/vehiculos/${f.vehiculo.id}" class="plan-vehiculo-nombre">${Utils.escapeHTML(f.vehiculo.marca)} ${Utils.escapeHTML(f.vehiculo.modelo)}</a></div>
             <div class="font-mono">${Utils.escapeHTML(f.vehiculo.dominio)}</div>
             <div><div class="plan-fecha-principal">${parsearFechaSegura(f.ultimoServiceFecha).toLocaleDateString('es-AR')}</div>${f.ultimoServiceKm?`<div class="plan-km-sub">${Number(f.ultimoServiceKm).toLocaleString('es-AR')} km</div>`:''}</div>
-            <div><div class="plan-fecha-principal ${f.estado==='vencido'?'vencido-txt':''}" style="color:${f.estado!=='vencido'?PLANIF_ESTADO_COLOR[f.estado]:''};">${parsearFechaSegura(f.proximoServiceFecha).toLocaleDateString('es-AR')}</div>${f.proximoServiceKm?`<div class="plan-km-sub">${Number(f.proximoServiceKm).toLocaleString('es-AR')} km</div>`:''}</div>
+            <div><div class="plan-fecha-principal ${f.estado==='vencido'?'vencido-txt':''}" style="color:${f.estado!=='vencido'?PLANIF_ESTADO_COLOR[f.estado]:''};">${fechaTarget}</div>${f.proximoServiceKm?`<div class="plan-km-sub">${Number(f.proximoServiceKm).toLocaleString('es-AR')} km</div>`:''}</div>
+            <div>
+              <button class="plan-btn-recordar btn-recordar-planif" data-whatsapp="${whatsappDestino}" data-mensaje="${Utils.escapeHTML(mensaje)}" ${!whatsappDestino?'disabled title="Este cliente no tiene WhatsApp cargado"':'title="Enviar recordatorio por WhatsApp"'}>💬</button>
+            </div>
           </div>
           <div class="plan-timeline-col">
             ${planifTimelineRowHTML(f, rangeStart, totalDias)}
           </div>
-        </div>`).join('')}
+        </div>`;
+        }).join('')}
       </div>
     </div>
     `}
@@ -5046,8 +5066,15 @@ async function viewHistorialPlanificacion(){
 }
 
 function bindHistorialPlanificacionEvents(){
-  // Vista de solo lectura por ahora: sin listeners adicionales más allá de
-  // los links de navegación (cliente/vehículo), que ya funcionan solos.
+  document.querySelectorAll('.btn-recordar-planif').forEach(btn=>{
+    if(btn.disabled) return;
+    btn.onclick = () => {
+      const telefono = btn.dataset.whatsapp;
+      const mensaje = btn.dataset.mensaje;
+      window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`, '_blank', 'noopener');
+      btn.classList.add('recordado');
+    };
+  });
 }
 
 /* -----------------------------------------------------------------------
@@ -5286,7 +5313,32 @@ function historialFormHTML(h, vehiculo, usuariosActivos, verCosto){
     </div>
     <div class="field-row">
       <div class="field"><label>Marca de aceite</label><input type="text" id="hf-aceiteMarca" value="${h?Utils.escapeHTML(h.aceiteMarca||''):''}"></div>
-      <div class="field"><label>Tipo / Viscosidad</label><input type="text" id="hf-aceiteTipo" placeholder="Ej: 10W40 Sintético" value="${h?Utils.escapeHTML(h.aceiteTipo||''):Utils.escapeHTML(vehiculo.aceiteRecomendado||'')}"></div>
+      <div class="field">
+        <label style="display:flex; justify-content:space-between; align-items:center;">
+          <span>Tipo / Viscosidad</span>
+          <span class="visc-manage-wrap">
+            <a href="javascript:void(0)" id="hf-gestionar-viscosidades" style="font-size:10.5px; font-weight:600; text-transform:none; letter-spacing:0;">Gestionar lista</a>
+            <div class="visc-manage-popover hidden" id="hf-visc-popover">
+              <div style="font-size:11px; font-weight:700; margin-bottom:8px; color:var(--text-secondary);">Viscosidades disponibles</div>
+              <div id="hf-visc-list" style="max-height:160px; overflow-y:auto; margin-bottom:8px;"></div>
+              <div style="display:flex; gap:6px;">
+                <input type="text" id="hf-visc-nueva" placeholder="Ej: 5W30" style="flex:1; min-width:0;">
+                <button type="button" class="btn btn-accent btn-sm" id="hf-visc-add">+</button>
+              </div>
+              <button type="button" class="btn btn-ghost btn-sm" id="hf-visc-cerrar" style="margin-top:8px; width:100%;">Cerrar</button>
+            </div>
+          </span>
+        </label>
+        <select class="select-input" id="hf-aceiteTipo">
+          <option value="">Seleccionar...</option>
+          ${(Config.cache?.viscosidadesAceite||[]).map(v=>`<option value="${Utils.escapeHTML(v)}" ${(h?(h.aceiteTipo||''):(vehiculo.aceiteRecomendado||''))===v?'selected':''}>${Utils.escapeHTML(v)}</option>`).join('')}
+          ${(() => {
+            const valorActual = h ? (h.aceiteTipo||'') : (vehiculo.aceiteRecomendado||'');
+            const lista = Config.cache?.viscosidadesAceite||[];
+            return (valorActual && !lista.includes(valorActual)) ? `<option value="${Utils.escapeHTML(valorActual)}" selected>${Utils.escapeHTML(valorActual)} (fuera de lista)</option>` : '';
+          })()}
+        </select>
+      </div>
     </div>
     <div class="field" style="max-width:calc(50% - 6px);"><label>Cantidad (litros)</label><input type="number" min="0" step="0.1" id="hf-aceiteCantidadLts" value="${h?h.aceiteCantidadLts||'':(vehiculo.capacidadAceiteLts||'')}"></div>
 
@@ -5387,6 +5439,22 @@ async function openHistorialModal(historial, vehiculo){
     { width:'600px' }
   );
 
+  // Próximo service (km): se autocompleta con "km actuales + 10.000" a
+  // medida que se carga/edita el kilometraje, para no tener que calcularlo
+  // a mano. Si el campo ya trae un valor (service existente, o si el
+  // usuario lo edita manualmente), se deja de tocar automáticamente.
+  const inputKm = document.getElementById('hf-kilometraje');
+  const inputProximoKm = document.getElementById('hf-proximoServiceKm');
+  let proximoKmEditadoManualmente = !!inputProximoKm.value;
+  function autocompletarProximoServiceKm(){
+    if(proximoKmEditadoManualmente) return;
+    const km = Number(inputKm.value);
+    inputProximoKm.value = km>0 ? km+10000 : '';
+  }
+  autocompletarProximoServiceKm();
+  inputKm.addEventListener('input', autocompletarProximoServiceKm);
+  inputProximoKm.addEventListener('input', () => { proximoKmEditadoManualmente = true; });
+
   const fotosState = historial && historial.fotos ? [...historial.fotos] : [];
   renderHistorialPhotoGrid(fotosState);
   document.getElementById('hf-photos-input').onchange = async (e) => {
@@ -5397,6 +5465,55 @@ async function openHistorialModal(historial, vehiculo){
   document.querySelectorAll('.hf-item-check').forEach(chk=>{
     chk.onchange = () => chk.closest('.checklist-item').classList.toggle('checked', chk.checked);
   });
+
+  // Gestión de la lista de viscosidades de aceite (se guarda en Config, no
+  // en un modal aparte, para no perder lo que ya se cargó en este service).
+  const selectViscosidad = document.getElementById('hf-aceiteTipo');
+  const btnGestionarVisc = document.getElementById('hf-gestionar-viscosidades');
+  const popoverVisc = document.getElementById('hf-visc-popover');
+  function renderViscosidadesList(){
+    const lista = Config.cache.viscosidadesAceite || [];
+    document.getElementById('hf-visc-list').innerHTML = lista.length ? lista.map(v=>`
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; padding:4px 0; font-size:12.5px;">
+        <span>${Utils.escapeHTML(v)}</span>
+        <button type="button" class="btn btn-danger-ghost btn-sm hf-visc-del" data-v="${Utils.escapeHTML(v)}" style="padding:2px 8px; font-size:11px;">Quitar</button>
+      </div>`).join('') : `<div style="font-size:11.5px; color:var(--text-muted);">Sin viscosidades cargadas.</div>`;
+    document.querySelectorAll('.hf-visc-del').forEach(btn=>{
+      btn.onclick = async () => {
+        const nuevaLista = (Config.cache.viscosidadesAceite||[]).filter(x=>x!==btn.dataset.v);
+        await Config.save({ viscosidadesAceite:nuevaLista });
+        renderViscosidadesList();
+        actualizarOpcionesViscosidad();
+      };
+    });
+  }
+  function actualizarOpcionesViscosidad(){
+    const valorPrevio = selectViscosidad.value;
+    const lista = Config.cache.viscosidadesAceite || [];
+    selectViscosidad.innerHTML = `<option value="">Seleccionar...</option>` + lista.map(v=>`<option value="${Utils.escapeHTML(v)}">${Utils.escapeHTML(v)}</option>`).join('');
+    if(valorPrevio && lista.includes(valorPrevio)){ selectViscosidad.value = valorPrevio; }
+    else if(valorPrevio){
+      const opt = document.createElement('option');
+      opt.value = valorPrevio; opt.textContent = `${valorPrevio} (fuera de lista)`; opt.selected = true;
+      selectViscosidad.appendChild(opt);
+    }
+  }
+  if(btnGestionarVisc){
+    btnGestionarVisc.onclick = (e) => { e.preventDefault(); e.stopPropagation(); popoverVisc.classList.toggle('hidden'); renderViscosidadesList(); };
+    document.getElementById('hf-visc-cerrar').onclick = () => popoverVisc.classList.add('hidden');
+    document.getElementById('hf-visc-add').onclick = async () => {
+      const input = document.getElementById('hf-visc-nueva');
+      const valor = input.value.trim().toUpperCase();
+      if(!valor) return;
+      const lista = Config.cache.viscosidadesAceite || [];
+      if(lista.includes(valor)){ Toast.show('info','Ya existe','Esa viscosidad ya está en la lista.'); return; }
+      await Config.save({ viscosidadesAceite:[...lista, valor] });
+      input.value = '';
+      renderViscosidadesList();
+      actualizarOpcionesViscosidad();
+      selectViscosidad.value = valor;
+    };
+  }
 
   // Ítems facturables: si el service es viejo (sin itemsVendidos), se migra su precio/costo
   // manual a un único ítem editable para no perder información.
@@ -9550,7 +9667,7 @@ async function viewCuentasCorrientesList(){
 }
 function bindCuentasCorrientesListEvents(){
   document.querySelectorAll('.btn-pago-ctacte').forEach(btn=>{
-    btn.onclick = async () => openRegistrarPagoCtaCteModal(Number(btn.dataset.id));
+    btn.onclick = async () => openRegistrarPagoClienteModal(Number(btn.dataset.id));
   });
   document.querySelectorAll('.btn-estado-cuenta').forEach(btn=>{
     btn.onclick = async () => abrirEstadoCuentaModal(Number(btn.dataset.id));
@@ -9640,25 +9757,143 @@ async function openLimiteCtaCteModal(clienteId){
   };
 }
 
-async function openRegistrarPagoCtaCteModal(clienteId){
+/* Facturas (cargos) de cuenta corriente de un cliente que todavía tienen
+   saldo pendiente — originadas en una venta, un service o un lavado. El
+   saldo pendiente de cada una se calcula restando los pagos que ya se le
+   aplicaron puntualmente (pagos con la MISMA referencia que el cargo). */
+const TIPO_CARGO_CTACTE_LABEL = { historial:'Servicio', venta:'Venta', turno:'Lavado' };
+async function cargosPendientesCliente(clienteId){
+  const movs = await DB.getAllByIndex('cuentasCorrientes','clienteId', clienteId);
+  const CARGO_PREFIJOS = ['historial','venta','turno'];
+  const pagosPorReferencia = {};
+  movs.filter(m=>m.tipo==='pago').forEach(m=>{
+    const prefijo = (m.referencia||'').split(':')[0];
+    if(!CARGO_PREFIJOS.includes(prefijo)) return;
+    pagosPorReferencia[m.referencia] = (pagosPorReferencia[m.referencia]||0) + m.monto;
+  });
+  return movs
+    .filter(m=>m.tipo==='cargo' && CARGO_PREFIJOS.includes((m.referencia||'').split(':')[0]))
+    .map(c=>({ ...c, pagado: pagosPorReferencia[c.referencia]||0, saldo: c.monto - (pagosPorReferencia[c.referencia]||0) }))
+    .filter(c=>c.saldo > 0.009)
+    .sort((a,b)=> new Date(a.fecha) - new Date(b.fecha)); // más vieja primero
+}
+
+/* Registrar pago de un cliente, con selección opcional de facturas (ventas,
+   services, lavados) pendientes de cobro. Mismo criterio que "Registrar
+   pago" de Proveedores:
+   - Si se seleccionan una o más facturas, el monto se autocompleta con la
+     suma de sus saldos (editable para un cobro parcial).
+   - El pago se aplica en orden de prioridad: primero las facturas
+     seleccionadas (en orden cronológico), y luego, si sobra monto, el
+     resto de las pendientes de más vieja a más nueva. Un "pago a cuenta"
+     sin ninguna factura seleccionada impacta directamente en las más
+     viejas primero.
+   - Si el monto supera toda la deuda registrada por factura, el excedente
+     queda como pago a cuenta (referencia "manual"), reduciendo el saldo
+     general aunque no esté atado a una factura puntual.
+   Cada factura que se cobra genera, además del movimiento de cuenta
+   corriente, un ingreso de Caja con la MISMA referencia — así el cobro
+   queda vinculado a la venta/service/lavado de origen (por ejemplo, para
+   que el margen de ganancia del Dashboard pueda atribuirse a la fecha real
+   del cobro). */
+async function openRegistrarPagoClienteModal(clienteId){
   const cliente = await DB.get('clientes', clienteId);
-  const saldo = await saldoCuentaCorriente(clienteId);
+  const pendientes = await cargosPendientesCliente(clienteId);
+  const saldoTotal = await saldoCuentaCorriente(clienteId);
+
+  const filasHTML = pendientes.length ? `
+    <div style="font-size:12px; color:var(--text-muted); margin-bottom:6px;">Elegí qué facturas cobrar (opcional). Si no elegís ninguna, el pago se registra como pago a cuenta y se aplica automáticamente a las más viejas primero.</div>
+    <div class="doc-list" style="max-height:220px; overflow-y:auto; margin-bottom:10px; border:1px solid var(--border-soft); border-radius:10px;">
+      ${pendientes.map(c=>{
+        const tipo = TIPO_CARGO_CTACTE_LABEL[(c.referencia||'').split(':')[0]] || 'Cargo';
+        return `<label class="rpc-fila" style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-bottom:1px solid var(--border-soft); cursor:pointer;">
+          <input type="checkbox" class="rpc-check" data-id="${c.id}" data-saldo="${c.saldo.toFixed(2)}">
+          <span style="flex:1; font-size:12.5px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <span class="tag-chip" style="font-size:10px;">${tipo}</span>
+            ${Utils.fmtFecha(c.fecha)} — ${Utils.escapeHTML(c.concepto)}
+          </span>
+          <span class="font-mono" style="font-weight:600;">$${c.saldo.toLocaleString('es-AR')}</span>
+        </label>`;
+      }).join('')}
+    </div>
+  ` : `<div class="empty-state" style="padding:20px;">${svgIcon('cuentascorrientes')}<h3>Sin facturas puntuales pendientes</h3><p>Este pago se va a registrar como pago a cuenta.</p></div>`;
+
   Modal.open(
     'Registrar pago — ' + clienteNombreCompleto(cliente),
-    `<div class="card" style="padding:12px 14px; margin-bottom:14px;"><div style="font-size:12px; color:var(--text-muted);">Saldo actual</div><div style="font-size:20px; font-weight:700;" class="saldo-deudor">$${saldo.toLocaleString('es-AR')}</div></div>
-    <div class="field"><label>Monto a cobrar</label><input type="number" min="0.01" max="${saldo}" step="0.01" id="pcc-monto" value="${saldo}"></div>
-    <div class="field"><label>Medio de pago</label><select class="select-input" id="pcc-medio">${MEDIOS_PAGO.filter(m=>m!=='Cuenta corriente').map(m=>`<option value="${m}">${m}</option>`).join('')}</select></div>
-    <div class="modal-actions"><button class="btn btn-ghost" id="pcc-cancel">Cancelar</button><button class="btn btn-accent" id="pcc-save">Confirmar cobro</button></div>`,
-    { width:'400px' }
+    `
+    <div class="card" style="padding:12px 14px; margin-bottom:14px;">
+      <div style="font-size:12px; color:var(--text-muted);">Saldo actual</div>
+      <div style="font-size:20px; font-weight:700;" class="${saldoTotal>0.009?'saldo-deudor':'saldo-cero'}">$${saldoTotal.toLocaleString('es-AR')}</div>
+    </div>
+    ${filasHTML}
+    <div class="field"><label>Monto a cobrar</label><input type="number" min="0.01" step="0.01" id="rpc-monto" value="0"></div>
+    <div id="rpc-hint" style="font-size:11.5px; color:var(--text-muted); margin:-8px 0 14px;"></div>
+    <div class="field"><label>Medio de pago</label><select class="select-input" id="rpc-medio">${MEDIOS_PAGO.filter(m=>m!=='Cuenta corriente').map(m=>`<option value="${m}">${m}</option>`).join('')}</select></div>
+    <div class="field"><label>Fecha del pago</label><input type="date" id="rpc-fecha" value="${Utils.hoyLocal()}" max="${Utils.hoyLocal()}"></div>
+    <div class="modal-actions"><button class="btn btn-ghost" id="rpc-cancel">Cancelar</button><button class="btn btn-accent" id="rpc-save">Confirmar cobro</button></div>
+    `,
+    { width:'460px' }
   );
-  document.getElementById('pcc-cancel').onclick = () => Modal.close();
-  document.getElementById('pcc-save').onclick = async () => {
-    const monto = Number(document.getElementById('pcc-monto').value);
-    if(!monto || monto<=0 || monto>saldo+0.01){ Toast.show('error','Monto inválido',''); return; }
-    const medioPago = document.getElementById('pcc-medio').value;
-    await registrarMovimientoCtaCte(clienteId, { tipo:'pago', concepto:'Pago recibido', monto, referencia:'manual' });
-    await registrarMovimientoCaja({ tipo:'ingreso', concepto:`Cobro cuenta corriente — ${clienteNombreCompleto(cliente)}`, monto, medioPago, referencia:`ctacte:${clienteId}` });
-    await Audit.log('ctacte_pago_registrado', `Pago de $${monto.toLocaleString('es-AR')} recibido de ${clienteNombreCompleto(cliente)}.`);
+
+  const inputMonto = document.getElementById('rpc-monto');
+  const hint = document.getElementById('rpc-hint');
+  const checks = () => Array.from(document.querySelectorAll('.rpc-check'));
+
+  function actualizarSeleccion(){
+    const seleccionados = checks().filter(ch=>ch.checked);
+    document.querySelectorAll('.rpc-fila').forEach(f=>{
+      const chk = f.querySelector('.rpc-check');
+      f.style.background = chk.checked ? 'var(--accent-dim)' : '';
+    });
+    if(seleccionados.length){
+      const suma = seleccionados.reduce((a,ch)=>a+Number(ch.dataset.saldo),0);
+      inputMonto.value = suma.toFixed(2);
+      hint.textContent = `${seleccionados.length} factura(s) seleccionada(s) — suma $${suma.toLocaleString('es-AR')}. Podés reducir el monto para un cobro parcial.`;
+    } else {
+      hint.textContent = pendientes.length ? 'Pago a cuenta: se va a aplicar a las facturas más viejas primero.' : 'Pago a cuenta.';
+    }
+  }
+  checks().forEach(ch => ch.addEventListener('change', actualizarSeleccion));
+  actualizarSeleccion();
+
+  document.getElementById('rpc-cancel').onclick = () => Modal.close();
+  document.getElementById('rpc-save').onclick = async () => {
+    const monto = Number(inputMonto.value);
+    if(!monto || monto<=0){ Toast.show('error','Monto inválido',''); return; }
+    const medioPago = document.getElementById('rpc-medio').value;
+    const fechaPago = document.getElementById('rpc-fecha').value;
+    if(!fechaPago){ Toast.show('error','Falta la fecha','Indicá la fecha del pago.'); return; }
+    const idsSeleccionados = new Set(checks().filter(ch=>ch.checked).map(ch=>Number(ch.dataset.id)));
+
+    // Orden de aplicación: primero las facturas seleccionadas (en orden
+    // cronológico), y después el resto de las pendientes de más vieja a
+    // más nueva.
+    const prioridad = [
+      ...pendientes.filter(c=>idsSeleccionados.has(c.id)),
+      ...pendientes.filter(c=>!idsSeleccionados.has(c.id))
+    ];
+
+    const fechaISO = combinarFechaConHoraActual(fechaPago);
+    let restante = monto;
+    const detalleAplicado = [];
+    for(const c of prioridad){
+      if(restante <= 0.009) break;
+      const aplicado = Math.min(restante, c.saldo);
+      await registrarMovimientoCtaCte(clienteId, { tipo:'pago', concepto:`Pago recibido — ${c.concepto}`, monto:aplicado, referencia:c.referencia, fecha:fechaISO });
+      await registrarMovimientoCaja({ tipo:'ingreso', concepto:`Cobro cta cte ${clienteNombreCompleto(cliente)} — ${c.concepto}`, monto:aplicado, medioPago, referencia:c.referencia, fecha:fechaISO });
+      detalleAplicado.push(`${c.concepto}: $${aplicado.toLocaleString('es-AR')}`);
+      restante -= aplicado;
+    }
+
+    if(restante > 0.009){
+      // No quedan facturas puntuales a las que aplicar el resto: queda
+      // como pago a cuenta (no vinculado a una factura específica).
+      await registrarMovimientoCtaCte(clienteId, { tipo:'pago', concepto:'Pago a cuenta', monto:restante, referencia:'manual', fecha:fechaISO });
+      await registrarMovimientoCaja({ tipo:'ingreso', concepto:`Cobro cuenta corriente — ${clienteNombreCompleto(cliente)} (pago a cuenta)`, monto:restante, medioPago, referencia:`ctacte:${clienteId}`, fecha:fechaISO });
+      detalleAplicado.push(`Pago a cuenta: $${restante.toLocaleString('es-AR')}`);
+    }
+
+    await Audit.log('ctacte_pago_registrado', `Pago de $${monto.toLocaleString('es-AR')} recibido de ${clienteNombreCompleto(cliente)}. ${detalleAplicado.join(' · ')}`);
     Toast.show('success','Pago registrado', `$${monto.toLocaleString('es-AR')}`);
     Modal.close();
     router();
