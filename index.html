@@ -1257,7 +1257,8 @@ const DEFAULT_CONFIG = {
   intentosMaximos:5, minutosBloqueo:15, minutosInactividad:10,
   tema:'dark',
   diasRecordatorioBackup:7, ultimoBackupFecha:null,
-  viscosidadesAceite:['0W20','0W30','5W20','5W30','5W40','10W30','10W40','10W60','15W40','15W50','20W50']
+  viscosidadesAceite:['0W20','0W30','5W20','5W30','5W40','10W30','10W40','10W60','15W40','15W50','20W50'],
+  serviceChecklistItems: SERVICE_CHECKLIST_ITEMS.map(it=>({...it}))
 };
 
 /* -----------------------------------------------------------------------
@@ -4854,12 +4855,12 @@ function historialProximoTexto(h){
   return partes.length ? partes.join(' / ') : '—';
 }
 function historialItemsRealizados(h){
-  return SERVICE_CHECKLIST_ITEMS.filter(it => h.items && h.items[it.key]);
+  return (Config.cache?.serviceChecklistItems||SERVICE_CHECKLIST_ITEMS).filter(it => h.items && h.items[it.key]);
 }
 /* Bloque "TRABAJO A REALIZAR" para el ticket de cotización, a partir del checklist elegido */
 function trabajoARealizarTicketHTML(trabajos){
   if(!trabajos) return '';
-  const marcados = SERVICE_CHECKLIST_ITEMS.filter(it => trabajos[it.key]);
+  const marcados = (Config.cache?.serviceChecklistItems||SERVICE_CHECKLIST_ITEMS).filter(it => trabajos[it.key]);
   if(!marcados.length) return '';
   return `<hr>
     <div class="tp-row" style="font-weight:700;"><span>TRABAJO A REALIZAR</span><span></span></div>
@@ -5343,12 +5344,26 @@ function historialFormHTML(h, vehiculo, usuariosActivos, verCosto){
     <div class="field" style="max-width:calc(50% - 6px);"><label>Cantidad (litros)</label><input type="number" min="0" step="0.1" id="hf-aceiteCantidadLts" value="${h?h.aceiteCantidadLts||'':(vehiculo.capacidadAceiteLts||'')}"></div>
 
     <div class="field">
-      <label>Ítems realizados en este service</label>
-      <div class="checklist-grid">
-        ${SERVICE_CHECKLIST_ITEMS.map(it=>`
+      <label style="display:flex; justify-content:space-between; align-items:center;">
+        <span>Ítems realizados en este service</span>
+        <span class="visc-manage-wrap">
+          <a href="javascript:void(0)" id="hf-gestionar-checklist" style="font-size:10.5px; font-weight:600; text-transform:none; letter-spacing:0;">Gestionar lista</a>
+          <div class="visc-manage-popover hidden" id="hf-checklist-popover" style="width:280px;">
+            <div style="font-size:11px; font-weight:700; margin-bottom:8px; color:var(--text-secondary);">Ítems disponibles</div>
+            <div id="hf-checklist-manage-list" style="max-height:220px; overflow-y:auto; margin-bottom:8px;"></div>
+            <div style="display:flex; gap:6px;">
+              <input type="text" id="hf-checklist-nuevo" placeholder="Ej: Alineación y balanceo" style="flex:1; min-width:0;">
+              <button type="button" class="btn btn-accent btn-sm" id="hf-checklist-add">+</button>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" id="hf-checklist-cerrar" style="margin-top:8px; width:100%;">Cerrar</button>
+          </div>
+        </span>
+      </label>
+      <div class="checklist-grid" id="hf-checklist-grid">
+        ${(Config.cache?.serviceChecklistItems||SERVICE_CHECKLIST_ITEMS).map(it=>`
           <label class="checklist-item ${items[it.key]?'checked':''}" data-key="${it.key}">
             <input type="checkbox" class="hf-item-check" data-key="${it.key}" ${items[it.key]?'checked':''}>
-            ${it.label}
+            ${Utils.escapeHTML(it.label)}
           </label>`).join('')}
       </div>
     </div>
@@ -5512,6 +5527,92 @@ async function openHistorialModal(historial, vehiculo){
       renderViscosidadesList();
       actualizarOpcionesViscosidad();
       selectViscosidad.value = valor;
+    };
+  }
+
+  // Gestión de los ítems del checklist "Ítems realizados en este service"
+  // (compartida con Cotizaciones). Igual criterio que las viscosidades: se
+  // guarda en Config y se edita en un popover, sin cerrar el formulario.
+  const btnGestionarChecklist = document.getElementById('hf-gestionar-checklist');
+  const popoverChecklist = document.getElementById('hf-checklist-popover');
+  const gridChecklist = document.getElementById('hf-checklist-grid');
+
+  function estadoActualChecklist(){
+    // Preserva lo tildado actualmente antes de volver a dibujar la grilla.
+    const estado = {};
+    document.querySelectorAll('.hf-item-check').forEach(chk => { estado[chk.dataset.key] = chk.checked; });
+    return estado;
+  }
+  function bindChecklistCheckboxes(){
+    document.querySelectorAll('.hf-item-check').forEach(chk=>{
+      chk.onchange = () => chk.closest('.checklist-item').classList.toggle('checked', chk.checked);
+    });
+  }
+  function renderChecklistGrid(estadoPrevio){
+    const lista = Config.cache.serviceChecklistItems || SERVICE_CHECKLIST_ITEMS;
+    gridChecklist.innerHTML = lista.map(it=>`
+      <label class="checklist-item ${estadoPrevio[it.key]?'checked':''}" data-key="${it.key}">
+        <input type="checkbox" class="hf-item-check" data-key="${it.key}" ${estadoPrevio[it.key]?'checked':''}>
+        ${Utils.escapeHTML(it.label)}
+      </label>`).join('');
+    bindChecklistCheckboxes();
+  }
+  function renderChecklistManageList(){
+    const lista = Config.cache.serviceChecklistItems || SERVICE_CHECKLIST_ITEMS;
+    document.getElementById('hf-checklist-manage-list').innerHTML = lista.length ? lista.map(it=>`
+      <div class="hf-checklist-manage-row" data-key="${it.key}" style="display:flex; align-items:center; justify-content:space-between; gap:6px; padding:4px 0; font-size:12px;">
+        <span class="hf-checklist-manage-label" style="flex:1;">${Utils.escapeHTML(it.label)}</span>
+        <button type="button" class="btn btn-ghost btn-sm hf-checklist-edit" data-key="${it.key}" style="padding:2px 7px; font-size:11px;">✎</button>
+        <button type="button" class="btn btn-danger-ghost btn-sm hf-checklist-del" data-key="${it.key}" style="padding:2px 7px; font-size:11px;">Quitar</button>
+      </div>`).join('') : `<div style="font-size:11.5px; color:var(--text-muted);">Sin ítems cargados.</div>`;
+
+    document.querySelectorAll('.hf-checklist-del').forEach(btn=>{
+      btn.onclick = async () => {
+        const estadoPrevio = estadoActualChecklist();
+        const nuevaLista = (Config.cache.serviceChecklistItems||[]).filter(x=>x.key!==btn.dataset.key);
+        await Config.save({ serviceChecklistItems:nuevaLista });
+        renderChecklistManageList();
+        renderChecklistGrid(estadoPrevio);
+      };
+    });
+    document.querySelectorAll('.hf-checklist-edit').forEach(btn=>{
+      btn.onclick = () => {
+        const fila = btn.closest('.hf-checklist-manage-row');
+        const labelSpan = fila.querySelector('.hf-checklist-manage-label');
+        const labelActual = (Config.cache.serviceChecklistItems||[]).find(x=>x.key===btn.dataset.key)?.label || '';
+        labelSpan.outerHTML = `<input type="text" class="hf-checklist-edit-input" value="${Utils.escapeHTML(labelActual)}" style="flex:1; min-width:0; background:var(--bg-panel); border:1px solid var(--border-soft); border-radius:6px; padding:3px 6px; font-size:12px; color:var(--text-primary);">`;
+        const inputEdit = fila.querySelector('.hf-checklist-edit-input');
+        inputEdit.focus(); inputEdit.select();
+        async function confirmarEdicion(){
+          const nuevoLabel = inputEdit.value.trim();
+          if(nuevoLabel && nuevoLabel!==labelActual){
+            const estadoPrevio = estadoActualChecklist();
+            const nuevaLista = (Config.cache.serviceChecklistItems||[]).map(x=>x.key===btn.dataset.key?{...x,label:nuevoLabel}:x);
+            await Config.save({ serviceChecklistItems:nuevaLista });
+            renderChecklistGrid(estadoPrevio);
+          }
+          renderChecklistManageList();
+        }
+        inputEdit.addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); confirmarEdicion(); } if(e.key==='Escape'){ renderChecklistManageList(); } });
+        inputEdit.addEventListener('blur', confirmarEdicion);
+      };
+    });
+  }
+  if(btnGestionarChecklist){
+    btnGestionarChecklist.onclick = (e) => { e.preventDefault(); e.stopPropagation(); popoverChecklist.classList.toggle('hidden'); renderChecklistManageList(); };
+    document.getElementById('hf-checklist-cerrar').onclick = () => popoverChecklist.classList.add('hidden');
+    document.getElementById('hf-checklist-add').onclick = async () => {
+      const input = document.getElementById('hf-checklist-nuevo');
+      const label = input.value.trim();
+      if(!label) return;
+      const lista = Config.cache.serviceChecklistItems || [];
+      if(lista.some(x=>x.label.toLowerCase()===label.toLowerCase())){ Toast.show('info','Ya existe','Ese ítem ya está en la lista.'); return; }
+      const nuevoKey = `item_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+      const estadoPrevio = estadoActualChecklist();
+      await Config.save({ serviceChecklistItems:[...lista, { key:nuevoKey, label }] });
+      input.value = '';
+      renderChecklistManageList();
+      renderChecklistGrid(estadoPrevio);
     };
   }
 
@@ -10414,7 +10515,7 @@ async function openCotizacionModal(cotizacion=null){
     <div class="field">
       <label>Trabajo a realizar</label>
       <div class="checklist-grid">
-        ${SERVICE_CHECKLIST_ITEMS.map(it=>`
+        ${(Config.cache?.serviceChecklistItems||SERVICE_CHECKLIST_ITEMS).map(it=>`
           <label class="checklist-item ${cotizacion&&cotizacion.trabajos&&cotizacion.trabajos[it.key]?'checked':''}" data-key="${it.key}">
             <input type="checkbox" class="cf-trabajo-check" data-key="${it.key}" ${cotizacion&&cotizacion.trabajos&&cotizacion.trabajos[it.key]?'checked':''}>
             ${it.label}
@@ -10597,7 +10698,7 @@ function cotizacionWhatsappTexto(c, mostrarItems, cfg){
   const lineas = [];
   lineas.push(`Hola ${c.clienteNombre}, te paso el presupuesto *#${c.numero}* de ${cfg.nombreEmpresa}.`);
   if(c.vehiculoDescripcion) lineas.push(`Vehículo: ${c.vehiculoDescripcion}${c.vehiculoDominio&&c.vehiculoDominio!=='N/D'?' ('+c.vehiculoDominio+')':''}`);
-  const trabajosMarcados = c.trabajos ? SERVICE_CHECKLIST_ITEMS.filter(it=>c.trabajos[it.key]) : [];
+  const trabajosMarcados = c.trabajos ? (Config.cache?.serviceChecklistItems||SERVICE_CHECKLIST_ITEMS).filter(it=>c.trabajos[it.key]) : [];
   if(trabajosMarcados.length){
     lineas.push('');
     lineas.push('*Trabajo a realizar:*');
