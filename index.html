@@ -11201,7 +11201,7 @@ function lavaderoTurnoRowHTML(t, mostrarFecha, extraAttrs){
     <td>${lavaderoEstadoBadge(t.estado)}</td>
     <td style="text-align:right; white-space:nowrap;">
       ${t.estado==='Reservado' && puede?`<button class="btn btn-accent btn-sm btn-cobrar-turno" data-id="${t.id}">Cobrar</button><button class="btn btn-ghost btn-sm btn-editar-turno" data-id="${t.id}">Editar</button><button class="btn btn-danger-ghost btn-sm btn-cancelar-turno" data-id="${t.id}">Cancelar</button>`:''}
-      ${t.estado==='Completado'?`<button class="btn btn-ghost btn-sm btn-ver-turno" data-id="${t.id}">Ver</button>${puede?`<button class="btn btn-danger-ghost btn-sm btn-anular-turno" data-id="${t.id}">Anular</button>`:''}`:''}
+      ${t.estado==='Completado'?`${t.clienteTelefono?`<button class="btn btn-accent btn-sm btn-avisar-turno" data-id="${t.id}" title="Avisar por WhatsApp que está listo">💬 Avisar</button>`:''}<button class="btn btn-ghost btn-sm btn-ver-turno" data-id="${t.id}">Ver</button>${puede?`<button class="btn btn-danger-ghost btn-sm btn-anular-turno" data-id="${t.id}">Anular</button>`:''}`:''}
       ${t.estado==='Cancelado' && puede?`<button class="btn btn-ghost btn-sm btn-reactivar-turno" data-id="${t.id}">Reactivar</button><button class="btn btn-danger-ghost btn-sm btn-eliminar-turno" data-id="${t.id}">Eliminar</button>`:''}
       ${t.estado==='Anulado'?`<button class="btn btn-ghost btn-sm btn-ver-turno" data-id="${t.id}">Ver</button>`:''}
     </td>
@@ -11241,6 +11241,13 @@ function bindLavaderoTurnoRowActions(){
     await Audit.log('turno_eliminado', `Turno #${t.id} eliminado.`);
     Toast.show('success','Turno eliminado','');
     renderLavaderoTab();
+  });
+  document.querySelectorAll('.btn-avisar-turno').forEach(btn=>btn.onclick=async()=>{
+    const t = await DB.get('lavaderoTurnos', Number(btn.dataset.id));
+    const telefono = (t.clienteTelefono||'').replace(/\D/g,'');
+    if(!telefono){ Toast.show('error','Sin teléfono','Este turno no tiene un teléfono cargado.'); return; }
+    const mensaje = `Hola ${t.clienteNombre}! Te escribimos de ${Config.cache.nombreEmpresa} para avisarte que tu ${t.vehiculoDescripcion||'vehículo'} ya está listo para retirar. ¡Te esperamos!`;
+    window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`, '_blank', 'noopener');
   });
   document.querySelectorAll('.btn-ver-turno').forEach(btn=>btn.onclick=async()=>{
     const t = await DB.get('lavaderoTurnos', Number(btn.dataset.id));
@@ -11373,10 +11380,10 @@ async function openTurnoModal(turno=null, fechaPrefill=null){
         ${clientes.map(c=>`<option value="${c.id}" ${turno&&turno.clienteId===c.id?'selected':''}>${Utils.escapeHTML(clienteNombreCompleto(c))}</option>`).join('')}
       </select>
     </div>
-    <div id="tf-cliente-manual" class="field-row" style="display:none;">
-      <div class="field"><label>Nombre</label><input type="text" id="tf-clienteNombreManual" value="${turno&&!turno.clienteId?Utils.escapeHTML(turno.clienteNombre||''):''}"></div>
-      <div class="field"><label>Teléfono</label><input type="text" id="tf-clienteTelefono" value="${turno?Utils.escapeHTML(turno.clienteTelefono||''):''}"></div>
+    <div id="tf-nombre-manual-wrap" class="field" style="display:none;">
+      <label>Nombre</label><input type="text" id="tf-clienteNombreManual" value="${turno&&!turno.clienteId?Utils.escapeHTML(turno.clienteNombre||''):''}">
     </div>
+    <div class="field"><label>Teléfono (WhatsApp)</label><input type="text" id="tf-clienteTelefono" placeholder="Ej: 3511234567" value="${turno?Utils.escapeHTML(turno.clienteTelefono||''):''}"></div>
     <div id="tf-vehiculo-select-wrap" class="field" style="display:none;">
       <label>Vehículo del cliente (opcional, autocompleta)</label>
       <select class="select-input" id="tf-vehiculoId"><option value="">— Ingresar manualmente —</option></select>
@@ -11390,26 +11397,36 @@ async function openTurnoModal(turno=null, fechaPrefill=null){
   );
 
   const clienteSelect = document.getElementById('tf-clienteId');
-  const manualWrap = document.getElementById('tf-cliente-manual');
+  const nombreManualWrap = document.getElementById('tf-nombre-manual-wrap');
   const vehSelectWrap = document.getElementById('tf-vehiculo-select-wrap');
   const vehSelect = document.getElementById('tf-vehiculoId');
-  async function onClienteChange(){
+  async function actualizarVisibilidadCliente(){
     const clienteId = Number(clienteSelect.value)||null;
-    manualWrap.style.display = clienteId?'none':'';
+    nombreManualWrap.style.display = clienteId?'none':'';
     if(clienteId){
       const vehiculos = (await DB.getAllByIndex('vehiculos','clienteId', clienteId)).filter(v=>v.activo!==false);
       vehSelectWrap.style.display = vehiculos.length?'':'none';
       vehSelect.innerHTML = '<option value="">— Ingresar manualmente —</option>' + vehiculos.map(v=>`<option value="${v.id}">${Utils.escapeHTML(v.dominio)} — ${Utils.escapeHTML(v.marca)} ${Utils.escapeHTML(v.modelo)}</option>`).join('');
     }else vehSelectWrap.style.display='none';
   }
-  clienteSelect.addEventListener('change', onClienteChange);
+  clienteSelect.addEventListener('change', async () => {
+    await actualizarVisibilidadCliente();
+    // Autocompleta el teléfono con el de la ficha del cliente elegido (se
+    // puede seguir editando a mano). Solo pisa el valor en un cambio real
+    // del selector, no al abrir el modal para editar un turno existente.
+    const clienteId = Number(clienteSelect.value)||null;
+    if(clienteId){
+      const clienteSel = clientes.find(c=>c.id===clienteId);
+      document.getElementById('tf-clienteTelefono').value = clienteSel?.telefono || '';
+    }
+  });
   vehSelectWrap.addEventListener('change', async (e)=>{
     if(e.target.id!=='tf-vehiculoId') return;
     const vid = Number(e.target.value); if(!vid) return;
     const v = await DB.get('vehiculos', vid);
     document.getElementById('tf-vehiculoDescripcion').value = `${v.marca} ${v.modelo} (${v.dominio})`;
   });
-  if(turno) await onClienteChange();
+  if(turno) await actualizarVisibilidadCliente();
   if(turno && turno.vehiculoId) vehSelect.value = turno.vehiculoId;
 
   document.getElementById('tf-servicioId').addEventListener('change', (e)=>{
@@ -11436,7 +11453,7 @@ async function openTurnoModal(turno=null, fechaPrefill=null){
 
     const payload = {
       fecha, horaInicio, horaFin, servicioId:servicio.id, servicioNombre:servicio.nombre,
-      clienteId, clienteNombre, clienteTelefono: clienteId ? (cliente.telefono||'') : document.getElementById('tf-clienteTelefono').value.trim(),
+      clienteId, clienteNombre, clienteTelefono: document.getElementById('tf-clienteTelefono').value.trim(),
       vehiculoId: Number(vehSelect.value)||null,
       vehiculoDescripcion: document.getElementById('tf-vehiculoDescripcion').value.trim(),
       precio: Number(document.getElementById('tf-precio').value)||0,
