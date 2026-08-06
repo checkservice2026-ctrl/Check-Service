@@ -521,6 +521,7 @@ table.data-table tbody tr.row-selected{ background:var(--accent-dim); box-shadow
 .badge-warn{ background:var(--warning-dim); color:var(--warning); }
 .badge-danger{ background:var(--danger-dim); color:var(--danger); }
 .badge-neutral{ background:var(--bg-panel-alt); color:var(--text-secondary); border:1px solid var(--border); }
+.badge-info{ background:var(--info-dim); color:var(--info); }
 
 .empty-state{ text-align:center; padding:60px 20px; color:var(--text-muted); }
 .empty-state svg{ width:52px; height:52px; margin-bottom:14px; opacity:.5; }
@@ -1229,7 +1230,7 @@ function canUsarRemitos(rol){ return canUsarCotizaciones(rol); }
 function canVerVentas(rol){ return ['Administrador','Supervisor','Vendedor','Caja'].includes(rol); }
 function canEditarVentas(rol){ return ['Administrador','Supervisor'].includes(rol); }
 // Permisos del módulo Lavadero.
-const ESTADOS_TURNO = ['Reservado','Completado','Cancelado','Anulado'];
+const ESTADOS_TURNO = ['Reservado','Listo','Completado','Cancelado','Anulado'];
 function canUsarLavadero(rol){ return ['Administrador','Supervisor','Vendedor','Caja','Taller'].includes(rol); }
 function canGestionarServiciosLavadero(rol){ return ['Administrador','Supervisor'].includes(rol); }
 // Permisos de Fase 6: compras/proveedores (back-office) y caja (operativo).
@@ -2649,7 +2650,7 @@ async function viewDashboard(){
   const hoyStrLavadero = Utils.hoyLocal();
   const turnosHoy = canUsarLavadero(session.rol) ? await DB.getAllByIndex('lavaderoTurnos','fecha', hoyStrLavadero) : [];
   const turnosHoyCompletados = turnosHoy.filter(t=>t.estado==='Completado').length;
-  const turnosHoyPendientes = turnosHoy.filter(t=>t.estado==='Reservado').length;
+  const turnosHoyPendientes = turnosHoy.filter(t=>t.estado==='Reservado'||t.estado==='Listo').length;
 
   // KPIs de negocio ahora reales gracias al Historial de Servicios (Fase 4)
   const historial = await DB.getAll('historialServicios');
@@ -11142,8 +11143,8 @@ function sumarMinutosAHora(hora, minutos){
   return String(Math.floor(total/60)).padStart(2,'0')+':'+String(total%60).padStart(2,'0');
 }
 function lavaderoEstadoBadge(estado){
-  const map = { Reservado:'badge-warn', Completado:'badge-ok', Cancelado:'badge-neutral', Anulado:'badge-danger' };
-  return `<span class="badge ${map[estado]||'badge-neutral'}">${estado}</span>`;
+  const map = { Reservado:'badge-warn', Listo:'badge-info', Completado:'badge-ok', Cancelado:'badge-neutral', Anulado:'badge-danger' };
+  return `<span class="badge ${map[estado]||'badge-neutral'}">${estado==='Listo'?'Listo para retirar':estado}</span>`;
 }
 async function aplicarEfectosTurno(turno, motivo){
   if(turno.medioPago === 'Cuenta corriente' && turno.clienteId){
@@ -11200,8 +11201,9 @@ function lavaderoTurnoRowHTML(t, mostrarFecha, extraAttrs){
     <td class="font-mono">$${t.precio.toLocaleString('es-AR')}</td>
     <td>${lavaderoEstadoBadge(t.estado)}</td>
     <td style="text-align:right; white-space:nowrap;">
-      ${t.estado==='Reservado' && puede?`<button class="btn btn-accent btn-sm btn-cobrar-turno" data-id="${t.id}">Cobrar</button><button class="btn btn-ghost btn-sm btn-editar-turno" data-id="${t.id}">Editar</button><button class="btn btn-danger-ghost btn-sm btn-cancelar-turno" data-id="${t.id}">Cancelar</button>`:''}
-      ${t.estado==='Completado'?`${t.clienteTelefono?`<button class="btn btn-accent btn-sm btn-avisar-turno" data-id="${t.id}" title="Avisar por WhatsApp que está listo">💬 Avisar</button>`:''}<button class="btn btn-ghost btn-sm btn-ver-turno" data-id="${t.id}">Ver</button>${puede?`<button class="btn btn-danger-ghost btn-sm btn-anular-turno" data-id="${t.id}">Anular</button>`:''}`:''}
+      ${t.estado==='Reservado' && puede?`<button class="btn btn-ghost btn-sm btn-marcar-listo-turno" data-id="${t.id}">Marcar listo</button><button class="btn btn-accent btn-sm btn-cobrar-turno" data-id="${t.id}">Cobrar</button><button class="btn btn-ghost btn-sm btn-editar-turno" data-id="${t.id}">Editar</button><button class="btn btn-danger-ghost btn-sm btn-cancelar-turno" data-id="${t.id}">Cancelar</button>`:''}
+      ${t.estado==='Listo'?`${t.clienteTelefono?`<button class="btn btn-accent btn-sm btn-avisar-turno" data-id="${t.id}" title="Avisar por WhatsApp que está listo">💬 Avisar</button>`:''}${puede?`<button class="btn btn-accent btn-sm btn-cobrar-turno" data-id="${t.id}">Cobrar</button><button class="btn btn-ghost btn-sm btn-volver-reservado-turno" data-id="${t.id}">Volver a reservado</button><button class="btn btn-danger-ghost btn-sm btn-cancelar-turno" data-id="${t.id}">Cancelar</button>`:''}`:''}
+      ${t.estado==='Completado'?`${t.clienteTelefono?`<button class="btn btn-ghost btn-sm btn-avisar-turno" data-id="${t.id}" title="Avisar por WhatsApp que está listo">💬 Avisar</button>`:''}<button class="btn btn-ghost btn-sm btn-ver-turno" data-id="${t.id}">Ver</button>${puede?`<button class="btn btn-danger-ghost btn-sm btn-anular-turno" data-id="${t.id}">Anular</button>`:''}`:''}
       ${t.estado==='Cancelado' && puede?`<button class="btn btn-ghost btn-sm btn-reactivar-turno" data-id="${t.id}">Reactivar</button><button class="btn btn-danger-ghost btn-sm btn-eliminar-turno" data-id="${t.id}">Eliminar</button>`:''}
       ${t.estado==='Anulado'?`<button class="btn btn-ghost btn-sm btn-ver-turno" data-id="${t.id}">Ver</button>`:''}
     </td>
@@ -11242,6 +11244,20 @@ function bindLavaderoTurnoRowActions(){
     Toast.show('success','Turno eliminado','');
     renderLavaderoTab();
   });
+  document.querySelectorAll('.btn-marcar-listo-turno').forEach(btn=>btn.onclick=async()=>{
+    const t = await DB.get('lavaderoTurnos', Number(btn.dataset.id));
+    await DB.put('lavaderoTurnos', { ...t, estado:'Listo', fechaListo:Utils.nowISO() });
+    await Audit.log('turno_listo', `Turno de ${t.clienteNombre} marcado como listo para retirar.`);
+    Toast.show('success','Turno listo para retirar', t.clienteTelefono?'Ya podés avisarle por WhatsApp.':'');
+    renderLavaderoTab();
+  });
+  document.querySelectorAll('.btn-volver-reservado-turno').forEach(btn=>btn.onclick=async()=>{
+    const t = await DB.get('lavaderoTurnos', Number(btn.dataset.id));
+    await DB.put('lavaderoTurnos', { ...t, estado:'Reservado' });
+    await Audit.log('turno_vuelto_reservado', `Turno de ${t.clienteNombre} vuelto a Reservado.`);
+    Toast.show('success','Turno vuelto a Reservado','');
+    renderLavaderoTab();
+  });
   document.querySelectorAll('.btn-avisar-turno').forEach(btn=>btn.onclick=async()=>{
     const t = await DB.get('lavaderoTurnos', Number(btn.dataset.id));
     const telefono = (t.clienteTelefono||'').replace(/\D/g,'');
@@ -11274,6 +11290,7 @@ async function lavaderoAgendaHTML(){
   const fecha = lavaderoFechaSeleccionada;
   const turnos = (await DB.getAllByIndex('lavaderoTurnos','fecha', fecha)).sort((a,b)=> a.horaInicio.localeCompare(b.horaInicio));
   const completados = turnos.filter(t=>t.estado==='Completado');
+  const listos = turnos.filter(t=>t.estado==='Listo');
   const facturadoHoy = completados.reduce((a,t)=>a+t.precio,0);
   const fechaLabel = new Date(fecha+'T00:00:00').toLocaleDateString('es-AR',{ weekday:'long', day:'numeric', month:'long' });
 
@@ -11290,6 +11307,7 @@ async function lavaderoAgendaHTML(){
     <p style="text-transform:capitalize; font-weight:700; margin:10px 0 14px;">${fechaLabel}</p>
     <div class="grid-kpi" style="margin-bottom:18px;">
       <div class="kpi-card" style="--kpi-color:var(--accent)"><div class="kpi-label">Turnos del día</div><div class="kpi-value">${turnos.length}</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--info)"><div class="kpi-label">Listos para retirar</div><div class="kpi-value">${listos.length}</div></div>
       <div class="kpi-card" style="--kpi-color:var(--teal)"><div class="kpi-label">Completados</div><div class="kpi-value">${completados.length}</div></div>
       <div class="kpi-card" style="--kpi-color:var(--teal)"><div class="kpi-label">Facturado</div><div class="kpi-value">$${facturadoHoy.toLocaleString('es-AR')}</div></div>
     </div>
