@@ -42,6 +42,8 @@
   --warning-dim:rgba(245,166,35,.14);
   --info:#4C9AFF;
   --info-dim:rgba(76,154,255,.14);
+  --urgente:#F2751A;
+  --urgente-dim:rgba(242,117,26,.14);
   --shadow-lift: 0 8px 24px rgba(0,0,0,.35);
   --shadow-soft: 0 2px 8px rgba(0,0,0,.25);
 }
@@ -67,6 +69,8 @@
   --warning-dim:rgba(201,127,14,.10);
   --info:#2C6ECB;
   --info-dim:rgba(44,110,203,.10);
+  --urgente:#C25A0C;
+  --urgente-dim:rgba(194,90,12,.10);
   --shadow-lift: 0 8px 24px rgba(20,23,26,.10);
   --shadow-soft: 0 2px 8px rgba(20,23,26,.06);
 }
@@ -442,6 +446,43 @@ a{ color:inherit; text-decoration:none; }
 .caja-saldo-bar{ height:8px; border-radius:6px; overflow:hidden; display:flex; background:var(--bg-panel-alt); margin-bottom:18px; border:1px solid var(--border-soft); }
 .caja-saldo-bar-seg{ height:100%; transition:width .3s ease; }
 .caja-saldo-bar-legend{ display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted); margin:-12px 0 18px; }
+
+/* Planificación de próximos services (línea de tiempo tipo Gantt) */
+.plan-kpi-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px; margin-bottom:18px; }
+.plan-kpi-card{ background:var(--bg-panel); border:1px solid var(--border); border-radius:14px; padding:14px 16px; display:flex; align-items:center; gap:12px; }
+.plan-kpi-icon{ width:42px; height:42px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:19px; flex-shrink:0; background:var(--pk-bg); }
+.plan-kpi-label{ font-size:10.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; font-weight:700; }
+.plan-kpi-value{ font-size:22px; font-weight:700; margin-top:2px; font-family:'Consolas','SF Mono',monospace; }
+.plan-legend{ display:flex; align-items:center; gap:18px; flex-wrap:wrap; font-size:12px; color:var(--text-secondary); margin:2px 0 14px; }
+.plan-legend-item{ display:flex; align-items:center; gap:6px; }
+.plan-legend-dot{ width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.plan-scroll-wrap{ border:1px solid var(--border); border-radius:14px; overflow-x:auto; background:var(--bg-panel); }
+.plan-grid-inner{ min-width:1180px; position:relative; }
+.plan-row{ display:grid; grid-template-columns:610px 1fr; border-bottom:1px solid var(--border-soft); align-items:stretch; }
+.plan-row:last-child{ border-bottom:none; }
+.plan-row.plan-row-head{ position:sticky; top:0; z-index:3; background:var(--bg-panel-raised); }
+.plan-info-cols{ display:grid; grid-template-columns:150px 175px 90px 100px 100px; align-items:center; padding:10px 14px; gap:6px; }
+.plan-row-head .plan-info-cols{ background:var(--bg-panel-raised); font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; font-weight:700; color:var(--text-muted); padding:12px 14px; }
+.plan-info-cols > div{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.plan-vehiculo-nombre{ font-weight:700; font-size:13px; }
+.plan-vehiculo-anio{ font-size:11px; color:var(--text-muted); }
+.plan-cliente-nombre{ font-size:12.5px; font-weight:600; }
+.plan-fecha-principal{ font-size:12.5px; font-weight:700; font-family:'Consolas','SF Mono',monospace; }
+.plan-fecha-principal.vencido-txt{ color:var(--danger); }
+.plan-km-sub{ font-size:10.5px; color:var(--text-muted); }
+.plan-timeline-months{ display:flex; height:26px; background:var(--bg-panel-raised); }
+.plan-timeline-months > div{ display:flex; align-items:center; justify-content:center; font-size:10.5px; font-weight:700; letter-spacing:.04em; color:var(--text-secondary); border-left:1px solid var(--border-soft); text-transform:uppercase; overflow:hidden; white-space:nowrap; }
+.plan-timeline-weeks{ display:flex; height:20px; border-bottom:1px solid var(--border-soft); position:relative; }
+.plan-timeline-week-tick{ position:absolute; top:0; bottom:0; display:flex; align-items:center; font-size:10px; color:var(--text-muted); border-left:1px solid var(--border-soft); padding-left:3px; }
+.plan-timeline-col{ position:relative; }
+.plan-timeline-row{ position:relative; min-height:64px; }
+.plan-timeline-row::before{ content:''; position:absolute; top:50%; left:0; right:0; border-top:2px dashed var(--border); }
+.plan-timeline-segment{ position:absolute; top:50%; height:4px; margin-top:-2px; border-radius:3px; }
+.plan-timeline-dot{ position:absolute; top:50%; width:13px; height:13px; margin-top:-6.5px; margin-left:-6.5px; border-radius:50%; box-shadow:0 0 0 3px var(--bg-panel); }
+.plan-timeline-circle{ position:absolute; top:50%; width:13px; height:13px; margin-top:-6.5px; margin-left:-6.5px; border-radius:50%; background:var(--bg-panel); border-width:3px; border-style:solid; }
+.plan-timeline-circle-label{ position:absolute; top:50%; margin-top:-8px; font-size:12px; font-weight:700; white-space:nowrap; font-family:'Consolas','SF Mono',monospace; }
+.plan-hoy-linea{ position:absolute; top:46px; bottom:0; width:0; border-left:2px dashed var(--danger); z-index:2; pointer-events:none; }
+.plan-hoy-label{ position:absolute; bottom:-24px; transform:translateX(-50%); font-size:10.5px; font-weight:700; color:var(--danger); text-transform:uppercase; letter-spacing:.05em; white-space:nowrap; }
 
 /* Calendario Financiero (Dashboard) */
 .calfin-grid-header{ display:grid; grid-template-columns:repeat(7,1fr); gap:8px; margin-bottom:8px; }
@@ -1488,7 +1529,13 @@ const Utils = {
   // UTC, y en Argentina (UTC-3) eso adelanta el corte de día a las 21:00
   // hora local en vez de las 00:00, haciendo que ventas/movimientos de la
   // noche se cuenten como si fueran del día siguiente.
+  // Si "fecha" ya viene como string "solo día" (ej: fecha de un service o
+  // una compra, sin hora), se devuelve tal cual: convertirla con `new
+  // Date(...)` la interpretaría como medianoche UTC y, en husos horarios
+  // negativos, retrocedería un día al extraerla en local (mismo problema
+  // que resuelve parsearFechaSegura).
   fechaLocalYMD(fecha){
+    if(typeof fecha === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(fecha)) return fecha;
     const d = (fecha instanceof Date) ? fecha : new Date(fecha);
     const y = d.getFullYear();
     const m = String(d.getMonth()+1).padStart(2,'0');
@@ -2400,6 +2447,7 @@ async function router(){
       break;
     case 'historial':
       if(param === 'estadisticas'){ outlet.innerHTML = await viewHistorialEstadisticas(); await bindHistorialEstadisticasEvents(); }
+      else if(param === 'planificacion'){ outlet.innerHTML = await viewHistorialPlanificacion(); bindHistorialPlanificacionEvents(); }
       else{ outlet.innerHTML = await viewHistorialList(); bindHistorialListEvents(); }
       break;
     case 'productos':
@@ -2863,7 +2911,17 @@ async function bindDashboardEvents(){
    usan el costo actual del producto (mismo criterio que el resto del
    Dashboard, no hay foto histórica del costo); la mano de obra y los
    lavados no tienen costo cargado, así que su margen es el 100% de lo
-   cobrado. */
+   cobrado.
+
+   Ventas y lavados se cobran en el mismo momento en que se cargan (no hay
+   demora), así que su propia fecha ya es la fecha real del cobro. Los
+   SERVICES sí pueden cargarse un día y cobrarse otro (o cobrarse en varias
+   partes, en fechas distintas) — para esos, el margen se atribuye a la
+   fecha de cada pago realmente registrado en Caja (proporcional al monto
+   de cada pago), no a la fecha de carga del service. Lo que todavía no se
+   cobró en efectivo/tarjeta/etc (pendiente, o cargado a cuenta corriente
+   sin cobrar todavía) se sigue mostrando en la fecha del service, como
+   aproximación, hasta que se cobre. */
 async function calcularMargenPorPeriodo(periodo){
   const CANTIDAD_BUCKETS = { dia:14, semana:8, mes:12, anio:5 };
   const cantidad = CANTIDAD_BUCKETS[periodo] || 12;
@@ -2882,36 +2940,59 @@ async function calcularMargenPorPeriodo(periodo){
   function claveBucket(fechaISO){
     if(periodo==='dia') return Utils.fechaLocalYMD(fechaISO);
     if(periodo==='semana') return inicioDeSemana(Utils.fechaLocalYMD(fechaISO));
-    if(periodo==='anio') return String(new Date(fechaISO).getFullYear());
+    if(periodo==='anio') return Utils.fechaLocalYMD(fechaISO).slice(0,4);
     return Utils.fechaLocalYMD(fechaISO).slice(0,7);
   }
+  function sumarAClave(fechaISO, monto){
+    const clave = claveBucket(fechaISO);
+    if(clave in margenPorClave) margenPorClave[clave] += monto;
+  }
 
-  const [productos, ventas, historial, turnos] = await Promise.all([
+  const [productos, ventas, historial, turnos, caja] = await Promise.all([
     DB.getAll('productos'),
     DB.getAll('ventas'),
     DB.getAll('historialServicios'),
-    DB.getAll('lavaderoTurnos')
+    DB.getAll('lavaderoTurnos'),
+    DB.getAll('caja')
   ]);
   const productosById = {}; productos.forEach(p=>productosById[p.id]=p);
 
   ventas.filter(v=>v.estado==='completada').forEach(v=>{
-    const clave = claveBucket(v.fecha);
-    if(!(clave in margenPorClave)) return;
     const margen = v.items.reduce((a,it)=>{
       const costo = it.productoId ? (productosById[it.productoId]?.precioCosto||0) : 0;
       return a + (it.precioUnitario-costo)*it.cantidad;
     },0);
-    margenPorClave[clave] += margen;
+    sumarAClave(v.fecha, margen);
   });
+
+  // Pagos reales en Caja de cada service (referencia "historial:ID"),
+  // excluyendo los que fueron anulados/revertidos (egreso con la misma
+  // referencia, mismo criterio que usa el Resumen del día de Caja).
+  const referenciasHistorialRevertidas = new Set(
+    caja.filter(m=>m.tipo==='egreso' && (m.referencia||'').startsWith('historial:')).map(m=>m.referencia)
+  );
+  const pagosPorHistorial = {};
+  caja.filter(m=>m.tipo==='ingreso' && (m.referencia||'').startsWith('historial:') && !referenciasHistorialRevertidas.has(m.referencia)).forEach(m=>{
+    const hId = Number(m.referencia.split(':')[1]);
+    (pagosPorHistorial[hId] = pagosPorHistorial[hId]||[]).push({ monto:m.monto, fecha:m.fecha });
+  });
+
   historial.forEach(h=>{
-    const clave = claveBucket(h.fecha);
-    if(!(clave in margenPorClave)) return;
-    margenPorClave[clave] += (h.precio||0)-(h.costo||0);
+    const precio = h.precio||0;
+    const margenTotal = precio - (h.costo||0);
+    if(precio <= 0){ sumarAClave(h.fecha, margenTotal); return; }
+    const pagos = pagosPorHistorial[h.id] || [];
+    let cobradoEnCaja = 0;
+    pagos.forEach(p=>{
+      cobradoEnCaja += p.monto;
+      sumarAClave(p.fecha, p.monto * (margenTotal/precio));
+    });
+    const restante = precio - cobradoEnCaja; // pendiente de cobro o cargado a cta cte sin cobrar todavía
+    if(restante > 0.009) sumarAClave(h.fecha, restante * (margenTotal/precio));
   });
+
   turnos.filter(t=>t.estado==='Completado' && t.pagado).forEach(t=>{
-    const clave = claveBucket(t.fechaCompletado || (t.fecha+'T00:00:00'));
-    if(!(clave in margenPorClave)) return;
-    margenPorClave[clave] += t.precio||0; // lavado: sin costo cargado, margen 100%
+    sumarAClave(t.fechaCompletado || (t.fecha+'T00:00:00'), t.precio||0); // lavado: sin costo cargado, margen 100%
   });
 
   const labels = clavesUnicas.map(c=>{
@@ -4779,13 +4860,194 @@ function trabajoARealizarTicketHTML(trabajos){
 function esServicioProximo(h, vehiculo){
   const hoy = new Date();
   if(h.proximoServiceFecha){
-    const dias = (new Date(h.proximoServiceFecha) - hoy) / 86400000;
+    const dias = (parsearFechaSegura(h.proximoServiceFecha) - hoy) / 86400000;
     if(dias >= -3 && dias <= 30) return true;
   }
   if(h.proximoServiceKm && vehiculo && vehiculo.kilometraje){
     if(vehiculo.kilometraje >= h.proximoServiceKm - 500) return true;
   }
   return false;
+}
+
+/* -----------------------------------------------------------------------
+   20-F-BIS. PLANIFICACIÓN DE PRÓXIMOS SERVICES (línea de tiempo)
+   Para cada vehículo activo, toma su service más reciente y, si tiene
+   cargada una fecha de "próximo service", arma una fila en la línea de
+   tiempo mostrando cuánto falta (o cuánto se pasó) para esa fecha.
+----------------------------------------------------------------------- */
+const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const PLANIF_ESTADO_COLOR = { ok:'var(--teal)', proximo:'var(--warning)', urgente:'var(--urgente)', vencido:'var(--danger)' };
+const PLANIF_ESTADO_LABEL = { ok:'Más de 30 días', proximo:'Entre 15 y 30 días', urgente:'Menos de 15 días', vencido:'Service vencido' };
+
+function diasEntreFechas(a, b){ // cantidad de días de a hacia b (b-a), redondeado
+  return Math.round((b.getTime() - a.getTime()) / 86400000);
+}
+
+function estadoPlanificacion(diasRestantes){
+  if(diasRestantes < 0) return 'vencido';
+  if(diasRestantes <= 15) return 'urgente';
+  if(diasRestantes <= 30) return 'proximo';
+  return 'ok';
+}
+
+async function obtenerProximosServicesPlanificados(){
+  const [vehiculos, clientes, historial] = await Promise.all([
+    DB.getAll('vehiculos'), DB.getAll('clientes'), DB.getAll('historialServicios')
+  ]);
+  const cliById = {}; clientes.forEach(c=>cliById[c.id]=c);
+
+  // Último service (por fecha) de cada vehículo
+  const ultimoPorVehiculo = {};
+  historial.forEach(h=>{
+    if(!h.vehiculoId) return;
+    const actual = ultimoPorVehiculo[h.vehiculoId];
+    if(!actual || parsearFechaSegura(h.fecha) > parsearFechaSegura(actual.fecha)) ultimoPorVehiculo[h.vehiculoId] = h;
+  });
+
+  const hoy = parsearFechaSegura(Utils.hoyLocal());
+  const filas = [];
+  vehiculos.filter(v=>v.activo!==false).forEach(v=>{
+    const h = ultimoPorVehiculo[v.id];
+    if(!h || !h.proximoServiceFecha) return; // sin próximo service programado con fecha: no entra en la planificación
+    const target = parsearFechaSegura(h.proximoServiceFecha);
+    const diasRestantes = diasEntreFechas(hoy, target);
+    filas.push({
+      vehiculo: v, cliente: cliById[v.clienteId] || null,
+      ultimoServiceFecha: h.fecha, ultimoServiceKm: h.kilometraje,
+      proximoServiceFecha: h.proximoServiceFecha, proximoServiceKm: h.proximoServiceKm,
+      diasRestantes, estado: estadoPlanificacion(diasRestantes)
+    });
+  });
+  filas.sort((a,b)=> parsearFechaSegura(a.proximoServiceFecha) - parsearFechaSegura(b.proximoServiceFecha));
+  return filas;
+}
+
+/* Arma la escala de meses y de marcas semanales para la línea de tiempo,
+   dado un rango [rangeStart, rangeEnd]. */
+function generarEscalaTimelinePlanificacion(rangeStart, rangeEnd){
+  const totalDias = Math.max(1, diasEntreFechas(rangeStart, rangeEnd));
+
+  const meses = [];
+  let cursor = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), 1);
+  while(cursor < rangeEnd){
+    const inicioSegmento = cursor > rangeStart ? cursor : rangeStart;
+    const inicioMesSiguiente = new Date(cursor.getFullYear(), cursor.getMonth()+1, 1);
+    const finSegmento = inicioMesSiguiente < rangeEnd ? inicioMesSiguiente : rangeEnd;
+    const diasEnRango = Math.max(0, diasEntreFechas(inicioSegmento, finSegmento));
+    meses.push({ label: `${MESES_ES[cursor.getMonth()]} ${cursor.getFullYear()}`, pctWidth: diasEnRango/totalDias*100 });
+    cursor = inicioMesSiguiente;
+  }
+
+  const ticks = [];
+  let t = new Date(rangeStart.getTime());
+  const dow = t.getDay();
+  const offsetALunes = dow===0 ? 1 : (dow===1 ? 0 : 8-dow);
+  t.setDate(t.getDate() + offsetALunes);
+  while(t <= rangeEnd){
+    ticks.push({ pct: diasEntreFechas(rangeStart, t)/totalDias*100, label: String(t.getDate()) });
+    t = new Date(t.getFullYear(), t.getMonth(), t.getDate()+7);
+  }
+
+  return { meses, ticks, totalDias };
+}
+
+function planifTimelineRowHTML(f, rangeStart, totalDias){
+  const hoy = parsearFechaSegura(Utils.hoyLocal());
+  const target = parsearFechaSegura(f.proximoServiceFecha);
+  const pct = (d) => Math.min(100, Math.max(0, diasEntreFechas(rangeStart, d)/totalDias*100));
+  const pctHoy = pct(hoy);
+  const pctTarget = pct(target);
+  const pctLeft = Math.min(pctHoy, pctTarget);
+  const pctRight = Math.max(pctHoy, pctTarget);
+  const color = PLANIF_ESTADO_COLOR[f.estado];
+  const labelIzquierda = pctTarget > 88;
+  return `
+    <div class="plan-timeline-row">
+      <div class="plan-timeline-segment" style="left:${pctLeft}%; width:${Math.max(0.6,pctRight-pctLeft)}%; background:${color};"></div>
+      <div class="plan-timeline-dot" style="left:${pctHoy}%; background:${color};" title="Hoy"></div>
+      <div class="plan-timeline-circle" style="left:${pctTarget}%; border-color:${color};"></div>
+      <div class="plan-timeline-circle-label" style="left:${pctTarget}%; color:${color}; ${labelIzquierda?`transform:translateX(calc(-100% - 12px));`:`transform:translateX(12px);`}">${target.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})}</div>
+    </div>
+  `;
+}
+
+async function viewHistorialPlanificacion(){
+  const filas = await obtenerProximosServicesPlanificados();
+  const clientesActivos = (await DB.getAll('clientes')).filter(c=>c.activo!==false).length;
+  const vencenEstaSemana = filas.filter(f=>f.diasRestantes>=0 && f.diasRestantes<=7).length;
+  const vencidos = filas.filter(f=>f.diasRestantes<0).length;
+
+  const hoy = parsearFechaSegura(Utils.hoyLocal());
+  let rangeStart = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()-30);
+  let rangeEnd = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()+120);
+  filas.forEach(f=>{
+    const target = parsearFechaSegura(f.proximoServiceFecha);
+    const conBuffer = new Date(target.getFullYear(), target.getMonth(), target.getDate()+15);
+    if(conBuffer > rangeEnd) rangeEnd = conBuffer;
+  });
+  const { meses, ticks, totalDias } = generarEscalaTimelinePlanificacion(rangeStart, rangeEnd);
+  const pctHoyGlobal = Math.min(100, Math.max(0, diasEntreFechas(rangeStart, hoy)/totalDias*100));
+
+  return `
+    <a href="#/historial" class="back-link">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Volver al Historial
+    </a>
+    <div class="page-header">
+      <div><h1>Próximos services programados</h1><p>Reporte de planificación — fecha del reporte: ${hoy.toLocaleDateString('es-AR')}</p></div>
+    </div>
+
+    <div class="plan-kpi-grid">
+      <div class="plan-kpi-card"><div class="plan-kpi-icon" style="--pk-bg:var(--info-dim); color:var(--info);">${svgIcon('clientes')}</div><div><div class="plan-kpi-label">Clientes registrados</div><div class="plan-kpi-value">${clientesActivos}</div></div></div>
+      <div class="plan-kpi-card"><div class="plan-kpi-icon" style="--pk-bg:var(--teal-dim); color:var(--teal);">${svgIcon('historial')}</div><div><div class="plan-kpi-label">Services pendientes</div><div class="plan-kpi-value">${filas.length}</div></div></div>
+      <div class="plan-kpi-card"><div class="plan-kpi-icon" style="--pk-bg:var(--warning-dim); color:var(--warning);">${svgIcon('calendario')}</div><div><div class="plan-kpi-label">Vencen esta semana</div><div class="plan-kpi-value">${vencenEstaSemana}</div></div></div>
+      <div class="plan-kpi-card"><div class="plan-kpi-icon" style="--pk-bg:var(--danger-dim); color:var(--danger);">!</div><div><div class="plan-kpi-label">Services vencidos</div><div class="plan-kpi-value">${vencidos}</div></div></div>
+    </div>
+
+    <div class="plan-legend">
+      <span class="plan-legend-item"><span class="plan-legend-dot" style="background:var(--teal);"></span>Más de 30 días</span>
+      <span class="plan-legend-item"><span class="plan-legend-dot" style="background:var(--warning);"></span>Entre 15 y 30 días</span>
+      <span class="plan-legend-item"><span class="plan-legend-dot" style="background:var(--urgente);"></span>Menos de 15 días</span>
+      <span class="plan-legend-item"><span class="plan-legend-dot" style="background:var(--danger);"></span>Service vencido</span>
+    </div>
+
+    ${!filas.length ? `<div class="empty-state">${svgIcon('historial')}<h3>No hay services con próxima fecha programada</h3><p>Cargá la "fecha de próximo service" al registrar un service para que aparezca acá.</p></div>` : `
+    <div class="plan-scroll-wrap">
+      <div class="plan-grid-inner">
+        <div class="plan-hoy-linea" style="left:calc(610px + (100% - 610px) * ${(pctHoyGlobal/100).toFixed(4)});">
+          <div class="plan-hoy-label">Hoy</div>
+        </div>
+        <div class="plan-row plan-row-head">
+          <div class="plan-info-cols">
+            <div>Cliente</div><div>Vehículo</div><div>Patente</div><div>Último service</div><div>Próximo service</div>
+          </div>
+          <div class="plan-timeline-col">
+            <div class="plan-timeline-months">${meses.map(m=>`<div style="width:${m.pctWidth}%;">${m.label}</div>`).join('')}</div>
+            <div class="plan-timeline-weeks">${ticks.map(t=>`<div class="plan-timeline-week-tick" style="left:${t.pct}%;">${t.label}</div>`).join('')}</div>
+          </div>
+        </div>
+        ${filas.map(f=>`
+        <div class="plan-row">
+          <div class="plan-info-cols">
+            <div class="plan-cliente-nombre" title="${f.cliente?Utils.escapeHTML(clienteNombreCompleto(f.cliente)):''}">${f.cliente?`<a href="#/clientes/${f.cliente.id}">${Utils.escapeHTML(clienteNombreCompleto(f.cliente))}</a>`:'—'}</div>
+            <div title="${Utils.escapeHTML(f.vehiculo.marca)} ${Utils.escapeHTML(f.vehiculo.modelo)}"><a href="#/vehiculos/${f.vehiculo.id}" class="plan-vehiculo-nombre">${Utils.escapeHTML(f.vehiculo.marca)} ${Utils.escapeHTML(f.vehiculo.modelo)}</a></div>
+            <div class="font-mono">${Utils.escapeHTML(f.vehiculo.dominio)}</div>
+            <div><div class="plan-fecha-principal">${parsearFechaSegura(f.ultimoServiceFecha).toLocaleDateString('es-AR')}</div>${f.ultimoServiceKm?`<div class="plan-km-sub">${Number(f.ultimoServiceKm).toLocaleString('es-AR')} km</div>`:''}</div>
+            <div><div class="plan-fecha-principal ${f.estado==='vencido'?'vencido-txt':''}" style="color:${f.estado!=='vencido'?PLANIF_ESTADO_COLOR[f.estado]:''};">${parsearFechaSegura(f.proximoServiceFecha).toLocaleDateString('es-AR')}</div>${f.proximoServiceKm?`<div class="plan-km-sub">${Number(f.proximoServiceKm).toLocaleString('es-AR')} km</div>`:''}</div>
+          </div>
+          <div class="plan-timeline-col">
+            ${planifTimelineRowHTML(f, rangeStart, totalDias)}
+          </div>
+        </div>`).join('')}
+      </div>
+    </div>
+    `}
+  `;
+}
+
+function bindHistorialPlanificacionEvents(){
+  // Vista de solo lectura por ahora: sin listeners adicionales más allá de
+  // los links de navegación (cliente/vehículo), que ya funcionan solos.
 }
 
 /* -----------------------------------------------------------------------
@@ -4970,6 +5232,7 @@ async function openRegistrarPagoHistorialModal(h){
     </div>
     <div class="field"><label>Monto a pagar</label><input type="number" min="0.01" max="${saldo}" step="0.01" id="rph-monto" value="${saldo}"></div>
     <div class="field"><label>Medio de pago</label><select class="select-input" id="rph-medio">${MEDIOS_PAGO.map(m=>`<option value="${m}">${m}</option>`).join('')}</select></div>
+    <div class="field"><label>Fecha del pago</label><input type="date" id="rph-fecha" value="${Utils.hoyLocal()}" max="${Utils.hoyLocal()}"></div>
     <div class="modal-actions"><button class="btn btn-ghost" id="rph-cancel">Cancelar</button><button class="btn btn-accent" id="rph-save">Confirmar pago</button></div>
     `,
     { width:'420px' }
@@ -4978,7 +5241,9 @@ async function openRegistrarPagoHistorialModal(h){
   document.getElementById('rph-save').onclick = async () => {
     const monto = Number(document.getElementById('rph-monto').value);
     const medioPago = document.getElementById('rph-medio').value;
+    const fechaPago = document.getElementById('rph-fecha').value;
     if(!monto || monto<=0 || monto>saldo+0.01){ Toast.show('error','Monto inválido',''); return; }
+    if(!fechaPago){ Toast.show('error','Falta la fecha','Indicá la fecha del pago.'); return; }
     if(medioPago==='Cuenta corriente' && !h.clienteId){ Toast.show('error','Sin cliente','Este service no tiene un cliente registrado para cargar a cuenta corriente.'); return; }
     let chequeoLimite = { ok:true };
     if(medioPago==='Cuenta corriente'){
@@ -4986,12 +5251,13 @@ async function openRegistrarPagoHistorialModal(h){
       if(!chequeoLimite.ok){ Toast.show('error','Límite de cuenta corriente superado', chequeoLimite.mensaje); return; }
     }
 
+    const fechaISO = combinarFechaConHoraActual(fechaPago);
     const motivo = `Pago service ${h.fecha}${vehiculo?' - '+vehiculo.dominio:''}`;
     if(medioPago === 'Cuenta corriente'){
-      await registrarMovimientoCtaCte(h.clienteId, { tipo:'cargo', concepto:motivo, monto, referencia:`historial:${h.id}` });
+      await registrarMovimientoCtaCte(h.clienteId, { tipo:'cargo', concepto:motivo, monto, referencia:`historial:${h.id}`, fecha:fechaISO });
       avisarSiCercaDelLimite(chequeoLimite);
     }else{
-      await registrarMovimientoCaja({ tipo:'ingreso', concepto:motivo, monto, medioPago, referencia:`historial:${h.id}` });
+      await registrarMovimientoCaja({ tipo:'ingreso', concepto:motivo, monto, medioPago, referencia:`historial:${h.id}`, fecha:fechaISO });
     }
 
     const nuevoMontoPagado = (h.montoPagado||0) + monto;
@@ -5293,6 +5559,7 @@ async function viewHistorialList(){
     <div class="page-header">
       <div><h1>Historial de Servicios</h1><p>${historial.length} servicios registrados en total</p></div>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a class="btn btn-ghost" href="#/historial/planificacion">${svgIcon('calendario')} Planificación</a>
         <a class="btn btn-ghost" href="#/historial/estadisticas">${svgIcon('reportes')} Estadísticas</a>
         ${puedeGestionar?`<button class="btn btn-accent" id="btn-nuevo-service-global">${svgIcon('historial')} Nuevo service</button>`:''}
       </div>
@@ -7265,12 +7532,12 @@ async function calcularResumenPeriodoAbierto(){
 
   return { desde, porMedio, efectivoEsperado, ctaCteCargos, cantidadMovimientos: periodoMovs.length };
 }
-async function registrarMovimientoCaja({ tipo, concepto, monto, medioPago, referencia }){
+async function registrarMovimientoCaja({ tipo, concepto, monto, medioPago, referencia, fecha }){
   const saldoAnterior = await cajaSaldoActual();
   const saldoResultante = tipo==='ingreso' ? saldoAnterior+monto : saldoAnterior-monto;
   const session = Session.get();
   await DB.add('caja', {
-    fecha: Utils.nowISO(), tipo, concepto, monto, medioPago: medioPago||'—', referencia: referencia||'manual',
+    fecha: fecha || Utils.nowISO(), tipo, concepto, monto, medioPago: medioPago||'—', referencia: referencia||'manual',
     saldoResultante, usuarioId: session.usuarioId, usuarioNombre: session.nombre
   });
   return saldoResultante;
@@ -7279,15 +7546,26 @@ async function saldoCuentaCorriente(clienteId){
   const movs = await DB.getAllByIndex('cuentasCorrientes','clienteId', clienteId);
   return movs.reduce((acc,m)=> acc + (m.tipo==='cargo'?m.monto:-m.monto), 0);
 }
-async function registrarMovimientoCtaCte(clienteId, { tipo, concepto, monto, referencia }){
+async function registrarMovimientoCtaCte(clienteId, { tipo, concepto, monto, referencia, fecha }){
   const saldoAnterior = await saldoCuentaCorriente(clienteId);
   const saldoResultante = tipo==='cargo' ? saldoAnterior+monto : saldoAnterior-monto;
   const session = Session.get();
   await DB.add('cuentasCorrientes', {
-    clienteId, fecha: Utils.nowISO(), tipo, concepto, monto, saldoResultante, referencia: referencia||'manual',
+    clienteId, fecha: fecha || Utils.nowISO(), tipo, concepto, monto, saldoResultante, referencia: referencia||'manual',
     usuarioId: session.usuarioId, usuarioNombre: session.nombre
   });
   return saldoResultante;
+}
+
+/* Combina una fecha (YYYY-MM-DD, elegida en un <input type="date">) con la
+   hora actual, para poder registrar un pago con "otra" fecha sin perder la
+   hora real en que se cargó (útil para el orden dentro del mismo día). Se
+   arma en horario LOCAL antes de convertir a ISO, para no caer en el mismo
+   problema de corrimiento de día que afecta a las fechas "solo día". */
+function combinarFechaConHoraActual(fechaYMD){
+  const ahora = new Date();
+  const [y,m,d] = fechaYMD.split('-').map(Number);
+  return new Date(y, m-1, d, ahora.getHours(), ahora.getMinutes(), ahora.getSeconds(), ahora.getMilliseconds()).toISOString();
 }
 
 /* Valida un cargo a cuenta corriente contra el límite de crédito del
@@ -11012,7 +11290,7 @@ async function lavaderoEstadisticasHTML(){
   for(let i=13;i>=0;i--){
     const d = new Date(); d.setDate(d.getDate()-i);
     const key = Utils.fechaLocalYMD(d);
-    dias.push(key.slice(5,10));
+    dias.push(`${key.slice(8,10)}/${key.slice(5,7)}`); // DD/MM (no MM-DD)
     valores.push(turnos.filter(t=>t.fecha===key && t.estado==='Completado').length);
   }
   lavaderoChartData = { dias, valores };
