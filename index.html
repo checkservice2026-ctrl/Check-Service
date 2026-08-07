@@ -11703,6 +11703,7 @@ let graficosTab = 'semana';
 let graficosSemanaSeleccionada = null; // se inicializa en bindGraficosEvents
 let graficosSemanasCount = 12;
 let graficosObjetivoMes = new Date().toISOString().slice(0,7);
+let graficosProyeccionMes = new Date().toISOString().slice(0,7);
 let graficosChartData = {};
 
 function inicioDeSemana(fechaISO){
@@ -11868,6 +11869,74 @@ function drawBarLineChart(canvas, labels, barValues, lineValues, barColor, lineC
     }
   });
 }
+
+/* Gráfico de proyección financiera mensual: acumulado real (área sólida)
+   + línea de proyección punteada hasta fin de mes + línea de referencia
+   fina para la meta del mes (si está definida). */
+function drawProyeccionMensualChart(canvas, labels, real, proyectado, metaLinea){
+  if(!canvas) return;
+  destroyChartOn(canvas);
+  const theme = chartThemeColors();
+  const cs = getComputedStyle(document.documentElement);
+  const colorReal = (cs.getPropertyValue('--teal')||'').trim() || '#0E9A8A';
+  const colorProy = (cs.getPropertyValue('--accent')||'').trim() || '#FF8C1A';
+  const colorMeta = (cs.getPropertyValue('--info')||'').trim() || '#4C9AFF';
+
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createLinearGradient(0,0,0, canvas.clientHeight||260);
+  gradient.addColorStop(0, hexToRgba(colorReal,.28));
+  gradient.addColorStop(1, hexToRgba(colorReal,0));
+
+  const datasets = [
+    {
+      type:'line', label:'Facturado acumulado', data:real,
+      borderColor:colorReal, backgroundColor:gradient, pointRadius:0, pointHoverRadius:4,
+      borderWidth:2.5, tension:0.25, fill:true, spanGaps:false, order:1
+    },
+    {
+      type:'line', label:'Proyección', data:proyectado,
+      borderColor:colorProy, backgroundColor:'transparent', pointRadius:0, pointHoverRadius:4,
+      borderWidth:2.5, borderDash:[6,4], tension:0.25, fill:false, spanGaps:false, order:2
+    }
+  ];
+  if(metaLinea){
+    datasets.push({
+      type:'line', label:'Meta del mes', data:metaLinea,
+      borderColor:colorMeta, backgroundColor:'transparent', pointRadius:0, pointHoverRadius:0,
+      borderWidth:1.5, borderDash:[2,3], tension:0, fill:false, order:3
+    });
+  }
+
+  new Chart(ctx, {
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 650, easing: 'easeOutQuart' },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: true, position: 'top', align: 'end',
+          labels: { color: theme.muted, boxWidth: 12, boxHeight: 12, font:{ size:11 }, usePointStyle: true, pointStyle: 'circle' }
+        },
+        tooltip: {
+          backgroundColor: theme.panel, titleColor: theme.text, bodyColor: theme.text,
+          borderColor: theme.grid, borderWidth: 1, padding: 10, cornerRadius: 8,
+          callbacks: { label: (item) => item.parsed.y==null ? null : `${item.dataset.label}: $${Math.round(item.parsed.y).toLocaleString('es-AR')}` }
+        }
+      },
+      scales: {
+        x: { grid: { display:false }, ticks: { color: theme.muted, font:{ size:10 }, maxRotation:0, autoSkip:true, maxTicksLimit:15 } },
+        y: {
+          beginAtZero: true,
+          grid: { color: theme.grid },
+          ticks: { color: theme.muted, font:{ size:10.5 }, callback: (v) => '$'+Math.round(v).toLocaleString('es-AR') }
+        }
+      }
+    }
+  });
+}
+
 
 /* Gráfico de evolución del saldo de cuenta corriente de un cliente. La
    línea y el relleno cambian de color automáticamente en el punto exacto
@@ -12045,6 +12114,7 @@ async function viewGraficos(){
       <button class="cfg-tab" data-tab="mensual">Mensual</button>
       <button class="cfg-tab" data-tab="anual">Anual</button>
       <button class="cfg-tab" data-tab="objetivos">Planificación de ventas</button>
+      <button class="cfg-tab" data-tab="proyeccion">Proyección mensual</button>
     </div>
     <div id="graficos-content"></div>
   `;
@@ -12065,6 +12135,7 @@ async function renderGraficosTab(){
   else if(graficosTab==='mensual'){ cont.innerHTML = await graficosMensualHTML(); drawGraficosMensualChart(); }
   else if(graficosTab==='anual'){ cont.innerHTML = await graficosAnualHTML(); drawGraficosAnualChart(); }
   else if(graficosTab==='objetivos'){ cont.innerHTML = await graficosObjetivosHTML(); bindGraficosObjetivosEvents(); drawGraficosObjetivosChart(); }
+  else if(graficosTab==='proyeccion'){ cont.innerHTML = await graficosProyeccionHTML(); bindGraficosProyeccionEvents(); drawGraficosProyeccionChart(); }
   else{ cont.innerHTML = await graficosSemanaHTML(); bindGraficosSemanaEvents(); drawGraficosSemanaChart(); }
 }
 
@@ -12226,6 +12297,48 @@ function objetivoTotalDeRegistro(o){
   return o.objetivo || null; // compatibilidad con objetivos cargados antes de tener categorías
 }
 
+/* Proyección financiera del mes: toma lo facturado real día a día (mismo
+   criterio de "facturado real" que el resto de la app — Caja, excluyendo
+   anulados) y extiende una línea de proyección lineal simple hasta fin de
+   mes, en base al promedio diario de lo que se lleva facturado. Si el mes
+   consultado ya terminó, no hay nada que proyectar: se muestra solo el
+   acumulado real completo. */
+async function calcularProyeccionMensual(mesSel){
+  const [ay,am] = mesSel.split('-').map(Number);
+  const diasDelMes = new Date(ay,am,0).getDate();
+  const desde = `${mesSel}-01`, hasta = new Date(ay,am,0).toISOString().slice(0,10);
+  const ingresosMes = await obtenerIngresosCajaEnRango(desde, hasta);
+
+  const hoyYMD = Utils.hoyLocal();
+  const esMesActual = mesSel === hoyYMD.slice(0,7);
+  const mesYaTermino = !esMesActual && `${mesSel}-01` < hoyYMD.slice(0,7)+'-01';
+  const diaActual = esMesActual ? Number(hoyYMD.slice(8,10)) : diasDelMes;
+
+  const totalesPorDia = new Array(diasDelMes+1).fill(0); // índice 1..diasDelMes
+  ingresosMes.forEach(m=>{
+    const dia = Number(Utils.fechaLocalYMD(m.fecha).slice(8,10));
+    if(dia>=1 && dia<=diasDelMes) totalesPorDia[dia] += m.monto;
+  });
+
+  const acumuladoReal = [];
+  let acc = 0;
+  for(let d=1; d<=diasDelMes; d++){
+    if(d<=diaActual){ acc += totalesPorDia[d]; acumuladoReal.push(acc); }
+    else acumuladoReal.push(null);
+  }
+  const totalHastaHoy = acc;
+  const promedioDiario = diaActual>0 ? totalHastaHoy/diaActual : 0;
+  const proyeccionCierre = promedioDiario*diasDelMes;
+
+  const acumuladoProyectado = [];
+  for(let d=1; d<=diasDelMes; d++){
+    if(d < diaActual || mesYaTermino) acumuladoProyectado.push(null);
+    else acumuladoProyectado.push(totalHastaHoy + promedioDiario*(d-diaActual));
+  }
+
+  return { diasDelMes, diaActual, esMesActual, mesYaTermino, totalesPorDia:totalesPorDia.slice(1), acumuladoReal, acumuladoProyectado, totalHastaHoy, promedioDiario, proyeccionCierre };
+}
+
 /* ---------- Tab: Objetivos mensuales por categoría y desviación ---------- */
 async function graficosObjetivosHTML(){
   const mesSel = graficosObjetivoMes;
@@ -12324,6 +12437,61 @@ function bindGraficosObjetivosEvents(){
 function drawGraficosObjetivosChart(){
   const d = graficosChartData.objetivos;
   if(d) drawBarLineChart(document.getElementById('gr-chart-objetivos'), d.labels, d.valores, d.linea, '#17B8A6', (Config.cache||{}).colorAccent||'#FF8C1A', undefined, 'Real', 'Objetivo', true);
+}
+
+/* ---------- Tab: Proyección financiera mensual ---------- */
+async function graficosProyeccionHTML(){
+  const mesSel = graficosProyeccionMes;
+  const proy = await calcularProyeccionMensual(mesSel);
+  const objetivos = await DB.getAll('objetivosMensuales');
+  const objById = {}; objetivos.forEach(o=>objById[o.mes]=o);
+  const meta = objetivoTotalDeRegistro(objById[mesSel]);
+
+  const labels = [];
+  for(let d=1; d<=proy.diasDelMes; d++) labels.push(String(d).padStart(2,'0'));
+  const metaLinea = meta ? labels.map(()=>meta) : null;
+  graficosChartData.proyeccion = { labels, real:proy.acumuladoReal, proyectado:proy.acumuladoProyectado, meta:metaLinea };
+
+  const difProyectadaVsMeta = (meta && proy.esMesActual) ? proy.proyeccionCierre - meta : null;
+
+  return `
+    <div class="toolbar-filters">
+      <input type="month" class="toolbar-select" id="gr-proy-mes" value="${mesSel}">
+    </div>
+    <div class="grid-kpi" style="margin:16px 0;">
+      <div class="kpi-card" style="--kpi-color:var(--teal)">
+        <div class="kpi-label">${proy.esMesActual?'Facturado hasta hoy':'Facturado del mes'}</div>
+        <div class="kpi-value">$${Math.round(proy.totalHastaHoy).toLocaleString('es-AR')}</div>
+        ${proy.esMesActual?`<div class="kpi-sub">día ${proy.diaActual} de ${proy.diasDelMes}</div>`:''}
+      </div>
+      <div class="kpi-card" style="--kpi-color:var(--accent)"><div class="kpi-label">Promedio diario</div><div class="kpi-value">$${Math.round(proy.promedioDiario).toLocaleString('es-AR')}</div></div>
+      ${proy.esMesActual?`
+      <div class="kpi-card" style="--kpi-color:var(--accent)">
+        <div class="kpi-label">Proyección de cierre</div>
+        <div class="kpi-value">$${Math.round(proy.proyeccionCierre).toLocaleString('es-AR')}</div>
+        ${meta?`<div class="kpi-sub" style="color:${difProyectadaVsMeta>=0?'var(--teal)':'var(--danger)'};">${difProyectadaVsMeta>=0?'+':''}$${Math.round(difProyectadaVsMeta).toLocaleString('es-AR')} vs meta</div>`:''}
+      </div>`:''}
+      <div class="kpi-card" style="--kpi-color:var(--info)">
+        <div class="kpi-label">Meta del mes</div>
+        <div class="kpi-value" style="font-size:20px;">${meta?'$'+meta.toLocaleString('es-AR'):'Sin definir'}</div>
+        ${!meta?`<div class="kpi-sub">Cargala en "Planificación de ventas"</div>`:''}
+      </div>
+    </div>
+    <div class="report-chart-wrap"><div class="chart-canvas-box" style="height:300px;"><canvas id="gr-chart-proyeccion"></canvas></div></div>
+    <p style="font-size:11px; color:var(--text-muted); margin-top:8px;">
+      ${proy.esMesActual
+        ? 'Línea sólida: facturado acumulado real, día a día. Línea punteada naranja: proyección de cierre de mes, calculada extendiendo el promedio diario de lo que llevás facturado hasta hoy.'
+        : 'Mes cerrado: se muestra el acumulado real completo del mes, sin proyección.'}
+      ${meta?' Línea punteada fina celeste: meta del mes (Ventas + Servicios + Lavados) definida en Planificación de ventas.':''}
+    </p>
+  `;
+}
+function bindGraficosProyeccionEvents(){
+  document.getElementById('gr-proy-mes').onchange = (e)=>{ graficosProyeccionMes = e.target.value; renderGraficosTab(); };
+}
+function drawGraficosProyeccionChart(){
+  const d = graficosChartData.proyeccion;
+  if(d) drawProyeccionMensualChart(document.getElementById('gr-chart-proyeccion'), d.labels, d.real, d.proyectado, d.meta);
 }
 
 /* -----------------------------------------------------------------------
