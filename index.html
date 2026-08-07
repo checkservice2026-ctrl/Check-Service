@@ -2698,8 +2698,13 @@ async function viewDashboard(){
       return a2 + (it.precioUnitario - costo) * it.cantidad;
     },0), 0);
     const gananciaServiciosMes = historialEsteMes.reduce((acc,h)=> acc + ((h.precio||0)-(h.costo||0)), 0);
-    gananciaMes = gananciaVentasMes + gananciaServiciosMes;
-    const facturadoMes = totalVentasMes + historialEsteMes.reduce((acc,h)=>acc+(h.precio||0),0);
+    // Lavados: sin costo cargado, así que lo facturado es 100% ganancia
+    // (mismo criterio que usa el gráfico de Margen de ganancia).
+    const turnosTodos = await DB.getAll('lavaderoTurnos');
+    const turnosEsteMes = turnosTodos.filter(t => t.estado==='Completado' && t.pagado && parsearFechaSegura(t.fecha) >= inicioMes);
+    const gananciaLavadosMes = turnosEsteMes.reduce((acc,t)=>acc+(t.precio||0),0);
+    gananciaMes = gananciaVentasMes + gananciaServiciosMes + gananciaLavadosMes;
+    const facturadoMes = totalVentasMes + historialEsteMes.reduce((acc,h)=>acc+(h.precio||0),0) + gananciaLavadosMes;
     // Rentabilidad sobre el costo (markup), igual criterio que "Margen" en
     // Productos: ganancia / costo, no ganancia / facturado.
     const costoTotalMes = facturadoMes - gananciaMes;
@@ -2839,7 +2844,7 @@ async function viewDashboard(){
       <div class="kpi-card" style="--kpi-color:${gananciaMes>=0?'var(--teal)':'var(--danger)'}">
         <div class="kpi-label">Ganancias del mes</div>
         <div class="kpi-value">$${gananciaMes.toLocaleString('es-AR')}</div>
-        <div class="kpi-sub">ventas + servicios, a costo actual</div>
+        <div class="kpi-sub">ventas + servicios + lavados, a costo actual</div>
       </div>
       <div class="kpi-card" style="--kpi-color:var(--accent)">
         <div class="kpi-label">Margen del mes</div>
@@ -12039,7 +12044,7 @@ async function viewGraficos(){
       <button class="cfg-tab" data-tab="semanas">Últimas semanas</button>
       <button class="cfg-tab" data-tab="mensual">Mensual</button>
       <button class="cfg-tab" data-tab="anual">Anual</button>
-      <button class="cfg-tab" data-tab="objetivos">Objetivos</button>
+      <button class="cfg-tab" data-tab="objetivos">Planificación de ventas</button>
     </div>
     <div id="graficos-content"></div>
   `;
@@ -12192,20 +12197,77 @@ function drawGraficosAnualChart(){
   if(d) drawBarLineChart(document.getElementById('gr-chart-anual'), d.labels, d.valores, null, (Config.cache||{}).colorAccent||'#FF8C1A', '#17B8A6', undefined, 'Ingresos');
 }
 
-/* ---------- Tab: Objetivos mensuales y desviación ---------- */
+/* Ingresos de Caja válidos (excluyendo anulados) de un rango, agrupados
+   por categoría de negocio (Ventas de productos / Servicios de taller /
+   Lavados), a partir del prefijo de la referencia de cada movimiento.
+   Reutiliza el mismo criterio de "facturado real" que ya usan Reportes y
+   el resto de Gráficos, para que los totales no diverjan entre pantallas.
+   Los ingresos que no se pueden atribuir a una venta/service/lavado
+   puntual (por ejemplo, un "pago a cuenta" genérico de cuenta corriente
+   que no se aplicó a ninguna factura elegida, o un movimiento manual
+   cargado directo en Caja) van a "Otros" — se siguen sumando al total
+   para que "Facturado real" sea siempre exacto, pero no se les puede
+   asignar una categoría con certeza. */
+async function obtenerIngresosCajaPorCategoriaEnRango(desde, hasta){
+  const ingresos = await obtenerIngresosCajaEnRango(desde, hasta);
+  const CATEGORIAS_META = { venta:'Ventas', historial:'Servicios', turno:'Lavados' };
+  const porCategoria = { Ventas:0, Servicios:0, Lavados:0, Otros:0 };
+  ingresos.forEach(m=>{
+    const prefijo = (m.referencia||'').split(':')[0];
+    const cat = CATEGORIAS_META[prefijo] || 'Otros';
+    porCategoria[cat] += m.monto;
+  });
+  return porCategoria;
+}
+function objetivoTotalDeRegistro(o){
+  if(!o) return null;
+  const suma = (o.objetivoVentas||0)+(o.objetivoServicios||0)+(o.objetivoLavados||0);
+  if(suma>0.009) return suma;
+  return o.objetivo || null; // compatibilidad con objetivos cargados antes de tener categorías
+}
+
+/* ---------- Tab: Objetivos mensuales por categoría y desviación ---------- */
 async function graficosObjetivosHTML(){
   const mesSel = graficosObjetivoMes;
   const objetivos = await DB.getAll('objetivosMensuales');
   const objById = {}; objetivos.forEach(o=>objById[o.mes]=o);
   const objetivoActual = objById[mesSel];
-  const objetivoValor = objetivoActual ? objetivoActual.objetivo : 0;
+  const objVentas = objetivoActual?.objetivoVentas || 0;
+  const objServicios = objetivoActual?.objetivoServicios || 0;
+  const objLavados = objetivoActual?.objetivoLavados || 0;
+  const objetivoTotal = objVentas+objServicios+objLavados;
 
   const [ay,am] = mesSel.split('-').map(Number);
   const desde = `${mesSel}-01`, hasta = new Date(ay,am,0).toISOString().slice(0,10);
-  const ingresosMes = await obtenerIngresosCajaEnRango(desde, hasta);
-  const real = ingresosMes.reduce((a,m)=>a+m.monto,0);
-  const desviacion = real - objetivoValor;
-  const pctCumplido = objetivoValor>0 ? (real/objetivoValor*100) : null;
+  const realPorCategoria = await obtenerIngresosCajaPorCategoriaEnRango(desde, hasta);
+  const realTotal = realPorCategoria.Ventas+realPorCategoria.Servicios+realPorCategoria.Lavados+realPorCategoria.Otros;
+
+  // Proyección de cierre de mes al ritmo actual (solo tiene sentido si el
+  // mes seleccionado es el mes en curso).
+  const hoyYMD = Utils.hoyLocal();
+  const esMesActual = mesSel === hoyYMD.slice(0,7);
+  const diasDelMes = new Date(ay,am,0).getDate();
+  const diaActual = esMesActual ? Number(hoyYMD.slice(8,10)) : diasDelMes;
+  const factorProyeccion = diaActual>0 ? diasDelMes/diaActual : 1;
+
+  function tarjetaMeta(categoria, objetivo, real, colorVar, colorDimVar){
+    const pct = objetivo>0 ? Math.min(150, real/objetivo*100) : null;
+    const proyectado = esMesActual ? real*factorProyeccion : real;
+    const colorBarra = pct==null ? 'var(--border)' : pct>=100 ? 'var(--teal)' : pct>=70 ? 'var(--warning)' : 'var(--danger)';
+    return `
+    <div class="csb-card" style="--csb-color:${colorVar}; --csb-bg:${colorDimVar};">
+      <div class="csb-head">
+        <div><div class="csb-label">${categoria}</div></div>
+      </div>
+      <div class="field" style="margin-bottom:8px;"><label style="font-size:10.5px;">Meta del mes</label><input type="number" min="0" step="1000" class="meta-input" data-cat="${categoria}" value="${objetivo||''}" placeholder="Sin definir"></div>
+      <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px;">
+        <span class="csb-value" style="font-size:18px;">$${real.toLocaleString('es-AR')}</span>
+        <span style="font-size:11px; color:var(--text-muted);">${pct!=null?pct.toFixed(0)+'%':'—'}</span>
+      </div>
+      <div class="caja-saldo-bar" style="margin-bottom:6px;"><div class="caja-saldo-bar-seg" style="width:${pct!=null?Math.min(100,pct):0}%; background:${colorBarra};"></div></div>
+      ${esMesActual && objetivo>0 ? `<div style="font-size:10.5px; color:var(--text-muted);">Proyectado a fin de mes: <b style="color:var(--text-secondary);">$${Math.round(proyectado).toLocaleString('es-AR')}</b> ${proyectado>=objetivo?'✅':''}</div>` : ''}
+    </div>`;
+  }
 
   const meses = [];
   for(let i=5;i>=0;i--){ const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()-i); meses.push(d.toISOString().slice(0,7)); }
@@ -12214,37 +12276,47 @@ async function graficosObjetivosHTML(){
   const hastaTotal = new Date(by,bm,0).toISOString().slice(0,10);
   const ingresosRango = await obtenerIngresosCajaEnRango(desdeTotal, hastaTotal);
   const realesPorMes = meses.map(m=> ingresosRango.filter(x=>Utils.fechaLocalYMD(x.fecha).slice(0,7)===m).reduce((a,x)=>a+x.monto,0));
-  const objetivosPorMes = meses.map(m=> objById[m] ? objById[m].objetivo : null);
+  const objetivosPorMes = meses.map(m=> objetivoTotalDeRegistro(objById[m]));
   const labelsMeses = meses.map(m=> new Date(m+'-01T00:00:00').toLocaleDateString('es-AR',{ month:'short', year:'2-digit' }));
   graficosChartData.objetivos = { labels:labelsMeses, valores:realesPorMes, linea:objetivosPorMes };
+
+  const desviacion = realTotal - objetivoTotal;
 
   return `
     <div class="toolbar-filters">
       <input type="month" class="toolbar-select" id="gr-obj-mes" value="${mesSel}">
-      <input type="number" min="0" step="1000" class="toolbar-select" id="gr-obj-valor" placeholder="Objetivo del mes ($)" value="${objetivoValor||''}" style="width:190px;">
-      <button class="btn btn-accent btn-sm" id="gr-obj-guardar">Guardar objetivo</button>
+      <button class="btn btn-accent btn-sm" id="gr-obj-guardar">Guardar metas</button>
     </div>
-    <div class="grid-kpi" style="margin:16px 0;">
-      <div class="kpi-card" style="--kpi-color:var(--accent)"><div class="kpi-label">Objetivo del mes</div><div class="kpi-value" style="font-size:20px;">${objetivoValor?'$'+objetivoValor.toLocaleString('es-AR'):'Sin definir'}</div></div>
-      <div class="kpi-card" style="--kpi-color:var(--teal)"><div class="kpi-label">Facturado real</div><div class="kpi-value">$${real.toLocaleString('es-AR')}</div></div>
-      <div class="kpi-card" style="--kpi-color:${desviacion>=0?'var(--teal)':'var(--danger)'}"><div class="kpi-label">Desviación</div><div class="kpi-value" style="font-size:19px;">${desviacion>=0?'+':''}$${desviacion.toLocaleString('es-AR')}</div><div class="kpi-sub">${pctCumplido!=null?pctCumplido.toFixed(1)+'% del objetivo':'Definí un objetivo para comparar'}</div></div>
+    <div class="caja-saldo-breakdown" style="margin-top:16px;">
+      ${tarjetaMeta('Ventas', objVentas, realPorCategoria.Ventas, 'var(--accent)', 'var(--accent-dim)')}
+      ${tarjetaMeta('Servicios', objServicios, realPorCategoria.Servicios, 'var(--teal)', 'var(--teal-dim)')}
+      ${tarjetaMeta('Lavados', objLavados, realPorCategoria.Lavados, 'var(--info)', 'var(--info-dim)')}
     </div>
+    <div class="grid-kpi" style="margin:4px 0 16px;">
+      <div class="kpi-card" style="--kpi-color:var(--accent)"><div class="kpi-label">Meta total del mes</div><div class="kpi-value" style="font-size:20px;">${objetivoTotal?'$'+objetivoTotal.toLocaleString('es-AR'):'Sin definir'}</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--teal)"><div class="kpi-label">Facturado real (total)</div><div class="kpi-value">$${realTotal.toLocaleString('es-AR')}</div>${realPorCategoria.Otros>0.009?`<div class="kpi-sub">incluye $${realPorCategoria.Otros.toLocaleString('es-AR')} sin categorizar</div>`:''}</div>
+      <div class="kpi-card" style="--kpi-color:${desviacion>=0?'var(--teal)':'var(--danger)'}"><div class="kpi-label">Desviación</div><div class="kpi-value" style="font-size:19px;">${desviacion>=0?'+':''}$${desviacion.toLocaleString('es-AR')}</div><div class="kpi-sub">${objetivoTotal>0?(realTotal/objetivoTotal*100).toFixed(1)+'% del objetivo':'Definí metas para comparar'}</div></div>
+    </div>
+    ${realPorCategoria.Otros>0.009?`<p style="font-size:11px; color:var(--text-muted); margin:-10px 0 16px;">"Facturado real" incluye $${realPorCategoria.Otros.toLocaleString('es-AR')} en cobros que no se pudieron asignar a Ventas/Servicios/Lavados — típicamente "pagos a cuenta" de cuenta corriente sin factura puntual seleccionada, o movimientos cargados manualmente en Caja. Por eso la suma de las 3 tarjetas de arriba puede ser menor que este total.</p>`:''}
     <div class="report-chart-wrap"><div class="chart-canvas-box" style="height:280px;"><canvas id="gr-chart-objetivos"></canvas></div></div>
-    <p style="font-size:11px; color:var(--text-muted); margin-top:8px;">Barras: facturado real por mes. Línea: objetivo definido para cada mes (si lo cargaste).</p>
+    <p style="font-size:11px; color:var(--text-muted); margin-top:8px;">Barras: total facturado real por mes (ventas + servicios + lavados). Línea: suma de las metas por categoría definidas para cada mes.</p>
   `;
 }
 function bindGraficosObjetivosEvents(){
   document.getElementById('gr-obj-mes').onchange = (e)=>{ graficosObjetivoMes = e.target.value; renderGraficosTab(); };
   document.getElementById('gr-obj-guardar').onclick = async () => {
     const mes = document.getElementById('gr-obj-mes').value;
-    const valor = Number(document.getElementById('gr-obj-valor').value)||0;
     if(!mes){ Toast.show('error','Elegí un mes',''); return; }
+    const valores = {};
+    document.querySelectorAll('.meta-input').forEach(inp=>{ valores[inp.dataset.cat] = Number(inp.value)||0; });
     const existente = await DB.getByIndex('objetivosMensuales','mes', mes);
     const session = Session.get();
-    if(existente) await DB.put('objetivosMensuales', { ...existente, objetivo:valor });
-    else await DB.add('objetivosMensuales', { mes, objetivo:valor, fechaCreacion:Utils.nowISO(), usuarioId:session.usuarioId, usuarioNombre:session.nombre });
-    await Audit.log('objetivo_mensual_guardado', `Objetivo de $${valor.toLocaleString('es-AR')} para ${mes}.`);
-    Toast.show('success','Objetivo guardado', mes);
+    const payload = { objetivoVentas:valores.Ventas||0, objetivoServicios:valores.Servicios||0, objetivoLavados:valores.Lavados||0 };
+    if(existente) await DB.put('objetivosMensuales', { ...existente, ...payload });
+    else await DB.add('objetivosMensuales', { mes, ...payload, fechaCreacion:Utils.nowISO(), usuarioId:session.usuarioId, usuarioNombre:session.nombre });
+    const total = payload.objetivoVentas+payload.objetivoServicios+payload.objetivoLavados;
+    await Audit.log('objetivo_mensual_guardado', `Metas de ${mes}: Ventas $${payload.objetivoVentas.toLocaleString('es-AR')}, Servicios $${payload.objetivoServicios.toLocaleString('es-AR')}, Lavados $${payload.objetivoLavados.toLocaleString('es-AR')} (total $${total.toLocaleString('es-AR')}).`);
+    Toast.show('success','Metas guardadas', mes);
     graficosObjetivoMes = mes;
     renderGraficosTab();
   };
