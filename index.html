@@ -641,6 +641,180 @@ textarea.textarea-input{ resize:vertical; min-height:70px; }
 
 .tag-chip{ display:inline-flex; align-items:center; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; background:var(--bg-panel-alt); border:1px solid var(--border); color:var(--text-secondary); }
 
+/* ============================================================================
+   CRM — Sidebar: grupo "Clientes" expandible (CRM / Todos los Clientes /
+   Vehículos / Campañas / Recordatorios / Cumpleaños / Clientes VIP)
+============================================================================ */
+.nav-group{ display:flex; flex-direction:column; }
+.nav-group-toggle{ cursor:pointer; }
+.nav-group-toggle .nav-chevron{ width:13px !important; height:13px !important; margin-left:auto; flex-shrink:0; transition:transform .15s ease; color:var(--text-muted); }
+.nav-group.expanded .nav-group-toggle .nav-chevron{ transform:rotate(90deg); }
+.nav-group.has-active .nav-group-toggle{ color:var(--text-primary); }
+.nav-subitems{ display:flex; flex-direction:column; gap:1px; padding-left:14px; margin-top:1px; border-left:1px solid var(--border-soft); margin-left:17px; }
+.nav-subitems .nav-item{ padding:8px 12px; font-size:12.5px; }
+.nav-subitems .nav-item svg{ width:14px; height:14px; }
+#sidebar.collapsed .nav-group-toggle .nav-chevron{ display:none; }
+#sidebar.collapsed .nav-subitems{ display:none !important; }
+
+/* ============================================================================
+   CRM — Tabs horizontales de la ficha del cliente
+============================================================================ */
+.crm-tabs{ display:flex; align-items:center; gap:4px; border-bottom:1px solid var(--border-soft); margin-bottom:18px; overflow-x:auto; scrollbar-width:none; position:relative; }
+.crm-tabs::-webkit-scrollbar{ display:none; }
+.crm-tab{ display:inline-flex; align-items:center; gap:7px; padding:11px 14px; font-size:13px; font-weight:600; color:var(--text-secondary); white-space:nowrap; border-bottom:2px solid transparent; margin-bottom:-1px; flex-shrink:0; }
+.crm-tab:hover{ color:var(--text-primary); }
+.crm-tab.active{ color:var(--accent); border-bottom-color:var(--accent); }
+.crm-tab .crm-tab-count{ background:var(--bg-panel-alt); border:1px solid var(--border); color:var(--text-muted); border-radius:20px; padding:1px 7px; font-size:10.5px; font-weight:700; }
+.crm-tab.active .crm-tab-count{ background:var(--accent-dim); color:var(--accent); border-color:transparent; }
+.crm-tab-more{ position:relative; }
+.crm-tab-more-menu{ position:fixed; background:var(--bg-panel-raised); border:1px solid var(--border); border-radius:10px; box-shadow:var(--shadow-lift); padding:6px; min-width:180px; z-index:200; display:none; }
+.crm-tab-more-menu.open{ display:block; }
+.crm-tab-more-menu a, .crm-tab-more-menu button{ display:flex; width:100%; align-items:center; gap:8px; padding:9px 10px; border-radius:7px; font-size:12.5px; font-weight:600; color:var(--text-secondary); text-align:left; }
+.crm-tab-more-menu a:hover, .crm-tab-more-menu button:hover{ background:var(--bg-panel-alt); color:var(--text-primary); }
+
+/* ============================================================================
+   CRM — Franja de KPIs de la ficha del cliente
+============================================================================ */
+.crm-stat-strip{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:1px; background:var(--border-soft); border:1px solid var(--border-soft); border-radius:14px; overflow:hidden; margin-bottom:20px; }
+.crm-stat-box{ background:var(--bg-panel); padding:14px 16px; }
+.crm-stat-box .crm-stat-label{ font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em; margin-bottom:6px; }
+.crm-stat-box .crm-stat-value{ font-size:19px; font-weight:700; color:var(--text-primary); }
+.crm-stat-box .crm-stat-sub{ font-size:11px; color:var(--text-muted); margin-top:3px; }
+.crm-stat-box .crm-stat-value.saldo-deudor{ color:var(--danger); }
+.crm-stat-box .crm-stat-value.saldo-cero{ color:var(--teal); }
+
+/* ============================================================================
+   CRM — Badge de nivel VIP (calculado según compras totales)
+============================================================================ */
+.badge-vip{ display:inline-flex; align-items:center; gap:5px; padding:4px 11px; border-radius:20px; font-size:11.5px; font-weight:700; background:var(--vip-color-dim,var(--accent-dim)); color:var(--vip-color,var(--accent)); }
+.badge-vip svg{ width:12px; height:12px; }
+
+/* ============================================================================
+   CRM — Línea de tiempo del cliente
+============================================================================ */
+.crm-timeline{ position:relative; padding-left:26px; }
+.crm-timeline::before{ content:''; position:absolute; left:9px; top:6px; bottom:6px; width:2px; background:var(--border-soft); }
+.crm-timeline-item{ position:relative; padding-bottom:18px; }
+.crm-timeline-item:last-child{ padding-bottom:0; }
+.crm-timeline-dot{ position:absolute; left:-26px; top:1px; width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:var(--tl-color-dim,var(--accent-dim)); color:var(--tl-color,var(--accent)); border:2px solid var(--bg-panel); }
+.crm-timeline-dot svg{ width:11px; height:11px; }
+.crm-timeline-body{ background:var(--bg-panel-alt); border:1px solid var(--border); border-radius:11px; padding:11px 13px; }
+.crm-timeline-top{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:3px; }
+.crm-timeline-title{ font-size:13px; font-weight:700; color:var(--text-primary); }
+.crm-timeline-date{ font-size:11px; color:var(--text-muted); white-space:nowrap; }
+.crm-timeline-desc{ font-size:12.5px; color:var(--text-secondary); }
+
+/* ============================================================================
+   CRM — Home (Dashboard CRM liviano de la Fase 1: KPIs + buscador + fichas)
+============================================================================ */
+.crm-home-search{ position:relative; margin-bottom:18px; }
+.crm-home-search svg{ position:absolute; left:14px; top:50%; transform:translateY(-50%); width:17px; height:17px; color:var(--text-muted); }
+.crm-home-search input{ width:100%; background:var(--bg-panel); border:1px solid var(--border); border-radius:12px; padding:13px 16px 13px 40px; font-size:14px; color:var(--text-primary); }
+.crm-home-search input:focus{ outline:none; border-color:var(--accent); }
+.crm-client-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px; }
+.crm-client-card{ display:block; background:var(--bg-panel); border:1px solid var(--border); border-radius:14px; padding:15px; text-decoration:none; transition:border-color .12s ease, transform .12s ease; }
+.crm-client-card:hover{ border-color:var(--accent-ring); transform:translateY(-2px); }
+.crm-client-card-top{ display:flex; align-items:center; gap:11px; margin-bottom:10px; }
+.crm-client-card .avatar-md{ width:42px; height:42px; border-radius:12px; overflow:hidden; background:var(--accent-dim); color:var(--accent); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:15px; flex-shrink:0; }
+.crm-client-card .avatar-md img{ width:100%; height:100%; object-fit:cover; }
+.crm-client-card-name{ font-size:13.5px; font-weight:700; color:var(--text-primary); line-height:1.25; }
+.crm-client-card-sub{ font-size:11.5px; color:var(--text-muted); margin-top:2px; }
+.crm-client-card-meta{ display:flex; flex-direction:column; gap:5px; font-size:12px; color:var(--text-secondary); }
+.crm-client-card-meta span{ display:flex; align-items:center; gap:6px; }
+.crm-client-card-meta svg{ width:13px; height:13px; color:var(--text-muted); flex-shrink:0; }
+
+.crm-wip-inline{ text-align:center; padding:50px 20px; color:var(--text-muted); }
+.crm-wip-inline svg{ width:42px; height:42px; margin-bottom:12px; opacity:.5; }
+.crm-wip-inline h3{ color:var(--text-secondary); font-size:14.5px; margin-bottom:6px; }
+.crm-wip-inline p{ font-size:12.5px; max-width:360px; margin:0 auto; }
+.crm-wip-inline .wip-phase{ display:inline-block; margin-top:12px; padding:5px 13px; border-radius:20px; background:var(--warning-dim); color:var(--warning); font-size:11.5px; font-weight:700; }
+
+/* ============================================================================
+   CRM — Recordatorios (Fase 3) y Cumpleaños
+============================================================================ */
+.crm-reminder-row{ display:flex; align-items:flex-start; gap:12px; background:var(--bg-panel); border:1px solid var(--border); border-radius:12px; padding:13px 15px; margin-bottom:10px; }
+.crm-reminder-row.completado{ opacity:.55; }
+.crm-reminder-row.vencido{ border-color:var(--danger); }
+.crm-reminder-priority-dot{ width:9px; height:9px; border-radius:50%; margin-top:5px; flex-shrink:0; background:var(--rp-color,var(--text-muted)); }
+.crm-reminder-body{ flex:1; min-width:0; }
+.crm-reminder-top{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+.crm-reminder-title{ font-size:13.5px; font-weight:700; color:var(--text-primary); }
+.crm-reminder-title a{ color:inherit; text-decoration:none; }
+.crm-reminder-title a:hover{ text-decoration:underline; }
+.crm-reminder-meta{ display:flex; align-items:center; gap:12px; font-size:11.5px; color:var(--text-muted); margin-top:4px; flex-wrap:wrap; }
+.crm-reminder-meta span{ display:flex; align-items:center; gap:5px; }
+.crm-reminder-meta svg{ width:12px; height:12px; }
+.crm-reminder-actions{ display:flex; align-items:center; gap:6px; flex-shrink:0; }
+.badge-auto{ background:var(--bg-panel-alt); border:1px solid var(--border); color:var(--text-muted); font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px; }
+.badge-prioridad{ font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:10px; color:#fff; }
+
+.crm-bday-row{ display:flex; align-items:center; gap:13px; background:var(--bg-panel); border:1px solid var(--border); border-radius:12px; padding:12px 15px; margin-bottom:10px; }
+.crm-bday-row .avatar-md{ width:38px; height:38px; border-radius:10px; overflow:hidden; background:var(--accent-dim); color:var(--accent); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; flex-shrink:0; }
+.crm-bday-row .avatar-md img{ width:100%; height:100%; object-fit:cover; }
+.crm-bday-date{ margin-left:auto; text-align:right; font-size:12px; color:var(--text-muted); }
+.crm-bday-date b{ display:block; color:var(--text-primary); font-size:13px; }
+
+.crm-alerts-card{ display:flex; flex-direction:column; gap:8px; }
+.crm-alerts-item{ display:flex; align-items:center; gap:10px; padding:9px 11px; border-radius:10px; background:var(--bg-panel-alt); text-decoration:none; }
+.crm-alerts-item:hover{ background:var(--border-soft); }
+.crm-alerts-item .crm-alerts-dot{ width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.crm-alerts-item span.txt{ font-size:12.5px; color:var(--text-secondary); flex:1; }
+.crm-alerts-item span.txt b{ color:var(--text-primary); }
+.crm-alerts-empty{ font-size:12.5px; color:var(--text-muted); text-align:center; padding:14px; }
+
+/* ============================================================================
+   CRM — Fidelización (Fase 4): tarjeta "Cliente VIP" + estrellas + beneficios
+============================================================================ */
+.crm-vip-card{ background:var(--bg-panel); border:1px solid var(--border); border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:10px; }
+.crm-vip-card-top{ display:flex; align-items:center; gap:12px; }
+.crm-vip-icon{ width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; background:var(--vip-color-dim,var(--accent-dim)); color:var(--vip-color,var(--accent)); flex-shrink:0; }
+.crm-vip-icon svg{ width:22px; height:22px; }
+.crm-vip-nivel{ font-size:14px; font-weight:700; color:var(--text-primary); }
+.crm-vip-stars{ display:flex; gap:2px; margin-top:2px; }
+.crm-vip-stars svg{ width:13px; height:13px; }
+.crm-vip-stars svg.filled{ color:var(--vip-color,var(--accent)); fill:var(--vip-color,var(--accent)); }
+.crm-vip-stars svg.empty{ color:var(--border-soft); fill:none; }
+.crm-vip-rows{ display:flex; flex-direction:column; gap:6px; font-size:12.5px; color:var(--text-secondary); }
+.crm-vip-rows span b{ color:var(--text-primary); }
+.crm-vip-actions{ display:flex; gap:8px; margin-top:4px; }
+.crm-vip-progress{ height:5px; border-radius:4px; background:var(--bg-panel-alt); overflow:hidden; margin-top:2px; }
+.crm-vip-progress-bar{ height:100%; background:var(--vip-color,var(--accent)); border-radius:4px; }
+.beneficios-nivel-row{ display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:10px; margin-bottom:6px; background:var(--bg-panel-alt); }
+.beneficios-nivel-row.actual{ outline:2px solid var(--vip-color,var(--accent)); }
+.beneficios-nivel-dot{ width:12px; height:12px; border-radius:50%; flex-shrink:0; }
+.crm-resumen-grid{ display:grid; grid-template-columns:2fr 1fr; gap:22px; align-items:start; }
+.crm-resumen-side{ display:flex; flex-direction:column; gap:18px; }
+.crm-mini-list-title{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.crm-mini-list-title h4{ font-size:12.5px; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.03em; }
+.crm-mini-list-title button{ font-size:11px; color:var(--accent); }
+@media (max-width: 900px){ .crm-resumen-grid{ grid-template-columns:1fr; } }
+
+/* ============================================================================
+   CRM — Campañas (Fase 5)
+============================================================================ */
+.campana-row{ display:flex; align-items:center; gap:14px; background:var(--bg-panel); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:10px; }
+.campana-row-info{ flex:1; min-width:0; }
+.campana-row-title{ font-size:13.5px; font-weight:700; color:var(--text-primary); }
+.campana-row-title a{ color:inherit; text-decoration:none; }
+.campana-row-meta{ display:flex; gap:14px; font-size:11.5px; color:var(--text-muted); margin-top:3px; flex-wrap:wrap; }
+.badge-campana-estado{ font-size:10.5px; font-weight:700; padding:3px 10px; border-radius:20px; }
+.badge-campana-borrador{ background:var(--bg-panel-alt); color:var(--text-muted); border:1px solid var(--border); }
+.badge-campana-lista{ background:rgba(37,211,102,.14); color:#25D366; }
+.campana-filtros-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:14px; margin-bottom:6px; }
+.campana-filtro-check{ display:flex; align-items:center; gap:8px; padding:12px 14px; background:var(--bg-panel-alt); border:1px solid var(--border); border-radius:10px; font-size:12.5px; color:var(--text-secondary); cursor:pointer; }
+.campana-filtro-check input{ width:16px; height:16px; accent-color:var(--accent); }
+.campana-audiencia-box{ background:var(--bg-panel-alt); border:1px dashed var(--border); border-radius:12px; padding:16px; text-align:center; margin:18px 0; }
+.campana-audiencia-count{ font-size:28px; font-weight:700; color:var(--accent); font-family:'Consolas','SF Mono',monospace; }
+.campana-audiencia-label{ font-size:11.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em; margin-top:2px; }
+.campana-dest-row{ display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:10px; background:var(--bg-panel-alt); margin-bottom:6px; font-size:12.5px; }
+.campana-dest-row .txt{ flex:1; min-width:0; }
+.campana-dest-row .txt b{ color:var(--text-primary); }
+.campana-wa-btn{ display:inline-flex; align-items:center; gap:6px; padding:6px 11px; border-radius:8px; background:rgba(37,211,102,.14); color:#25D366; font-size:11.5px; font-weight:700; text-decoration:none; flex-shrink:0; }
+.campana-wa-btn svg{ width:13px; height:13px; }
+.campana-wa-btn.disabled{ opacity:.4; pointer-events:none; }
+.campana-info-banner{ display:flex; gap:10px; align-items:flex-start; background:var(--accent-dim); border:1px solid var(--accent-ring); border-radius:11px; padding:12px 14px; font-size:12px; color:var(--text-secondary); margin-bottom:18px; }
+.campana-info-banner svg{ width:17px; height:17px; color:var(--accent); flex-shrink:0; margin-top:1px; }
+
 .pf-equivalente-resultados{ position:relative; margin-top:2px; }
 .pf-equivalente-resultado{ padding:8px 10px; font-size:12.5px; cursor:pointer; border-radius:8px; }
 .pf-equivalente-resultado:hover{ background:var(--bg-panel-alt); }
@@ -1180,7 +1354,7 @@ var qrcode=function(){var qrcode=function(t,r){var e=t,n=c[r],o=null,i=0,a=null,
    0. CONSTANTES GLOBALES
 ----------------------------------------------------------------------- */
 const DB_NAME = 'CheckServiceDB';
-const DB_VERSION = 15; // Se agrega módulo Gastos: stores 'categoriasGastos' y 'gastos'
+const DB_VERSION = 19; // CRM Fase 5: se agrega store 'campanas' (segmentación + mensajes de WhatsApp)
 const SESSION_KEY = 'cs_session';
 const REMEMBER_KEY = 'cs_remember_user';
 const THEME_KEY = 'cs_theme';
@@ -1198,6 +1372,28 @@ const UNIDADES_PRODUCTO = ['Unidad','Litro','Caja','Par','Juego'];
 const MEDIOS_PAGO = ['Efectivo','Transferencia','Tarjeta','QR','Cuenta corriente'];
 const MOTIVOS_NOTA_CREDITO = ['Devolución de mercadería','Error de facturación','Descuento posterior','Servicio no conforme','Otro'];
 const ESTADOS_PAGO_COMPRA = ['Pendiente','Parcial','Pagada'];
+const CONDICIONES_IVA = ['Consumidor Final','Responsable Inscripto','Monotributista','Exento','No Categorizado'];
+const PROVINCIAS_AR = ['Buenos Aires','CABA','Catamarca','Chaco','Chubut','Córdoba','Corrientes','Entre Ríos','Formosa','Jujuy','La Pampa','La Rioja','Mendoza','Misiones','Neuquén','Río Negro','Salta','San Juan','San Luis','Santa Cruz','Santa Fe','Santiago del Estero','Tierra del Fuego','Tucumán'];
+// Niveles del sistema de fidelización CRM (Fase 4 de CRM: se calculan automáticamente
+// según gasto acumulado; se listan acá porque el color/orden de cada nivel se usa
+// en varios lugares — badge de la ficha, tarjetas del CRM Home, etc.)
+const NIVELES_VIP = [
+  { key:'Bronce',  color:'#C08552', min:0 },
+  { key:'Plata',   color:'#B8C4CE', min:150000 },
+  { key:'Oro',     color:'#F0B429', min:400000 },
+  { key:'Platino', color:'#8FD3E8', min:900000 },
+  { key:'VIP',     color:'#FF6BD6', min:1800000 }
+];
+// CRM Fase 3: recordatorios manuales
+const PRIORIDADES_RECORDATORIO = ['Alta','Media','Baja'];
+const PRIORIDAD_COLOR = { Alta:'var(--danger)', Media:'var(--warning)', Baja:'var(--text-muted)' };
+// CRM Fase 4: fidelización — cada $1000 en compras reales (ventas no anuladas)
+// otorga 1 punto. No es un valor inventado: es una regla de negocio simple y
+// transparente, fácil de ajustar acá si en algún momento cambia.
+const PUNTOS_CADA_PESOS = 1000;
+const CONCEPTOS_CANJE = ['Descuento en compra','Producto','Servicio','Lavado','Otro'];
+// CRM Fase 5: campañas
+const ESTADOS_CAMPANA = ['Borrador','Lista para enviar'];
 const TIPOS_GASTO = ['Fijo','Variable'];
 
 // Ítems típicos de un service, registrados como checklist en cada Historial.
@@ -1240,7 +1436,11 @@ function canManageGastos(rol){ return ['Administrador','Supervisor','Caja'].incl
 function canGestionarCategoriasGastos(rol){ return ['Administrador','Supervisor'].includes(rol); }
 
 // Roadmap de módulos aún no implementados, con la fase donde se entregan.
-const MODULE_ROADMAP = {};
+const MODULE_ROADMAP = {
+  // El CRM completó sus 6 fases: ficha 360°, timeline + comunicaciones,
+  // recordatorios, fidelización VIP, campañas y estadísticas. No queda
+  // ningún submódulo pendiente por ahora.
+};
 
 // KPIs de negocio que dependen de módulos futuros: se muestran en el Dashboard
 // como tarjetas "pendientes" (sin datos simulados) hasta que su módulo exista.
@@ -1259,7 +1459,12 @@ const DEFAULT_CONFIG = {
   tema:'dark',
   diasRecordatorioBackup:7, ultimoBackupFecha:null,
   viscosidadesAceite:['0W20','0W30','5W20','5W30','5W40','10W30','10W40','10W60','15W40','15W50','20W50'],
-  serviceChecklistItems: SERVICE_CHECKLIST_ITEMS.map(it=>({...it}))
+  serviceChecklistItems: SERVICE_CHECKLIST_ITEMS.map(it=>({...it})),
+  // CRM Fase 5: credenciales de la API oficial de WhatsApp Business (Meta
+  // Cloud API). Quedan guardadas para cuando se habilite el envío real; por
+  // ahora el módulo de Campañas NO envía nada, solo arma la audiencia y el
+  // mensaje personalizado.
+  whatsappBusinessApi:{ habilitada:false, phoneNumberId:'', wabaId:'', accessToken:'', nombreRemitente:'' }
 };
 
 /* -----------------------------------------------------------------------
@@ -1412,6 +1617,48 @@ const DB = (() => {
           st.createIndex('categoriaId', 'categoriaId');
           st.createIndex('tipo', 'tipo');
           st.createIndex('fecha', 'fecha');
+        }
+        if(!db.objectStoreNames.contains('comunicaciones')){
+          // CRM Fase 2: registro de comunicaciones con el cliente (llamadas,
+          // WhatsApp, emails, visitas, notas internas). Alimenta la línea de
+          // tiempo de la ficha del cliente junto con el historial de servicios
+          // y las ventas.
+          const st = db.createObjectStore('comunicaciones', { keyPath:'id', autoIncrement:true });
+          st.createIndex('clienteId', 'clienteId');
+          st.createIndex('fecha', 'fecha');
+          st.createIndex('tipo', 'tipo');
+        }
+        if(!db.objectStoreNames.contains('recordatorios')){
+          // CRM Fase 3: recordatorios manuales (llamar al cliente, enviar
+          // presupuesto, controlar batería, etc.). Los recordatorios
+          // "automáticos" de cambio de aceite NO se guardan acá: se calculan
+          // al vuelo a partir de historialServicios (proximoServiceFecha /
+          // proximoServiceKm), que ya existía en el módulo de Historial.
+          const st = db.createObjectStore('recordatorios', { keyPath:'id', autoIncrement:true });
+          st.createIndex('clienteId', 'clienteId');
+          st.createIndex('fecha', 'fecha');
+          st.createIndex('estado', 'estado');
+        }
+        if(!db.objectStoreNames.contains('canjesFidelizacion')){
+          // CRM Fase 4: sistema de puntos. Los puntos GANADOS no se guardan
+          // como movimientos (se calculan al vuelo a partir del total real
+          // de compras del cliente en "ventas", así nunca pueden quedar
+          // desincronizados de las ventas reales). Acá solo se registran los
+          // CANJES, que son los que efectivamente restan del saldo disponible.
+          const st = db.createObjectStore('canjesFidelizacion', { keyPath:'id', autoIncrement:true });
+          st.createIndex('clienteId', 'clienteId');
+          st.createIndex('fecha', 'fecha');
+        }
+        if(!db.objectStoreNames.contains('campanas')){
+          // CRM Fase 5: campañas de segmentación. Guardan los filtros usados,
+          // la plantilla de mensaje y una "foto" de los destinatarios en el
+          // momento de prepararla. NO se guarda ningún log de envío real
+          // porque el módulo todavía no envía nada: eso queda preparado para
+          // cuando se conecte la API oficial de WhatsApp Business (Meta
+          // Cloud API), cuyas credenciales ya tienen su lugar en Configuración.
+          const st = db.createObjectStore('campanas', { keyPath:'id', autoIncrement:true });
+          st.createIndex('fechaCreacion', 'fechaCreacion');
+          st.createIndex('estado', 'estado');
         }
       };
 
@@ -2331,7 +2578,17 @@ const ICONS = {
   logs:'<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6M9 9h1"/>',
   lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>',
   gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>',
-  calendario:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>'
+  calendario:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  crown:'<path d="M2 20h20M4 20l-1.5-11L8 13l4-8 4 8 5.5-4L20 20"/>',
+  comunicaciones:'<path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/>',
+  telefono:'<path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.362 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0122 16.92z"/>',
+  more:'<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+  check:'<polyline points="20 6 9 17 4 12"/>',
+  edit:'<path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>',
+  trash:'<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>',
+  star:'<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+  whatsapp:'<path d="M3 21l1.65-4.95A9 9 0 1112 21a8.96 8.96 0 01-4.35-1.12L3 21z"/><path d="M8.5 8.5c.3-.6.6-.6.9-.6h.4c.2 0 .5 0 .7.5s.7 1.8.8 1.9c.1.2.1.4 0 .6-.1.2-.2.3-.4.5s-.4.4-.2.7c.2.4.9 1.4 1.9 2.3 1.3 1.1 2.3 1.5 2.7 1.6.3.1.5.1.7-.1.2-.2.7-.9.9-1.1.2-.3.4-.2.7-.1s1.8.9 2.1 1c.3.1.5.2.6.3.1.2.1.9-.2 1.7-.3.8-1.6 1.5-2.3 1.6-.6.1-1.3.1-2.1-.1-.5-.2-1.1-.4-1.9-.7-3.3-1.4-5.4-4.7-5.6-4.9-.2-.2-1.3-1.7-1.3-3.3 0-1.6.8-2.3 1.1-2.7z"/>',
+  info:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>'
 };
 function svgIcon(name){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]||ICONS.gear}</svg>`; }
 
@@ -2343,8 +2600,15 @@ const NAV_SECTIONS = [
     { key:'dashboard', label:'Dashboard', icon:'dashboard' }
   ]},
   { title:'Operación', items:[
-    { key:'clientes', label:'Clientes', icon:'clientes' },
-    { key:'vehiculos', label:'Vehículos', icon:'vehiculos' },
+    { key:'clientesGroup', label:'Clientes', icon:'clientes', children:[
+      { key:'crm', label:'CRM', icon:'clientes' },
+      { key:'clientes', label:'Todos los Clientes', icon:'clientes' },
+      { key:'vehiculos', label:'Vehículos', icon:'vehiculos' },
+      { key:'campanas', label:'Campañas', icon:'cotizaciones' },
+      { key:'recordatorios', label:'Recordatorios', icon:'calendario' },
+      { key:'cumpleanos', label:'Cumpleaños', icon:'calendario' },
+      { key:'clientesvip', label:'Clientes VIP', icon:'clientes' }
+    ]},
     { key:'historial', label:'Historial', icon:'historial' },
     { key:'pos', label:'POS', icon:'pos' },
     { key:'cotizaciones', label:'Cotizaciones', icon:'cotizaciones' },
@@ -2370,37 +2634,84 @@ const NAV_SECTIONS = [
   ]}
 ];
 
+// Grupos de sidebar expandidos (se auto-expande el que contenga la ruta activa).
+const sidebarGruposExpandidos = new Set();
+
+function navItemPermitido(item, session){
+  // Usuarios y Configuración solo visibles/operables para Administrador
+  if((item.key==='usuarios' || item.key==='configuracion') && session && session.rol!=='Administrador') return false;
+  // POS solo visible para roles habilitados a vender
+  if(item.key==='pos' && session && !canUsarPOS(session.rol)) return false;
+  // Cotizaciones: mismos roles que pueden vender
+  if(item.key==='cotizaciones' && session && !canUsarCotizaciones(session.rol)) return false;
+  // Remitos: mismos roles que pueden vender
+  if(item.key==='remitos' && session && !canUsarRemitos(session.rol)) return false;
+  // Ventas: mismos roles que pueden vender (edición restringida dentro del módulo)
+  if(item.key==='ventas' && session && !canVerVentas(session.rol)) return false;
+  // Lavadero: administración, ventas y taller
+  if(item.key==='lavadero' && session && !canUsarLavadero(session.rol)) return false;
+  // Compras y Proveedores: back-office
+  if((item.key==='proveedores' || item.key==='compras') && session && !canManageCompras(session.rol)) return false;
+  // Caja y Cuentas Corrientes: operativo/financiero
+  if((item.key==='caja' || item.key==='cuentascorrientes') && session && !canManageCaja(session.rol)) return false;
+  // Gastos: mismos roles que Caja
+  if(item.key==='gastos' && session && !canManageGastos(session.rol)) return false;
+  return true;
+}
+
+function navItemHTML(item){
+  const locked = !!MODULE_ROADMAP[item.key];
+  return `<a class="nav-item ${locked?'locked':''}" data-route="${item.key}" href="#/${item.key}" title="${locked?'Disponible en Fase '+MODULE_ROADMAP[item.key]:''}">
+    ${svgIcon(item.icon)}<span class="nav-label">${item.label}</span>
+    ${locked?`<span class="nav-badge">Fase ${MODULE_ROADMAP[item.key]}</span>`:''}
+  </a>`;
+}
+
 function renderSidebarNav(){
   const nav = document.getElementById('sidebar-nav');
   const session = Session.get();
+  const rutaActual = (window.location.hash.replace('#/','') || 'dashboard').split('/')[0];
   nav.innerHTML = NAV_SECTIONS.map(section => `
     <div class="sidebar-section-title">${section.title}</div>
     ${section.items.map(item => {
-      const locked = !!MODULE_ROADMAP[item.key];
-      // Usuarios y Configuración solo visibles/operables para Administrador
-      if((item.key==='usuarios' || item.key==='configuracion') && session && session.rol!=='Administrador') return '';
-      // POS solo visible para roles habilitados a vender
-      if(item.key==='pos' && session && !canUsarPOS(session.rol)) return '';
-      // Cotizaciones: mismos roles que pueden vender
-      if(item.key==='cotizaciones' && session && !canUsarCotizaciones(session.rol)) return '';
-      // Remitos: mismos roles que pueden vender
-      if(item.key==='remitos' && session && !canUsarRemitos(session.rol)) return '';
-      // Ventas: mismos roles que pueden vender (edición restringida dentro del módulo)
-      if(item.key==='ventas' && session && !canVerVentas(session.rol)) return '';
-      // Lavadero: administración, ventas y taller
-      if(item.key==='lavadero' && session && !canUsarLavadero(session.rol)) return '';
-      // Compras y Proveedores: back-office
-      if((item.key==='proveedores' || item.key==='compras') && session && !canManageCompras(session.rol)) return '';
-      // Caja y Cuentas Corrientes: operativo/financiero
-      if((item.key==='caja' || item.key==='cuentascorrientes') && session && !canManageCaja(session.rol)) return '';
-      // Gastos: mismos roles que Caja
-      if(item.key==='gastos' && session && !canManageGastos(session.rol)) return '';
-      return `<a class="nav-item ${locked?'locked':''}" data-route="${item.key}" href="#/${item.key}" title="${locked?'Disponible en Fase '+MODULE_ROADMAP[item.key]:''}">
-        ${svgIcon(item.icon)}<span class="nav-label">${item.label}</span>
-        ${locked?`<span class="nav-badge">Fase ${MODULE_ROADMAP[item.key]}</span>`:''}
-      </a>`;
+      if(!navItemPermitido(item, session)) return '';
+      if(item.children){
+        const hijosVisibles = item.children.filter(c => navItemPermitido(c, session));
+        if(!hijosVisibles.length) return '';
+        const tieneActivo = hijosVisibles.some(c => c.key === rutaActual);
+        if(tieneActivo) sidebarGruposExpandidos.add(item.key);
+        const expandido = sidebarGruposExpandidos.has(item.key);
+        return `<div class="nav-group ${expandido?'expanded':''} ${tieneActivo?'has-active':''}" data-group-key="${item.key}">
+          <a class="nav-item nav-group-toggle" data-group-toggle="${item.key}" href="#">
+            ${svgIcon(item.icon)}<span class="nav-label">${item.label}</span>
+            <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          </a>
+          <div class="nav-subitems" style="display:${expandido?'flex':'none'};">
+            ${hijosVisibles.map(navItemHTML).join('')}
+          </div>
+        </div>`;
+      }
+      return navItemHTML(item);
     }).join('')}
   `).join('');
+
+  document.querySelectorAll('.nav-group-toggle').forEach(toggle=>{
+    toggle.addEventListener('click', (e)=>{
+      e.preventDefault();
+      const key = toggle.dataset.groupToggle;
+      const grupo = toggle.closest('.nav-group');
+      const subitems = grupo.querySelector('.nav-subitems');
+      if(sidebarGruposExpandidos.has(key)){
+        sidebarGruposExpandidos.delete(key);
+        grupo.classList.remove('expanded');
+        subitems.style.display = 'none';
+      }else{
+        sidebarGruposExpandidos.add(key);
+        grupo.classList.add('expanded');
+        subitems.style.display = 'flex';
+      }
+    });
+  });
 }
 
 function setActiveNav(route){
@@ -2447,6 +2758,26 @@ async function router(){
     case 'configuracion':
       if(Session.get().rol !== 'Administrador'){ outlet.innerHTML = viewNoPermiso(); return; }
       outlet.innerHTML = await viewConfiguracion(); bindConfiguracionEvents(); break;
+    case 'crm':
+      outlet.innerHTML = await viewCRMHome(); bindCRMHomeEvents();
+      break;
+    case 'crmestadisticas':
+      outlet.innerHTML = await viewCRMEstadisticas(); await bindCRMEstadisticasEvents();
+      break;
+    case 'recordatorios':
+      outlet.innerHTML = await viewRecordatoriosList(); bindRecordatoriosListEvents();
+      break;
+    case 'cumpleanos':
+      outlet.innerHTML = await viewCumpleanosList();
+      break;
+    case 'clientesvip':
+      outlet.innerHTML = await viewClientesVIPList();
+      break;
+    case 'campanas':
+      if(param === 'nueva'){ outlet.innerHTML = await viewCampanaForm(null); await bindCampanaFormEvents(null); }
+      else if(param){ outlet.innerHTML = await viewCampanaForm(Number(param)); await bindCampanaFormEvents(Number(param)); }
+      else{ outlet.innerHTML = await viewCampanasList(); bindCampanasListEvents(); }
+      break;
     case 'clientes':
       if(param){ outlet.innerHTML = await viewClienteDetalle(Number(param)); bindClienteDetalleEvents(Number(param)); }
       else{ outlet.innerHTML = await viewClientesList(); bindClientesListEvents(); }
@@ -2624,7 +2955,7 @@ function viewNoPermiso(){
 }
 
 function viewWip(routeKey, fase){
-  const item = NAV_SECTIONS.flatMap(s=>s.items).find(i=>i.key===routeKey);
+  const item = NAV_SECTIONS.flatMap(s=>s.items).flatMap(i=>i.children?i.children:[i]).find(i=>i.key===routeKey);
   return `<div class="wip-wrap">
     <div class="wip-gear">${svgIcon(item?item.icon:'gear')}</div>
     <h2>${item?item.label:'Módulo'} — en construcción</h2>
@@ -2660,6 +2991,7 @@ async function viewDashboard(){
   const historialEsteMes = historial.filter(h => new Date(h.fecha) >= inicioMes);
   const vehiculosAtendidosMes = new Set(historialEsteMes.map(h=>h.vehiculoId)).size;
   const proximosServices = historial.filter(h => esServicioProximo(h, vehiculosById[h.vehiculoId])).length;
+  const alertasCRM = await obtenerAlertasCRMDashboard();
 
   const aceiteCount = {};
   historial.forEach(h=>{
@@ -2789,11 +3121,11 @@ async function viewDashboard(){
         <div class="kpi-value">${vehiculosAtendidosMes}</div>
         <div class="kpi-sub">${historialEsteMes.length} servicios este mes</div>
       </div>
-      <div class="kpi-card" style="--kpi-color:var(--warning)">
+      <a href="#/recordatorios" class="kpi-card" style="--kpi-color:var(--warning); text-decoration:none; display:block;">
         <div class="kpi-label">Próximos services</div>
         <div class="kpi-value">${proximosServices}</div>
         <div class="kpi-sub">vencidos o a menos de 30 días / 500km</div>
-      </div>
+      </a>
       <div class="kpi-card" style="--kpi-color:var(--teal)">
         <div class="kpi-label">Aceite más usado</div>
         <div class="kpi-value" style="font-size:15px; margin-top:10px;">${aceiteTop?Utils.escapeHTML(aceiteTop[0]):'—'}</div>
@@ -2868,6 +3200,21 @@ async function viewDashboard(){
         </select>
       </div>
       <div class="chart-canvas-box" style="height:260px;"><canvas id="dash-margen-chart"></canvas></div>
+    </div>
+    ` : ''}
+
+    ${(alertasCRM.recVencidos.length + alertasCRM.recHoy.length + alertasCRM.planif.length + alertasCRM.cumples.length) > 0 ? `
+    <div class="card" style="margin-top:22px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+        <h3 style="font-size:14px;">Alertas CRM</h3>
+        <a href="#/recordatorios" class="btn btn-ghost btn-sm">Ver todos los recordatorios</a>
+      </div>
+      <div class="crm-alerts-card">
+        ${alertasCRM.recVencidos.slice(0,5).map(r=>`<a href="#/clientes/${r.clienteId}" class="crm-alerts-item"><span class="crm-alerts-dot" style="background:var(--danger);"></span><span class="txt"><b>${Utils.escapeHTML(r.titulo)}</b> — ${Utils.escapeHTML(alertasCRM.clientesById[r.clienteId]?clienteNombreCompleto(alertasCRM.clientesById[r.clienteId]):'')} · vencido</span></a>`).join('')}
+        ${alertasCRM.recHoy.slice(0,5).map(r=>`<a href="#/clientes/${r.clienteId}" class="crm-alerts-item"><span class="crm-alerts-dot" style="background:var(--warning);"></span><span class="txt"><b>${Utils.escapeHTML(r.titulo)}</b> — ${Utils.escapeHTML(alertasCRM.clientesById[r.clienteId]?clienteNombreCompleto(alertasCRM.clientesById[r.clienteId]):'')} · hoy</span></a>`).join('')}
+        ${alertasCRM.planif.slice(0,5).map(f=>`<a href="#/clientes/${f.cliente?f.cliente.id:''}" class="crm-alerts-item"><span class="crm-alerts-dot" style="background:${PLANIF_ESTADO_COLOR[f.estado]};"></span><span class="txt">Cambio de aceite <b>${Utils.escapeHTML(f.vehiculo.dominio||'')}</b> — ${f.cliente?Utils.escapeHTML(clienteNombreCompleto(f.cliente)):''} · ${PLANIF_ESTADO_LABEL[f.estado]}</span></a>`).join('')}
+        ${alertasCRM.cumples.slice(0,5).map(c=>`<a href="#/clientes/${c.id}" class="crm-alerts-item"><span class="crm-alerts-dot" style="background:#F5A623;"></span><span class="txt">🎂 Cumpleaños de <b>${Utils.escapeHTML(clienteNombreCompleto(c))}</b> hoy</span></a>`).join('')}
+      </div>
     </div>
     ` : ''}
 
@@ -3840,6 +4187,7 @@ const CFG_TABS = [
   { key:'horarios', label:'Horarios', icon:'historial' },
   { key:'comprobantes', label:'Comprobantes', icon:'reportes' },
   { key:'impresoras', label:'Impresoras', icon:'pos' },
+  { key:'whatsapp', label:'WhatsApp Business', icon:'comunicaciones' },
   { key:'seguridad', label:'Seguridad', icon:'lock' },
   { key:'datos', label:'Base de datos', icon:'backups' }
 ];
@@ -3941,6 +4289,19 @@ async function viewConfiguracion(){
             </select>
           </div>
           <div class="modal-actions"><button class="btn btn-accent" id="cfg-save-impresoras">Guardar cambios</button></div>
+        </div>
+
+        <div class="cfg-panel-section" data-panel="whatsapp">
+          <div class="cfg-section-title">WhatsApp Business API</div>
+          <div class="cfg-section-sub">Credenciales de la API oficial de WhatsApp Business (Meta Cloud API). El módulo de Campañas del CRM ya arma la audiencia y el mensaje personalizado; una vez cargadas estas credenciales se puede habilitar el envío masivo automático — hoy cada mensaje se abre manualmente en WhatsApp.</div>
+          <label class="campana-filtro-check" style="margin-bottom:16px;"><input type="checkbox" id="cfg-wa-habilitada" ${cfg.whatsappBusinessApi&&cfg.whatsappBusinessApi.habilitada?'checked':''}> Envío masivo habilitado (requiere las credenciales completas)</label>
+          <div class="field-row">
+            <div class="field"><label>Phone Number ID</label><input type="text" id="cfg-wa-phoneNumberId" value="${Utils.escapeHTML(cfg.whatsappBusinessApi?cfg.whatsappBusinessApi.phoneNumberId||'':'')}"></div>
+            <div class="field"><label>WABA ID</label><input type="text" id="cfg-wa-wabaId" value="${Utils.escapeHTML(cfg.whatsappBusinessApi?cfg.whatsappBusinessApi.wabaId||'':'')}"></div>
+          </div>
+          <div class="field"><label>Access Token</label><input type="password" id="cfg-wa-accessToken" value="${Utils.escapeHTML(cfg.whatsappBusinessApi?cfg.whatsappBusinessApi.accessToken||'':'')}"></div>
+          <div class="field"><label>Nombre del remitente</label><input type="text" id="cfg-wa-nombreRemitente" placeholder="Ej: Check Service" value="${Utils.escapeHTML(cfg.whatsappBusinessApi?cfg.whatsappBusinessApi.nombreRemitente||'':'')}"></div>
+          <div class="modal-actions"><button class="btn btn-accent" id="cfg-save-whatsapp">Guardar cambios</button></div>
         </div>
 
         <div class="cfg-panel-section" data-panel="seguridad">
@@ -4112,6 +4473,20 @@ function bindConfiguracionEvents(){
     Toast.show('success','Guardado','La configuración de impresora se actualizó.');
   };
 
+  // WhatsApp Business API (CRM Fase 5)
+  const btnSaveWA = document.getElementById('cfg-save-whatsapp');
+  if(btnSaveWA) btnSaveWA.onclick = async () => {
+    await Config.save({ whatsappBusinessApi:{
+      habilitada: document.getElementById('cfg-wa-habilitada').checked,
+      phoneNumberId: document.getElementById('cfg-wa-phoneNumberId').value.trim(),
+      wabaId: document.getElementById('cfg-wa-wabaId').value.trim(),
+      accessToken: document.getElementById('cfg-wa-accessToken').value.trim(),
+      nombreRemitente: document.getElementById('cfg-wa-nombreRemitente').value.trim()
+    }});
+    await Audit.log('configuracion_editada','Credenciales de WhatsApp Business API actualizadas.');
+    Toast.show('success','Guardado','Las credenciales de WhatsApp Business se actualizaron.');
+  };
+
   // Seguridad
   document.getElementById('cfg-save-seguridad').onclick = async () => {
     const intentosMaximos = Math.max(1, Math.min(10, Number(document.getElementById('cfg-intentosMaximos').value) || 5));
@@ -4204,6 +4579,1233 @@ async function reiniciarBaseDeDatos(){
 function clienteNombreCompleto(c){
   if(!c) return '';
   return c.tipoCliente === 'Empresa' ? (c.razonSocial||'(Sin razón social)') : `${c.nombre||''} ${c.apellido||''}`.trim() || '(Sin nombre)';
+}
+
+/* -----------------------------------------------------------------------
+   20-C-BIS. HELPERS CRM (ficha 360°, timeline, nivel VIP)
+----------------------------------------------------------------------- */
+function Utils_fmtFechaSolo(iso){
+  if(!iso) return '—';
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('es-AR');
+}
+
+function calcularEdad(fechaNacIso){
+  if(!fechaNacIso) return null;
+  const nac = new Date(fechaNacIso);
+  if(isNaN(nac.getTime())) return null;
+  const hoy = new Date();
+  let edad = hoy.getFullYear() - nac.getFullYear();
+  const m = hoy.getMonth() - nac.getMonth();
+  if(m < 0 || (m === 0 && hoy.getDate() < nac.getDate())) edad--;
+  return edad;
+}
+
+// Nivel VIP calculado según el total histórico de compras (ventas + POS) del
+// cliente. No usa datos simulados: se recalcula en el momento a partir de la
+// store "ventas" real. El sistema de puntos/canje (fidelización) es la Fase 4.
+function calcularNivelVIP(comprasTotales){
+  let nivel = NIVELES_VIP[0];
+  for(const n of NIVELES_VIP){ if(comprasTotales >= n.min) nivel = n; }
+  return nivel;
+}
+
+async function calcularStatsCliente(clienteId){
+  const [ventas, historial, canjes] = await Promise.all([
+    DB.getAllByIndex('ventas','clienteId', clienteId),
+    DB.getAllByIndex('historialServicios','clienteId', clienteId),
+    DB.getAllByIndex('canjesFidelizacion','clienteId', clienteId)
+  ]);
+  const ventasCompletadas = ventas.filter(v=>v.estado!=='anulada');
+  const comprasTotales = ventasCompletadas.reduce((acc,v)=>acc+(v.total||0), 0);
+  const fechasVisita = [
+    ...ventasCompletadas.map(v=>v.fecha),
+    ...historial.map(h=>h.fecha)
+  ].filter(Boolean).sort((a,b)=> new Date(b)-new Date(a));
+  const ultimaVisita = fechasVisita[0] || null;
+  const puntosGanados = Math.floor(comprasTotales / PUNTOS_CADA_PESOS);
+  const puntosCanjeados = canjes.reduce((acc,c)=>acc+(c.puntos||0), 0);
+  const puntosDisponibles = Math.max(0, puntosGanados - puntosCanjeados);
+  return {
+    comprasTotales, cantidadCompras: ventasCompletadas.length, ultimaVisita,
+    nivel: calcularNivelVIP(comprasTotales),
+    puntosGanados, puntosCanjeados, puntosDisponibles
+  };
+}
+
+// Arma la línea de tiempo del cliente combinando historial de servicios y
+// ventas. La Fase 2 del CRM suma acá las comunicaciones registradas.
+// Tipos de comunicación del CRM (Fase 2) — cada uno con su ícono y color,
+// reutilizados tanto en la pestaña "Comunicaciones" como en la línea de
+// tiempo de "Resumen".
+const TIPOS_COMUNICACION = {
+  'Llamada':   { icono:'telefono',       color:'var(--teal)',    colorDim:'var(--teal-dim)' },
+  'WhatsApp':  { icono:'comunicaciones', color:'#25D366',        colorDim:'rgba(37,211,102,.14)' },
+  'Email':     { icono:'logs',           color:'#5B9BD5',        colorDim:'rgba(91,155,213,.14)' },
+  'Visita':    { icono:'proveedores',    color:'var(--accent)',  colorDim:'var(--accent-dim)' },
+  'Nota':      { icono:'gear',           color:'var(--text-muted)', colorDim:'var(--bg-panel-alt)' }
+};
+
+async function construirTimelineCliente(clienteId, limite=15){
+  const [historial, ventas, comunicaciones, canjes] = await Promise.all([
+    DB.getAllByIndex('historialServicios','clienteId', clienteId),
+    DB.getAllByIndex('ventas','clienteId', clienteId),
+    DB.getAllByIndex('comunicaciones','clienteId', clienteId),
+    DB.getAllByIndex('canjesFidelizacion','clienteId', clienteId)
+  ]);
+  const vehiculosById = {};
+  (await DB.getAll('vehiculos')).forEach(v=>vehiculosById[v.id]=v);
+
+  const eventos = [];
+  historial.forEach(h=>{
+    const veh = vehiculosById[h.vehiculoId];
+    eventos.push({
+      fecha: h.fecha, icono:'historial', color:'var(--teal)', colorDim:'var(--teal-dim)',
+      titulo: h.tipoServicio || 'Cambio de aceite y filtros',
+      desc: [h.aceiteMarca, h.aceiteTipo, veh?veh.dominio:null, h.kilometraje?Number(h.kilometraje).toLocaleString('es-AR')+' km':null].filter(Boolean).join(' · ')
+    });
+  });
+  ventas.filter(v=>v.estado!=='anulada').forEach(v=>{
+    eventos.push({
+      fecha: v.fecha, icono:'ventas', color:'var(--accent)', colorDim:'var(--accent-dim)',
+      titulo: `Venta #${v.numero}`,
+      desc: `${(v.items||[]).slice(0,3).map(i=>i.nombre).join(', ')}${(v.items||[]).length>3?'…':''} · $${(v.total||0).toLocaleString('es-AR')}`
+    });
+  });
+  comunicaciones.forEach(c=>{
+    const meta = TIPOS_COMUNICACION[c.tipo] || TIPOS_COMUNICACION['Nota'];
+    eventos.push({
+      fecha: c.fecha, icono:meta.icono, color:meta.color, colorDim:meta.colorDim,
+      titulo: c.tipo,
+      desc: c.detalle || ''
+    });
+  });
+  canjes.forEach(c=>{
+    eventos.push({
+      fecha: c.fecha, icono:'crown', color:'#F0B429', colorDim:'rgba(240,180,41,.14)',
+      titulo: `Canje de ${c.puntos} pts`,
+      desc: c.concepto || ''
+    });
+  });
+  return eventos.sort((a,b)=> new Date(b.fecha)-new Date(a.fecha)).slice(0, limite);
+}
+
+
+function timelineHTML(eventos){
+  if(!eventos.length){
+    return `<div class="empty-state">${svgIcon('historial')}<h3>Todavía no hay actividad</h3><p>Acá van a aparecer los servicios y ventas del cliente a medida que se registren.</p></div>`;
+  }
+  return `<div class="crm-timeline">
+    ${eventos.map(ev=>`
+      <div class="crm-timeline-item">
+        <div class="crm-timeline-dot" style="--tl-color:${ev.color}; --tl-color-dim:${ev.colorDim};">${svgIcon(ev.icono)}</div>
+        <div class="crm-timeline-body">
+          <div class="crm-timeline-top">
+            <span class="crm-timeline-title">${Utils.escapeHTML(ev.titulo)}</span>
+            <span class="crm-timeline-date">${Utils_fmtFechaSolo(ev.fecha)}</span>
+          </div>
+          ${ev.desc?`<div class="crm-timeline-desc">${Utils.escapeHTML(ev.desc)}</div>`:''}
+        </div>
+      </div>
+    `).join('')}
+  </div>`;
+}
+
+function badgeVipHTML(nivel, compact){
+  if(!nivel || nivel.key==='Bronce') return '';
+  return `<span class="badge-vip" style="--vip-color:${nivel.color}; --vip-color-dim:${nivel.color}22;">${svgIcon('crown')}${compact?nivel.key:'VIP '+nivel.key}</span>`;
+}
+
+/* -----------------------------------------------------------------------
+   20-C-NONIES. CRM Fase 4 — FIDELIZACIÓN (nivel VIP automático + puntos)
+   El nivel VIP ya se calcula desde la Fase 1 (calcularNivelVIP, en base a
+   compras reales). Acá se agrega el sistema de puntos: se ganan solos según
+   lo que el cliente gastó (PUNTOS_CADA_PESOS) y se registran los canjes.
+----------------------------------------------------------------------- */
+function estrellasVipHTML(nivelIndex){
+  const llenas = nivelIndex + 1;
+  let html = '';
+  for(let i=0;i<5;i++){
+    html += `<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" class="${i<llenas?'filled':'empty'}"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
+  }
+  return html;
+}
+
+function proximoNivelInfo(comprasTotales){
+  const idx = NIVELES_VIP.findIndex(n => comprasTotales < n.min);
+  if(idx === -1) return null; // ya está en el nivel máximo
+  const anterior = NIVELES_VIP[idx-1] || { min:0 };
+  const siguiente = NIVELES_VIP[idx];
+  const rango = siguiente.min - anterior.min;
+  const avance = rango > 0 ? Math.min(100, Math.round(((comprasTotales - anterior.min) / rango) * 100)) : 100;
+  return { siguiente, faltan: Math.max(0, siguiente.min - comprasTotales), avance };
+}
+
+function vipCardHTML(cliente, stats, clienteDesdeVal){
+  const nivelIndex = NIVELES_VIP.findIndex(n=>n.key===stats.nivel.key);
+  const prox = proximoNivelInfo(stats.comprasTotales);
+  return `
+    <div class="crm-vip-card">
+      <div class="crm-vip-card-top">
+        <div class="crm-vip-icon" style="--vip-color:${stats.nivel.color}; --vip-color-dim:${stats.nivel.color}22;">${svgIcon('crown')}</div>
+        <div>
+          <div class="crm-vip-nivel">Nivel ${stats.nivel.key}</div>
+          <div class="crm-vip-stars">${estrellasVipHTML(nivelIndex)}</div>
+        </div>
+      </div>
+      <div class="crm-vip-rows">
+        <span>Cliente desde: <b>${clienteDesdeVal?Utils_fmtFechaSolo(clienteDesdeVal):'—'}</b></span>
+        <span>Puntos acumulados: <b>${stats.puntosDisponibles.toLocaleString('es-AR')} pts</b></span>
+        ${prox ? `<span>Faltan <b>$${prox.faltan.toLocaleString('es-AR')}</b> en compras para llegar a ${prox.siguiente.key}</span>` : `<span style="color:${stats.nivel.color};">Nivel máximo alcanzado 🎉</span>`}
+      </div>
+      ${prox ? `<div class="crm-vip-progress"><div class="crm-vip-progress-bar" style="--vip-color:${stats.nivel.color}; width:${prox.avance}%;"></div></div>` : ''}
+      <div class="crm-vip-actions">
+        <button class="btn btn-ghost btn-sm" id="btn-ver-beneficios-vip">Ver beneficios</button>
+        <button class="btn btn-accent btn-sm" id="btn-canjear-puntos" ${stats.puntosDisponibles<=0?'disabled':''}>Canjear puntos</button>
+      </div>
+    </div>
+  `;
+}
+
+function openBeneficiosVIPModal(nivelActualKey, comprasTotales){
+  const filas = NIVELES_VIP.map(n=>{
+    const cumple = comprasTotales >= n.min;
+    return `<div class="beneficios-nivel-row ${n.key===nivelActualKey?'actual':''}">
+      <span class="beneficios-nivel-dot" style="background:${n.color};"></span>
+      <div style="flex:1;">
+        <div style="font-size:13px; font-weight:700; color:var(--text-primary);">${n.key}${n.key===nivelActualKey?' (nivel actual)':''}</div>
+        <div style="font-size:11.5px; color:var(--text-muted);">A partir de $${n.min.toLocaleString('es-AR')} en compras acumuladas</div>
+      </div>
+      ${cumple?`<span style="color:var(--teal);">${svgIcon('check')}</span>`:''}
+    </div>`;
+  }).join('');
+  Modal.open(
+    'Niveles y beneficios VIP',
+    `<p style="font-size:12.5px; color:var(--text-secondary); margin-bottom:14px;">El nivel se recalcula automáticamente según el total histórico de compras del cliente. Cada $${PUNTOS_CADA_PESOS.toLocaleString('es-AR')} en compras suman 1 punto, canjeable por descuentos, productos, servicios o lavado.</p>
+     ${filas}
+     <div class="modal-actions"><button class="btn btn-accent" id="beneficios-cerrar">Cerrar</button></div>`,
+    { width:'440px' }
+  );
+  document.getElementById('beneficios-cerrar').onclick = () => Modal.close();
+}
+
+function openCanjeModal(clienteId, puntosDisponibles){
+  Modal.open(
+    'Canjear puntos',
+    `
+    <p style="font-size:12.5px; color:var(--text-secondary); margin-bottom:12px;">Puntos disponibles: <b>${puntosDisponibles.toLocaleString('es-AR')} pts</b></p>
+    <div class="field"><label>Puntos a canjear</label><input type="number" id="canf-puntos" min="1" max="${puntosDisponibles}" value="${Math.min(puntosDisponibles,100)}"></div>
+    <div class="field"><label>Concepto</label>
+      <select class="select-input" id="canf-concepto">${CONCEPTOS_CANJE.map(c=>`<option value="${c}">${c}</option>`).join('')}</select>
+    </div>
+    <div class="field"><label>Detalle (opcional)</label><input type="text" id="canf-detalle" placeholder="Ej: 10% off en próxima compra"></div>
+    <div class="modal-actions"><button class="btn btn-ghost" id="canf-cancel">Cancelar</button><button class="btn btn-accent" id="canf-save">Confirmar canje</button></div>
+    `,
+    { width:'420px' }
+  );
+  document.getElementById('canf-cancel').onclick = () => Modal.close();
+  document.getElementById('canf-save').onclick = async () => {
+    const puntos = Number(document.getElementById('canf-puntos').value);
+    const concepto = document.getElementById('canf-concepto').value;
+    const detalle = document.getElementById('canf-detalle').value.trim();
+    if(!puntos || puntos <= 0){ Toast.show('error','Puntos inválidos','Ingresá una cantidad de puntos mayor a cero.'); return; }
+    if(puntos > puntosDisponibles){ Toast.show('error','Puntos insuficientes',`El cliente solo tiene ${puntosDisponibles} pts disponibles.`); return; }
+    const session = Session.get();
+    const cliente = await DB.get('clientes', clienteId);
+    await DB.add('canjesFidelizacion', {
+      clienteId, fecha: Utils.nowISO(), puntos, concepto: detalle?`${concepto} — ${detalle}`:concepto,
+      usuarioId: session.usuarioId, usuarioNombre: session.nombre
+    });
+    await Audit.log('canje_puntos', `${clienteNombreCompleto(cliente)} canjeó ${puntos} pts por ${concepto}.`);
+    Toast.show('success','Canje registrado', `${puntos} pts — ${concepto}`);
+    Modal.close();
+    router();
+  };
+}
+
+/* -----------------------------------------------------------------------
+   20-C-DECIES. CRM Fase 4 — Vista global de Clientes VIP (#/clientesvip)
+----------------------------------------------------------------------- */
+async function viewClientesVIPList(){
+  const clientes = (await DB.getAll('clientes')).filter(c=>c.activo!==false);
+  const conStats = await Promise.all(clientes.map(async c => ({ cliente:c, stats: await calcularStatsCliente(c.id) })));
+  const vip = conStats.filter(x => x.stats.nivel.key !== 'Bronce').sort((a,b)=> b.stats.comprasTotales - a.stats.comprasTotales);
+
+  const conteoPorNivel = {};
+  NIVELES_VIP.forEach(n=>conteoPorNivel[n.key] = conStats.filter(x=>x.stats.nivel.key===n.key).length);
+
+  return `
+    <div class="page-header">
+      <div><h1>Clientes VIP</h1><p>Clasificación automática por total histórico de compras</p></div>
+    </div>
+    <div class="grid-kpi" style="margin-bottom:22px;">
+      ${NIVELES_VIP.filter(n=>n.key!=='Bronce').map(n=>`
+        <div class="kpi-card" style="--kpi-color:${n.color};">
+          <div class="kpi-label">${n.key}</div>
+          <div class="kpi-value">${conteoPorNivel[n.key]}</div>
+          <div class="kpi-sub">desde $${n.min.toLocaleString('es-AR')}</div>
+        </div>
+      `).join('')}
+    </div>
+    ${vip.length ? `<div class="crm-client-grid">
+      ${vip.map(x=>{
+        const nombre = clienteNombreCompleto(x.cliente);
+        return `<a href="#/clientes/${x.cliente.id}" class="crm-client-card">
+          <div class="crm-client-card-top">
+            <div class="avatar-md">${x.cliente.foto?`<img src="${x.cliente.foto}">`:Utils.iniciales(nombre)}</div>
+            <div style="min-width:0;">
+              <div class="crm-client-card-name">${Utils.escapeHTML(nombre)}</div>
+              <div class="crm-client-card-sub">${badgeVipHTML(x.stats.nivel, true)}</div>
+            </div>
+          </div>
+          <div class="crm-client-card-meta">
+            <span>${svgIcon('ventas')}$${x.stats.comprasTotales.toLocaleString('es-AR')} en compras</span>
+            <span>${svgIcon('crown')}${x.stats.puntosDisponibles.toLocaleString('es-AR')} pts disponibles</span>
+          </div>
+        </a>`;
+      }).join('')}
+    </div>` : `<div class="empty-state">${svgIcon('clientes')}<h3>Todavía no hay clientes VIP</h3><p>A medida que los clientes acumulen compras van a ir apareciendo acá, clasificados automáticamente.</p></div>`}
+  `;
+}
+
+/* -----------------------------------------------------------------------
+   20-C-UNDECIES. CRM Fase 5 — CAMPAÑAS (segmentación + WhatsApp)
+   El envío real NO está implementado: se arma la audiencia y el mensaje
+   personalizado, y se deja cada contacto listo para abrir en WhatsApp de a
+   uno (wa.me). El envío masivo automático queda preparado para conectarse
+   a la API oficial de WhatsApp Business (Meta Cloud API) el día que Marco
+   tenga esas credenciales — el lugar para cargarlas ya existe en
+   Configuración (whatsappBusinessApi).
+----------------------------------------------------------------------- */
+async function obtenerPerfilesClientesCampana(){
+  const [clientes, vehiculos, ventas, productos, planif] = await Promise.all([
+    DB.getAll('clientes'), DB.getAll('vehiculos'), DB.getAll('ventas'), DB.getAll('productos'), obtenerProximosServicesPlanificados()
+  ]);
+  const vehiculosPorCliente = {};
+  vehiculos.forEach(v=>{ (vehiculosPorCliente[v.clienteId] = vehiculosPorCliente[v.clienteId]||[]).push(v); });
+  const productosById = {}; productos.forEach(p=>productosById[p.id]=p);
+  const ventasPorCliente = {};
+  ventas.filter(v=>v.estado!=='anulada').forEach(v=>{ (ventasPorCliente[v.clienteId]=ventasPorCliente[v.clienteId]||[]).push(v); });
+  const planifPorCliente = {};
+  planif.forEach(f=>{ if(f.cliente){ (planifPorCliente[f.cliente.id]=planifPorCliente[f.cliente.id]||[]).push(f); } });
+
+  return Promise.all(clientes.filter(c=>c.activo!==false).map(async c=>{
+    const [stats, saldo] = await Promise.all([ calcularStatsCliente(c.id), saldoCuentaCorriente(c.id) ]);
+    const vehs = vehiculosPorCliente[c.id] || [];
+    const categoriasFecha = {};
+    (ventasPorCliente[c.id]||[]).forEach(v=>{
+      (v.items||[]).forEach(it=>{
+        const prod = productosById[it.productoId];
+        if(prod && prod.categoria){
+          if(!categoriasFecha[prod.categoria] || new Date(v.fecha) > new Date(categoriasFecha[prod.categoria])) categoriasFecha[prod.categoria] = v.fecha;
+        }
+      });
+    });
+    const aceiteProximo = (planifPorCliente[c.id]||[]).some(f=>f.estado!=='ok');
+    return {
+      cliente: c, stats, saldo, categoriasFecha, aceiteProximo,
+      tiposVehiculo: new Set(vehs.map(v=>v.tipo).filter(Boolean)),
+      marcasVehiculo: new Set(vehs.map(v=>v.marca).filter(Boolean))
+    };
+  }));
+}
+
+function perfilCumpleFiltrosCampana(p, f){
+  if(f.tipoVehiculo && !p.tiposVehiculo.has(f.tipoVehiculo)) return false;
+  if(f.marcaVehiculo && !p.marcasVehiculo.has(f.marcaVehiculo)) return false;
+  if(f.localidad && (p.cliente.localidad||'') !== f.localidad) return false;
+  if(f.nivelVIPMin){
+    const idxMin = NIVELES_VIP.findIndex(n=>n.key===f.nivelVIPMin);
+    const idxCliente = NIVELES_VIP.findIndex(n=>n.key===p.stats.nivel.key);
+    if(idxCliente < idxMin) return false;
+  }
+  if(f.conDeuda && !(p.saldo > 0.009)) return false;
+  if(f.mesesSinVisita){
+    if(p.stats.ultimaVisita){
+      const meses = (Date.now() - new Date(p.stats.ultimaVisita)) / (1000*60*60*24*30.44);
+      if(meses < Number(f.mesesSinVisita)) return false;
+    }
+  }
+  if(f.gastoMin && p.stats.comprasTotales < Number(f.gastoMin)) return false;
+  if(f.gastoMax && p.stats.comprasTotales > Number(f.gastoMax)) return false;
+  if(f.categoriaProducto && f.mesesSinComprar){
+    const fecha = p.categoriasFecha[f.categoriaProducto];
+    if(!fecha) return false;
+    const meses = (Date.now() - new Date(fecha)) / (1000*60*60*24*30.44);
+    if(meses < Number(f.mesesSinComprar)) return false;
+  }
+  if(f.aceiteProximo && !p.aceiteProximo) return false;
+  return true;
+}
+
+function personalizarMensajeCampana(mensaje, cliente){
+  const primerNombre = (cliente.tipoCliente==='Empresa' ? (cliente.razonSocial||'') : (cliente.nombre||'')).trim() || clienteNombreCompleto(cliente);
+  return (mensaje||'').replaceAll('{nombre}', primerNombre);
+}
+
+async function viewCampanasList(){
+  const campanas = (await DB.getAll('campanas')).sort((a,b)=> new Date(b.fechaCreacion)-new Date(a.fechaCreacion));
+  return `
+    <div class="page-header">
+      <div><h1>Campañas</h1><p>Segmentá tu cartera de clientes y armá mensajes personalizados para WhatsApp</p></div>
+      <a href="#/campanas/nueva" class="btn btn-accent">${svgIcon('cotizaciones')} Nueva campaña</a>
+    </div>
+    <div class="campana-info-banner">
+      ${svgIcon('info')}
+      <span>El envío masivo automático todavía no está activo: se está preparando la conexión con la API oficial de WhatsApp Business. Por ahora, cada campaña arma la audiencia y el mensaje personalizado, y podés abrir WhatsApp con cada contacto de a uno.</span>
+    </div>
+    ${campanas.length ? campanas.map(c=>`
+      <div class="campana-row">
+        <div class="campana-row-info">
+          <div class="campana-row-title"><a href="#/campanas/${c.id}">${Utils.escapeHTML(c.nombre)}</a></div>
+          <div class="campana-row-meta">
+            <span>${Utils_fmtFechaSolo(c.fechaCreacion)}</span>
+            <span>${(c.destinatarios||[]).length} destinatarios</span>
+          </div>
+        </div>
+        <span class="badge-campana-estado ${c.estado==='Lista para enviar'?'badge-campana-lista':'badge-campana-borrador'}">${c.estado}</span>
+        <button class="btn btn-danger-ghost btn-sm btn-del-campana" data-cam-id="${c.id}">Eliminar</button>
+      </div>
+    `).join('') : `<div class="empty-state">${svgIcon('cotizaciones')}<h3>Todavía no creaste campañas</h3><p>Armá tu primera segmentación para llegar a los clientes correctos.</p></div>`}
+  `;
+}
+
+function bindCampanasListEvents(){
+  document.querySelectorAll('.btn-del-campana').forEach(btn=>{
+    btn.onclick = async () => {
+      if(!confirm('¿Eliminar esta campaña?')) return;
+      await DB.del('campanas', Number(btn.dataset.camId));
+      Toast.show('success','Campaña eliminada','');
+      router();
+    };
+  });
+}
+
+function campanaFiltrosFormHTML(f={}){
+  return `
+    <div class="campana-filtros-grid">
+      <div class="field"><label>Tipo de vehículo</label>
+        <select class="select-input" id="camf-tipoVehiculo"><option value="">Todos</option>${TIPOS_VEHICULO.map(t=>`<option value="${t}" ${f.tipoVehiculo===t?'selected':''}>${t}</option>`).join('')}</select>
+      </div>
+      <div class="field"><label>Marca de vehículo</label>
+        <select class="select-input" id="camf-marcaVehiculo"><option value="">Todas</option>${(f.__marcas||[]).map(m=>`<option value="${m}" ${f.marcaVehiculo===m?'selected':''}>${m}</option>`).join('')}</select>
+      </div>
+      <div class="field"><label>Localidad</label>
+        <select class="select-input" id="camf-localidad"><option value="">Todas</option>${(f.__localidades||[]).map(l=>`<option value="${l}" ${f.localidad===l?'selected':''}>${l}</option>`).join('')}</select>
+      </div>
+      <div class="field"><label>Nivel VIP mínimo</label>
+        <select class="select-input" id="camf-nivelVIPMin"><option value="">Cualquiera</option>${NIVELES_VIP.map(n=>`<option value="${n.key}" ${f.nivelVIPMin===n.key?'selected':''}>${n.key} en adelante</option>`).join('')}</select>
+      </div>
+      <div class="field"><label>Sin visitar hace más de (meses)</label><input type="number" min="0" id="camf-mesesSinVisita" value="${f.mesesSinVisita||''}"></div>
+      <div class="field"><label>Gasto mínimo histórico ($)</label><input type="number" min="0" id="camf-gastoMin" value="${f.gastoMin||''}"></div>
+      <div class="field"><label>Gasto máximo histórico ($)</label><input type="number" min="0" id="camf-gastoMax" value="${f.gastoMax||''}"></div>
+      <div class="field"><label>Categoría sin comprar hace más de</label>
+        <div style="display:flex; gap:8px;">
+          <select class="select-input" id="camf-categoriaProducto"><option value="">Sin filtro</option>${CATEGORIAS_PRODUCTO.map(c=>`<option value="${c}" ${f.categoriaProducto===c?'selected':''}>${c}</option>`).join('')}</select>
+          <input type="number" min="0" id="camf-mesesSinComprar" placeholder="meses" value="${f.mesesSinComprar||''}" style="width:90px;">
+        </div>
+      </div>
+    </div>
+    <label class="campana-filtro-check"><input type="checkbox" id="camf-conDeuda" ${f.conDeuda?'checked':''}> Solo clientes con deuda</label>
+    <label class="campana-filtro-check" style="margin-top:8px;"><input type="checkbox" id="camf-aceiteProximo" ${f.aceiteProximo?'checked':''}> Solo clientes con cambio de aceite próximo o vencido</label>
+  `;
+}
+
+function leerFiltrosCampanaDesdeForm(){
+  return {
+    tipoVehiculo: document.getElementById('camf-tipoVehiculo').value,
+    marcaVehiculo: document.getElementById('camf-marcaVehiculo').value,
+    localidad: document.getElementById('camf-localidad').value,
+    nivelVIPMin: document.getElementById('camf-nivelVIPMin').value,
+    mesesSinVisita: document.getElementById('camf-mesesSinVisita').value,
+    gastoMin: document.getElementById('camf-gastoMin').value,
+    gastoMax: document.getElementById('camf-gastoMax').value,
+    categoriaProducto: document.getElementById('camf-categoriaProducto').value,
+    mesesSinComprar: document.getElementById('camf-mesesSinComprar').value,
+    conDeuda: document.getElementById('camf-conDeuda').checked,
+    aceiteProximo: document.getElementById('camf-aceiteProximo').checked
+  };
+}
+
+async function viewCampanaForm(campanaId){
+  const campana = campanaId ? await DB.get('campanas', campanaId) : null;
+  const perfiles = await obtenerPerfilesClientesCampana();
+  const marcas = [...new Set(perfiles.flatMap(p=>[...p.marcasVehiculo]))].sort();
+  const localidades = [...new Set(perfiles.map(p=>p.cliente.localidad).filter(Boolean))].sort();
+  const filtrosIniciales = { ...(campana?campana.filtros:{}), __marcas:marcas, __localidades:localidades };
+
+  const destinatarios = campana && campana.estado==='Lista para enviar' ? campana.destinatarios : null;
+
+  return `
+    <a href="#/campanas" class="back-link">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Volver a Campañas
+    </a>
+    <div class="page-header">
+      <div><h1>${campana?'Editar campaña':'Nueva campaña'}</h1><p>Elegí los filtros, revisá cuántos clientes coinciden y escribí el mensaje</p></div>
+    </div>
+
+    <div class="field"><label>Nombre de la campaña</label><input type="text" id="camf-nombre" placeholder="Ej: Recordatorio cambio de aceite — Octubre" value="${campana?Utils.escapeHTML(campana.nombre):''}"></div>
+
+    <div class="cfg-section-title" style="margin-top:20px;">Filtros de segmentación</div>
+    ${campanaFiltrosFormHTML(filtrosIniciales)}
+
+    <div class="campana-audiencia-box" id="campana-audiencia-box">
+      <div class="campana-audiencia-count" id="campana-audiencia-count">—</div>
+      <div class="campana-audiencia-label">clientes coinciden con estos filtros</div>
+    </div>
+
+    <div class="field"><label>Mensaje</label>
+      <textarea class="textarea-input" id="camf-mensaje" rows="4" placeholder="Hola {nombre}! Te escribimos de Check Service...">${campana?Utils.escapeHTML(campana.mensaje||''):''}</textarea>
+      <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Usá <code>{nombre}</code> para que cada mensaje se personalice automáticamente.</div>
+    </div>
+
+    <div class="modal-actions" style="justify-content:flex-start; margin-top:18px;">
+      <button class="btn btn-ghost" id="btn-guardar-borrador-campana">Guardar borrador</button>
+      <button class="btn btn-accent" id="btn-preparar-envio-campana">Preparar envío</button>
+    </div>
+
+    ${destinatarios ? `
+      <div class="cfg-section-title" style="margin-top:30px;">Destinatarios (${destinatarios.length})</div>
+      <div id="campana-destinatarios-list">
+        ${destinatarios.map(d=>`
+          <div class="campana-dest-row">
+            <div class="txt"><b>${Utils.escapeHTML(d.nombre)}</b> — ${Utils.escapeHTML(d.mensaje)}</div>
+            ${d.telefono ? `<a class="campana-wa-btn" target="_blank" rel="noopener" href="https://wa.me/${d.telefono.replace(/\D/g,'')}?text=${encodeURIComponent(d.mensaje)}">${svgIcon('whatsapp')} Abrir WhatsApp</a>` : `<span class="campana-wa-btn disabled">${svgIcon('whatsapp')} Sin teléfono</span>`}
+          </div>
+        `).join('')}
+      </div>
+    ` : ''}
+  `;
+}
+
+async function bindCampanaFormEvents(campanaId){
+  const perfiles = await obtenerPerfilesClientesCampana();
+  let ultimosDestinatarios = null;
+
+  function recalcularAudiencia(){
+    const filtros = leerFiltrosCampanaDesdeForm();
+    const coinciden = perfiles.filter(p => perfilCumpleFiltrosCampana(p, filtros));
+    document.getElementById('campana-audiencia-count').textContent = coinciden.length;
+    ultimosDestinatarios = coinciden;
+    return { filtros, coinciden };
+  }
+
+  document.querySelectorAll('#camf-tipoVehiculo, #camf-marcaVehiculo, #camf-localidad, #camf-nivelVIPMin, #camf-mesesSinVisita, #camf-gastoMin, #camf-gastoMax, #camf-categoriaProducto, #camf-mesesSinComprar, #camf-conDeuda, #camf-aceiteProximo')
+    .forEach(el => el.addEventListener(el.type==='checkbox'||el.tagName==='SELECT'?'change':'input', recalcularAudiencia));
+  recalcularAudiencia();
+
+  async function guardar(estadoFinal){
+    const nombre = document.getElementById('camf-nombre').value.trim();
+    if(!nombre){ Toast.show('error','Falta el nombre','Ponele un nombre a la campaña.'); return; }
+    const { filtros, coinciden } = recalcularAudiencia();
+    const mensaje = document.getElementById('camf-mensaje').value.trim();
+    if(estadoFinal==='Lista para enviar' && !mensaje){ Toast.show('error','Falta el mensaje','Escribí el mensaje antes de preparar el envío.'); return; }
+
+    const payload = {
+      nombre, filtros, mensaje, estado: estadoFinal,
+      fechaCreacion: campanaId ? (await DB.get('campanas', campanaId)).fechaCreacion : Utils.nowISO(),
+      destinatarios: estadoFinal==='Lista para enviar' ? coinciden.map(p=>({
+        clienteId: p.cliente.id, nombre: clienteNombreCompleto(p.cliente),
+        telefono: p.cliente.whatsapp || p.cliente.telefono || '',
+        mensaje: personalizarMensajeCampana(mensaje, p.cliente)
+      })) : []
+    };
+    if(campanaId){ await DB.put('campanas', { ...payload, id:campanaId }); }
+    else { const newId = await DB.add('campanas', payload); campanaId = newId; }
+    await Audit.log('campana_guardada', `Campaña "${nombre}" guardada (${estadoFinal}).`);
+    Toast.show('success','Campaña guardada', nombre);
+    window.location.hash = `#/campanas/${campanaId}`;
+    router();
+  }
+
+  document.getElementById('btn-guardar-borrador-campana').onclick = () => guardar('Borrador');
+  document.getElementById('btn-preparar-envio-campana').onclick = () => guardar('Lista para enviar');
+}
+
+async function campanasClienteHTML(clienteId){
+  const campanas = (await DB.getAll('campanas')).filter(c => (c.destinatarios||[]).some(d=>d.clienteId===clienteId));
+  if(!campanas.length){
+    return `<div class="empty-state" style="padding:30px;">${svgIcon('cotizaciones')}<h3>Sin campañas asociadas</h3><p>Este cliente todavía no formó parte de ninguna campaña de segmentación.</p></div>`;
+  }
+  return campanas.map(c=>{
+    const dest = c.destinatarios.find(d=>d.clienteId===clienteId);
+    return `<div class="campana-row">
+      <div class="campana-row-info">
+        <div class="campana-row-title"><a href="#/campanas/${c.id}">${Utils.escapeHTML(c.nombre)}</a></div>
+        <div class="campana-row-meta"><span>${Utils_fmtFechaSolo(c.fechaCreacion)}</span><span>${Utils.escapeHTML(dest.mensaje)}</span></div>
+      </div>
+      <span class="badge-campana-estado ${c.estado==='Lista para enviar'?'badge-campana-lista':'badge-campana-borrador'}">${c.estado}</span>
+    </div>`;
+  }).join('');
+}
+
+
+function crmWipInlineHTML(nombreModulo, fase, icono){
+  return `<div class="crm-wip-inline">${svgIcon(icono||'gear')}<h3>${nombreModulo} — en construcción</h3><p>Este módulo forma parte del plan de desarrollo por fases del CRM y todavía no fue implementado. No contiene datos simulados ni funciones de ejemplo.</p><div class="wip-phase">Entrega prevista: Fase ${fase}</div></div>`;
+}
+
+/* -----------------------------------------------------------------------
+   20-C-QUATER. CRM Fase 2 — COMUNICACIONES (llamadas, WhatsApp, emails,
+   visitas, notas) registradas contra la ficha del cliente.
+----------------------------------------------------------------------- */
+async function comunicacionesClienteHTML(clienteId){
+  const comunicaciones = (await DB.getAllByIndex('comunicaciones','clienteId', clienteId)).sort((a,b)=> new Date(b.fecha)-new Date(a.fecha));
+  const lista = comunicaciones.length ? `
+    <div class="doc-list" id="crm-comunicaciones-list">
+      ${comunicaciones.map(c=>{
+        const meta = TIPOS_COMUNICACION[c.tipo] || TIPOS_COMUNICACION['Nota'];
+        return `<div class="doc-item" data-com-id="${c.id}" style="align-items:flex-start; flex-direction:column; gap:4px; padding:12px 14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+            <span style="display:flex; align-items:center; gap:8px;">
+              <span class="crm-timeline-dot" style="position:static; width:24px; height:24px; --tl-color:${meta.color}; --tl-color-dim:${meta.colorDim};">${svgIcon(meta.icono)}</span>
+              <b style="font-size:13px;">${Utils.escapeHTML(c.tipo)}</b>
+            </span>
+            <span style="display:flex; align-items:center; gap:10px;">
+              <span class="doc-date">${Utils.fmtFecha(c.fecha)}</span>
+              <button class="btn btn-danger-ghost btn-sm btn-del-comunicacion" data-com-id="${c.id}">Eliminar</button>
+            </span>
+          </div>
+          ${c.detalle?`<div style="font-size:12.5px; color:var(--text-secondary); padding-left:32px;">${Utils.escapeHTML(c.detalle)}</div>`:''}
+          <div style="font-size:11px; color:var(--text-muted); padding-left:32px;">Registrado por ${Utils.escapeHTML(c.usuarioNombre||'—')}</div>
+        </div>`;
+      }).join('')}
+    </div>` : `<div class="empty-state" style="padding:30px;">${svgIcon('comunicaciones')}<h3>Sin comunicaciones registradas</h3><p>Registrá llamadas, WhatsApp, emails, visitas o notas internas sobre este cliente.</p></div>`;
+
+  return `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <div class="cfg-section-title" style="margin-bottom:0;">Comunicaciones</div>
+      <button class="btn btn-accent btn-sm" id="btn-nueva-comunicacion">${svgIcon('comunicaciones')} Registrar comunicación</button>
+    </div>
+    ${lista}
+  `;
+}
+
+function comunicacionFormHTML(){
+  const ahora = new Date();
+  const fechaLocal = Utils.fechaLocalYMD(ahora);
+  const horaLocal = String(ahora.getHours()).padStart(2,'0')+':'+String(ahora.getMinutes()).padStart(2,'0');
+  return `
+    <div class="field">
+      <label>Tipo</label>
+      <select class="select-input" id="comf-tipo">
+        ${Object.keys(TIPOS_COMUNICACION).map(t=>`<option value="${t}">${t}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Fecha</label><input type="date" id="comf-fecha" value="${fechaLocal}"></div>
+      <div class="field"><label>Hora</label><input type="time" id="comf-hora" value="${horaLocal}"></div>
+    </div>
+    <div class="field"><label>Detalle</label><textarea class="textarea-input" id="comf-detalle" placeholder="Ej: Consultó por cambio de distribución, pidió presupuesto por WhatsApp..."></textarea></div>
+  `;
+}
+
+function openComunicacionModal(clienteId){
+  Modal.open(
+    'Registrar comunicación',
+    comunicacionFormHTML() + `<div class="modal-actions"><button class="btn btn-ghost" id="comf-cancel">Cancelar</button><button class="btn btn-accent" id="comf-save">Guardar</button></div>`,
+    { width:'480px' }
+  );
+  document.getElementById('comf-cancel').onclick = () => Modal.close();
+  document.getElementById('comf-save').onclick = async () => {
+    const tipo = document.getElementById('comf-tipo').value;
+    const fecha = document.getElementById('comf-fecha').value;
+    const hora = document.getElementById('comf-hora').value || '00:00';
+    const detalle = document.getElementById('comf-detalle').value.trim();
+    if(!fecha){ Toast.show('error','Falta la fecha','Elegí la fecha de la comunicación.'); return; }
+    const session = Session.get();
+    const cliente = await DB.get('clientes', clienteId);
+    await DB.add('comunicaciones', {
+      clienteId, tipo, fecha: new Date(`${fecha}T${hora}`).toISOString(), detalle,
+      usuarioId: session.usuarioId, usuarioNombre: session.nombre
+    });
+    await Audit.log('comunicacion_registrada', `${tipo} registrada para ${clienteNombreCompleto(cliente)}.`);
+    Toast.show('success','Comunicación registrada', tipo);
+    Modal.close();
+    router();
+  };
+}
+
+function bindComunicacionesEvents(clienteId){
+  const btnNueva = document.getElementById('btn-nueva-comunicacion');
+  if(btnNueva) btnNueva.onclick = () => openComunicacionModal(clienteId);
+  document.querySelectorAll('.btn-del-comunicacion').forEach(btn=>{
+    btn.onclick = async () => {
+      if(!confirm('¿Eliminar esta comunicación?')) return;
+      await DB.del('comunicaciones', Number(btn.dataset.comId));
+      await Audit.log('comunicacion_eliminada', `Comunicación eliminada del cliente #${clienteId}.`);
+      Toast.show('success','Comunicación eliminada','');
+      router();
+    };
+  });
+}
+
+/* -----------------------------------------------------------------------
+   20-C-QUINQUIES. CRM Fase 3 — RECORDATORIOS (manuales + automáticos)
+   Los manuales se guardan en el store "recordatorios". Los automáticos de
+   cambio de aceite NO se duplican en una tabla: se calculan al vuelo con
+   obtenerProximosServicesPlanificados(), que ya usa el módulo de Historial
+   de Servicios (campos proximoServiceFecha / proximoServiceKm).
+----------------------------------------------------------------------- */
+function recordatorioFormHTML(r, clienteFijoNombre){
+  const ahora = new Date();
+  const fechaDefault = r ? Utils.fechaLocalYMD(r.fecha) : Utils.fechaLocalYMD(ahora);
+  const horaDefault = r ? (r.hora||'09:00') : '09:00';
+  return `
+    ${clienteFijoNombre?`<div class="field"><label>Cliente</label><input type="text" value="${Utils.escapeHTML(clienteFijoNombre)}" disabled></div>`:'<div class="field autocomplete-wrap" id="recf-cliente-search-wrap"><label>Cliente</label><input type="text" id="recf-cliente-search" placeholder="Buscar cliente por nombre..." autocomplete="off"><div id="recf-cliente-results" class="autocomplete-results hidden"></div><input type="hidden" id="recf-clienteId"></div>'}
+    <div class="field"><label>Título</label><input type="text" id="recf-titulo" placeholder="Ej: Llamar para confirmar turno" value="${r?Utils.escapeHTML(r.titulo||''):''}"></div>
+    <div class="field-row">
+      <div class="field"><label>Fecha</label><input type="date" id="recf-fecha" value="${fechaDefault}"></div>
+      <div class="field"><label>Hora</label><input type="time" id="recf-hora" value="${horaDefault}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Prioridad</label>
+        <select class="select-input" id="recf-prioridad">${PRIORIDADES_RECORDATORIO.map(p=>`<option value="${p}" ${r&&r.prioridad===p?'selected':(!r&&p==='Media'?'selected':'')}>${p}</option>`).join('')}</select>
+      </div>
+      <div class="field"><label>Responsable</label><input type="text" id="recf-responsable" placeholder="Nombre (opcional)" value="${r?Utils.escapeHTML(r.responsable||''):''}"></div>
+    </div>
+    <div class="field"><label>Descripción</label><textarea class="textarea-input" id="recf-descripcion">${r?Utils.escapeHTML(r.descripcion||''):''}</textarea></div>
+  `;
+}
+
+function bindRecordatorioBuscadorCliente(){
+  const input = document.getElementById('recf-cliente-search');
+  if(!input) return;
+  const resultsBox = document.getElementById('recf-cliente-results');
+  const hiddenId = document.getElementById('recf-clienteId');
+  resultsBox.classList.add('hidden');
+  let clientesCache = null;
+  input.addEventListener('input', async () => {
+    if(!clientesCache) clientesCache = await DB.getAll('clientes');
+    const q = input.value.trim().toLowerCase();
+    hiddenId.value = '';
+    if(!q){ resultsBox.innerHTML=''; resultsBox.classList.add('hidden'); return; }
+    const matches = clientesCache.filter(c => clienteNombreCompleto(c).toLowerCase().includes(q) || (c.documentoNumero||'').includes(q)).slice(0,8);
+    resultsBox.innerHTML = matches.map(c=>`<div class="autocomplete-item" data-cid="${c.id}" data-cnombre="${Utils.escapeHTML(clienteNombreCompleto(c))}">${Utils.escapeHTML(clienteNombreCompleto(c))}</div>`).join('') || `<div class="autocomplete-item" style="color:var(--text-muted);">Sin resultados</div>`;
+    resultsBox.classList.remove('hidden');
+    resultsBox.querySelectorAll('[data-cid]').forEach(item=>{
+      item.onclick = () => {
+        hiddenId.value = item.dataset.cid;
+        input.value = item.dataset.cnombre;
+        resultsBox.classList.add('hidden');
+      };
+    });
+  });
+}
+
+function openRecordatorioModal(recordatorio=null, clienteIdFijo=null, clienteNombreFijo=null){
+  Modal.open(
+    recordatorio ? 'Editar recordatorio' : 'Nuevo recordatorio',
+    recordatorioFormHTML(recordatorio, clienteNombreFijo) + `<div class="modal-actions"><button class="btn btn-ghost" id="recf-cancel">Cancelar</button><button class="btn btn-accent" id="recf-save">Guardar</button></div>`,
+    { width:'480px' }
+  );
+  bindRecordatorioBuscadorCliente();
+  if(clienteIdFijo && !recordatorio){
+    // clienteId fijo se guarda directo, no hay input que leer
+  }
+  document.getElementById('recf-cancel').onclick = () => Modal.close();
+  document.getElementById('recf-save').onclick = async () => {
+    const titulo = document.getElementById('recf-titulo').value.trim();
+    const fecha = document.getElementById('recf-fecha').value;
+    const hora = document.getElementById('recf-hora').value || '09:00';
+    if(!titulo){ Toast.show('error','Falta el título','Escribí un título para el recordatorio.'); return; }
+    if(!fecha){ Toast.show('error','Falta la fecha','Elegí la fecha del recordatorio.'); return; }
+    let clienteId = clienteIdFijo;
+    if(!clienteId){
+      const hidden = document.getElementById('recf-clienteId');
+      clienteId = hidden && hidden.value ? Number(hidden.value) : null;
+      if(!clienteId){ Toast.show('error','Falta el cliente','Buscá y seleccioná un cliente de la lista.'); return; }
+    }
+    const payload = {
+      clienteId, titulo,
+      fecha: new Date(`${fecha}T${hora}`).toISOString(), hora,
+      prioridad: document.getElementById('recf-prioridad').value,
+      responsable: document.getElementById('recf-responsable').value.trim(),
+      descripcion: document.getElementById('recf-descripcion').value.trim(),
+      estado: recordatorio ? recordatorio.estado : 'Pendiente'
+    };
+    const session = Session.get();
+    if(recordatorio){
+      await DB.put('recordatorios', { ...recordatorio, ...payload });
+      await Audit.log('recordatorio_editado', `Recordatorio "${titulo}" editado.`);
+      Toast.show('success','Recordatorio actualizado', titulo);
+    }else{
+      payload.fechaCreacion = Utils.nowISO();
+      payload.usuarioId = session.usuarioId; payload.usuarioNombre = session.nombre;
+      await DB.add('recordatorios', payload);
+      await Audit.log('recordatorio_creado', `Recordatorio "${titulo}" creado.`);
+      Toast.show('success','Recordatorio creado', titulo);
+    }
+    Modal.close();
+    router();
+  };
+}
+
+// Recordatorios automáticos de cambio de aceite (a partir de la planificación
+// de próximos services ya existente en el módulo de Historial), filtrados
+// para un cliente puntual.
+async function recordatoriosAutomaticosCliente(clienteId){
+  const planif = await obtenerProximosServicesPlanificados();
+  return planif.filter(f => f.cliente && f.cliente.id === clienteId && f.estado !== 'ok');
+}
+
+function reminderRowHTML(r, opts={}){
+  // r puede ser un recordatorio manual (tiene .id, .titulo, .fecha, .prioridad,
+  // .estado) o uno automático (viene de obtenerProximosServicesPlanificados:
+  // .vehiculo, .cliente, .proximoServiceFecha, .estado 'urgente'/'proximo'/'vencido').
+  if(r.__auto){
+    const vencido = r.estado === 'vencido';
+    return `<div class="crm-reminder-row ${vencido?'vencido':''}">
+      <span class="crm-reminder-priority-dot" style="--rp-color:${PLANIF_ESTADO_COLOR[r.estado]};"></span>
+      <div class="crm-reminder-body">
+        <div class="crm-reminder-top">
+          <span class="crm-reminder-title">Cambio de aceite — ${Utils.escapeHTML(r.vehiculo.dominio||'')} <span class="badge-auto">Automático</span></span>
+        </div>
+        <div class="crm-reminder-meta">
+          ${!opts.ocultarCliente && r.cliente ? `<span>${svgIcon('clientes')}<a href="#/clientes/${r.cliente.id}" style="color:inherit;">${Utils.escapeHTML(clienteNombreCompleto(r.cliente))}</a></span>` : ''}
+          ${r.proximoServiceFecha?`<span>${svgIcon('calendario')}${Utils_fmtFechaSolo(r.proximoServiceFecha)}</span>`:''}
+          ${r.proximoServiceKm?`<span>${svgIcon('vehiculos')}${Number(r.proximoServiceKm).toLocaleString('es-AR')} km</span>`:''}
+          <span style="color:${PLANIF_ESTADO_COLOR[r.estado]}; font-weight:700;">${PLANIF_ESTADO_LABEL[r.estado]}</span>
+        </div>
+      </div>
+    </div>`;
+  }
+  const vencido = r.estado==='Pendiente' && new Date(r.fecha) < new Date();
+  return `<div class="crm-reminder-row ${r.estado==='Completado'?'completado':''} ${vencido?'vencido':''}" data-rec-id="${r.id}">
+    <span class="crm-reminder-priority-dot" style="--rp-color:${PRIORIDAD_COLOR[r.prioridad]||'var(--text-muted)'};"></span>
+    <div class="crm-reminder-body">
+      <div class="crm-reminder-top">
+        <span class="crm-reminder-title">${Utils.escapeHTML(r.titulo)}</span>
+        <span class="badge-prioridad" style="background:${PRIORIDAD_COLOR[r.prioridad]||'var(--text-muted)'};">${r.prioridad}</span>
+      </div>
+      ${r.descripcion?`<div style="font-size:12.5px; color:var(--text-secondary); margin-top:3px;">${Utils.escapeHTML(r.descripcion)}</div>`:''}
+      <div class="crm-reminder-meta">
+        ${!opts.ocultarCliente && r.__clienteNombre ? `<span>${svgIcon('clientes')}<a href="#/clientes/${r.clienteId}" style="color:inherit;">${Utils.escapeHTML(r.__clienteNombre)}</a></span>` : ''}
+        <span>${svgIcon('calendario')}${Utils.fmtFecha(r.fecha)}</span>
+        ${r.responsable?`<span>${svgIcon('usuarios')}${Utils.escapeHTML(r.responsable)}</span>`:''}
+        ${vencido?`<span style="color:var(--danger); font-weight:700;">Vencido</span>`:''}
+      </div>
+    </div>
+    <div class="crm-reminder-actions">
+      ${r.estado==='Pendiente'?`<button class="btn btn-ghost btn-sm btn-rec-completar" data-rec-id="${r.id}" title="Marcar como completado">${svgIcon('check')}</button>`:''}
+      <button class="btn btn-ghost btn-sm btn-rec-editar" data-rec-id="${r.id}" title="Editar">${svgIcon('edit')}</button>
+      <button class="btn btn-danger-ghost btn-sm btn-rec-eliminar" data-rec-id="${r.id}" title="Eliminar">${svgIcon('trash')}</button>
+    </div>
+  </div>`;
+}
+
+async function recordatoriosClienteHTML(clienteId){
+  const [manuales, automaticos] = await Promise.all([
+    DB.getAllByIndex('recordatorios','clienteId', clienteId),
+    recordatoriosAutomaticosCliente(clienteId)
+  ]);
+  manuales.sort((a,b)=> new Date(a.fecha)-new Date(b.fecha));
+  automaticos.forEach(a=>a.__auto=true);
+  const pendientes = manuales.filter(m=>m.estado==='Pendiente');
+  const completados = manuales.filter(m=>m.estado==='Completado');
+
+  const filas = [...automaticos, ...pendientes].sort((a,b)=>{
+    const fa = a.__auto ? (a.proximoServiceFecha||'9999') : a.fecha;
+    const fb = b.__auto ? (b.proximoServiceFecha||'9999') : b.fecha;
+    return new Date(fa) - new Date(fb);
+  });
+
+  return `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <div class="cfg-section-title" style="margin-bottom:0;">Recordatorios</div>
+      <button class="btn btn-accent btn-sm" id="btn-nuevo-recordatorio">${svgIcon('calendario')} Nuevo recordatorio</button>
+    </div>
+    ${filas.length ? filas.map(r=>reminderRowHTML(r, {ocultarCliente:true})).join('') : `<div class="empty-state" style="padding:26px;">${svgIcon('calendario')}<h3>Sin recordatorios pendientes</h3></div>`}
+    ${completados.length ? `
+      <div class="cfg-section-title" style="margin-top:22px;">Completados (${completados.length})</div>
+      ${completados.map(r=>reminderRowHTML(r, {ocultarCliente:true})).join('')}
+    ` : ''}
+  `;
+}
+
+function bindRecordatoriosClienteEvents(clienteId){
+  const btnNuevo = document.getElementById('btn-nuevo-recordatorio');
+  if(btnNuevo) btnNuevo.onclick = async () => {
+    const cliente = await DB.get('clientes', clienteId);
+    openRecordatorioModal(null, clienteId, clienteNombreCompleto(cliente));
+  };
+  bindRecordatorioRowEvents();
+}
+
+function bindRecordatorioRowEvents(){
+  document.querySelectorAll('.btn-rec-completar').forEach(btn=>{
+    btn.onclick = async () => {
+      const r = await DB.get('recordatorios', Number(btn.dataset.recId));
+      await DB.put('recordatorios', { ...r, estado:'Completado' });
+      Toast.show('success','Recordatorio completado', r.titulo);
+      router();
+    };
+  });
+  document.querySelectorAll('.btn-rec-editar').forEach(btn=>{
+    btn.onclick = async () => {
+      const r = await DB.get('recordatorios', Number(btn.dataset.recId));
+      const cliente = await DB.get('clientes', r.clienteId);
+      openRecordatorioModal(r, r.clienteId, clienteNombreCompleto(cliente));
+    };
+  });
+  document.querySelectorAll('.btn-rec-eliminar').forEach(btn=>{
+    btn.onclick = async () => {
+      if(!confirm('¿Eliminar este recordatorio?')) return;
+      await DB.del('recordatorios', Number(btn.dataset.recId));
+      await Audit.log('recordatorio_eliminado', `Recordatorio #${btn.dataset.recId} eliminado.`);
+      Toast.show('success','Recordatorio eliminado','');
+      router();
+    };
+  });
+}
+
+/* -----------------------------------------------------------------------
+   20-C-SEXIES. CRM Fase 3 — Vista global de Recordatorios (#/recordatorios)
+----------------------------------------------------------------------- */
+async function viewRecordatoriosList(){
+  const [manuales, clientes] = await Promise.all([ DB.getAll('recordatorios'), DB.getAll('clientes') ]);
+  const clientesById = {}; clientes.forEach(c=>clientesById[c.id]=c);
+  manuales.forEach(m=>m.__clienteNombre = clientesById[m.clienteId] ? clienteNombreCompleto(clientesById[m.clienteId]) : '(Cliente eliminado)');
+  const planif = (await obtenerProximosServicesPlanificados()).filter(f=>f.estado!=='ok');
+  planif.forEach(f=>f.__auto=true);
+
+  const pendientes = manuales.filter(m=>m.estado==='Pendiente');
+  const completados = manuales.filter(m=>m.estado==='Completado').sort((a,b)=> new Date(b.fecha)-new Date(a.fecha));
+  const todasActivas = [...planif, ...pendientes].sort((a,b)=>{
+    const fa = a.__auto ? (a.proximoServiceFecha||'9999') : a.fecha;
+    const fb = b.__auto ? (b.proximoServiceFecha||'9999') : b.fecha;
+    return new Date(fa) - new Date(fb);
+  });
+
+  return `
+    <div class="page-header">
+      <div><h1>Recordatorios</h1><p>Seguimiento comercial y postventa — manuales y automáticos de cambio de aceite</p></div>
+      <button class="btn btn-accent" id="btn-nuevo-recordatorio-global">${svgIcon('calendario')} Nuevo recordatorio</button>
+    </div>
+    <div class="grid-kpi" style="margin-bottom:22px;">
+      <div class="kpi-card" style="--kpi-color:var(--danger);"><div class="kpi-label">Vencidos</div><div class="kpi-value">${todasActivas.filter(r=>r.__auto?r.estado==='vencido':new Date(r.fecha)<new Date()).length}</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--warning);"><div class="kpi-label">Pendientes</div><div class="kpi-value">${todasActivas.length}</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--teal);"><div class="kpi-label">Completados</div><div class="kpi-value">${completados.length}</div></div>
+    </div>
+    <div id="recordatorios-list">
+      ${todasActivas.length ? todasActivas.map(r=>reminderRowHTML(r)).join('') : `<div class="empty-state">${svgIcon('calendario')}<h3>No hay recordatorios pendientes</h3><p>Cuando crees recordatorios manuales o el sistema detecte cambios de aceite próximos, van a aparecer acá.</p></div>`}
+    </div>
+    ${completados.length ? `
+      <div class="cfg-section-title" style="margin-top:26px;">Completados recientemente</div>
+      ${completados.slice(0,10).map(r=>reminderRowHTML(r)).join('')}
+    ` : ''}
+  `;
+}
+
+function bindRecordatoriosListEvents(){
+  const btnNuevo = document.getElementById('btn-nuevo-recordatorio-global');
+  if(btnNuevo) btnNuevo.onclick = () => openRecordatorioModal(null);
+  bindRecordatorioRowEvents();
+}
+
+/* -----------------------------------------------------------------------
+   20-C-SEPTIES. CRM Fase 3 — Cumpleaños (#/cumpleanos)
+----------------------------------------------------------------------- */
+function proximoCumpleanos(fechaNacIso){
+  const nac = new Date(fechaNacIso);
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  let prox = new Date(hoy.getFullYear(), nac.getMonth(), nac.getDate());
+  if(prox < hoy) prox = new Date(hoy.getFullYear()+1, nac.getMonth(), nac.getDate());
+  const dias = Math.round((prox - hoy) / 86400000);
+  const edadQueCumple = prox.getFullYear() - nac.getFullYear();
+  return { fecha:prox, dias, edadQueCumple };
+}
+
+async function viewCumpleanosList(){
+  const clientes = (await DB.getAll('clientes')).filter(c=>c.activo!==false && c.fechaNacimiento);
+  const conFecha = clientes.map(c=>({ cliente:c, ...proximoCumpleanos(c.fechaNacimiento) })).sort((a,b)=>a.dias-b.dias);
+  const hoyList = conFecha.filter(x=>x.dias===0);
+  const semana = conFecha.filter(x=>x.dias>0 && x.dias<=7);
+  const resto = conFecha.filter(x=>x.dias>7);
+
+  const filaHTML = (x) => `
+    <div class="crm-bday-row">
+      <div class="avatar-md">${x.cliente.foto?`<img src="${x.cliente.foto}">`:Utils.iniciales(clienteNombreCompleto(x.cliente))}</div>
+      <div>
+        <div style="font-size:13px; font-weight:700;"><a href="#/clientes/${x.cliente.id}" style="color:inherit; text-decoration:none;">${Utils.escapeHTML(clienteNombreCompleto(x.cliente))}</a></div>
+        <div style="font-size:11.5px; color:var(--text-muted);">Cumple ${x.edadQueCumple} años</div>
+      </div>
+      <div class="crm-bday-date">
+        <b>${x.dias===0?'¡Hoy!':x.dias===1?'Mañana':'En '+x.dias+' días'}</b>
+        ${x.fecha.toLocaleDateString('es-AR',{day:'2-digit',month:'long'})}
+      </div>
+    </div>`;
+
+  return `
+    <div class="page-header">
+      <div><h1>Cumpleaños</h1><p>Clientes con fecha de nacimiento cargada, ordenados por el próximo cumpleaños</p></div>
+    </div>
+    ${hoyList.length ? `<div class="cfg-section-title">🎉 Hoy</div>${hoyList.map(filaHTML).join('')}` : ''}
+    ${semana.length ? `<div class="cfg-section-title" style="margin-top:${hoyList.length?'22px':'0'};">Esta semana</div>${semana.map(filaHTML).join('')}` : ''}
+    <div class="cfg-section-title" style="margin-top:${(hoyList.length||semana.length)?'22px':'0'};">Próximos</div>
+    ${resto.length ? resto.map(filaHTML).join('') : (!hoyList.length && !semana.length ? `<div class="empty-state">${svgIcon('calendario')}<h3>Sin cumpleaños cargados</h3><p>Cargá la fecha de nacimiento en la ficha de cada cliente para verlos acá.</p></div>` : '')}
+  `;
+}
+
+/* -----------------------------------------------------------------------
+   20-C-OCTIES. CRM Fase 3 — Alertas para el Dashboard
+----------------------------------------------------------------------- */
+async function obtenerAlertasCRMDashboard(){
+  const [recordatorios, clientes] = await Promise.all([ DB.getAll('recordatorios'), DB.getAll('clientes') ]);
+  const clientesById = {}; clientes.forEach(c=>clientesById[c.id]=c);
+  const hoy = new Date();
+  const recVencidos = recordatorios.filter(r=>r.estado==='Pendiente' && new Date(r.fecha) < hoy);
+  const recHoy = recordatorios.filter(r=>r.estado==='Pendiente' && Utils.fechaLocalYMD(r.fecha)===Utils.hoyLocal());
+  const planif = (await obtenerProximosServicesPlanificados()).filter(f=>f.estado==='vencido'||f.estado==='urgente');
+  const cumples = clientes.filter(c=>c.activo!==false && c.fechaNacimiento && proximoCumpleanos(c.fechaNacimiento).dias===0);
+  return { recVencidos, recHoy, planif, cumples, clientesById };
+}
+
+/* -----------------------------------------------------------------------
+   20-C-TREDECIES. CRM Fase 6 — ESTADÍSTICAS CRM globales (#/crmestadisticas)
+----------------------------------------------------------------------- */
+async function obtenerFechasVisitaCliente(clienteId){
+  const [ventas, historial] = await Promise.all([
+    DB.getAllByIndex('ventas','clienteId', clienteId),
+    DB.getAllByIndex('historialServicios','clienteId', clienteId)
+  ]);
+  return [...ventas.filter(v=>v.estado!=='anulada').map(v=>v.fecha), ...historial.map(h=>h.fecha)]
+    .filter(Boolean).sort((a,b)=> new Date(a)-new Date(b));
+}
+
+async function calcularEstadisticasCRM(){
+  const [clientes, vehiculos, historial] = await Promise.all([ DB.getAll('clientes'), DB.getAll('vehiculos'), DB.getAll('historialServicios') ]);
+  const activos = clientes.filter(c=>c.activo!==false);
+  const inactivos = clientes.filter(c=>c.activo===false);
+  const hoy = new Date();
+
+  // Clientes nuevos por mes (últimos 12 meses)
+  const meses = [];
+  for(let i=11;i>=0;i--){
+    const d = new Date(hoy.getFullYear(), hoy.getMonth()-i, 1);
+    meses.push({ label: d.toLocaleDateString('es-AR',{month:'short',year:'2-digit'}), anio:d.getFullYear(), mes:d.getMonth() });
+  }
+  const nuevosPorMes = meses.map(m => clientes.filter(c=>{
+    if(!c.fechaCreacion) return false;
+    const fc = new Date(c.fechaCreacion);
+    return fc.getFullYear()===m.anio && fc.getMonth()===m.mes;
+  }).length);
+
+  const statsPorCliente = await Promise.all(activos.map(async c => ({ cliente:c, stats: await calcularStatsCliente(c.id) })));
+  const conCompras = statsPorCliente.filter(x=>x.stats.cantidadCompras>0);
+  const promedioGasto = conCompras.length ? conCompras.reduce((a,x)=>a+x.stats.comprasTotales,0)/conCompras.length : 0;
+  const top20 = [...statsPorCliente].sort((a,b)=>b.stats.comprasTotales-a.stats.comprasTotales).filter(x=>x.stats.comprasTotales>0).slice(0,20);
+
+  // Clientes recuperados: volvieron en los últimos 90 días después de un
+  // hueco de más de 180 días sin visitas — y frecuencia de visitas promedio.
+  let recuperados = 0;
+  const frecuenciasValidas = [];
+  for(const x of statsPorCliente){
+    const fechasVisita = await obtenerFechasVisitaCliente(x.cliente.id);
+    if(fechasVisita.length >= 2){
+      const primera = new Date(fechasVisita[0]);
+      const ultima = new Date(fechasVisita[fechasVisita.length-1]);
+      frecuenciasValidas.push((ultima-primera)/86400000/(fechasVisita.length-1));
+      const penultima = new Date(fechasVisita[fechasVisita.length-2]);
+      const diasDesdeUltima = (hoy-ultima)/86400000;
+      const gapPrevio = (ultima-penultima)/86400000;
+      if(diasDesdeUltima <= 90 && gapPrevio > 180) recuperados++;
+    }
+  }
+  const frecuenciaVisitasPromedio = frecuenciasValidas.length ? Math.round(frecuenciasValidas.reduce((a,b)=>a+b,0)/frecuenciasValidas.length) : null;
+
+  const vehiculosAtendidos = new Set(historial.map(h=>h.vehiculoId)).size;
+
+  const marcasCount = {}; const modelosCount = {};
+  vehiculos.forEach(v=>{
+    if(v.marca) marcasCount[v.marca] = (marcasCount[v.marca]||0)+1;
+    if(v.modelo) modelosCount[v.modelo] = (modelosCount[v.modelo]||0)+1;
+  });
+  const marcasTop = Object.entries(marcasCount).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const modelosTop = Object.entries(modelosCount).sort((a,b)=>b[1]-a[1]).slice(0,8);
+
+  return {
+    totalActivos: activos.length, totalInactivos: inactivos.length,
+    mesesLabels: meses.map(m=>m.label), nuevosPorMes,
+    promedioGasto, top20, recuperados, frecuenciaVisitasPromedio,
+    vehiculosAtendidos, marcasTop, modelosTop
+  };
+}
+
+function drawGenericBarChart(canvas, labels, valores, opts={}){
+  if(!canvas) return;
+  destroyChartOn(canvas);
+  if(!labels.length) return;
+  const theme = chartThemeColors();
+  const cs = getComputedStyle(document.documentElement);
+  const color = opts.color || (cs.getPropertyValue('--accent')||'').trim() || '#FF8C1A';
+  new Chart(canvas.getContext('2d'), {
+    type:'bar',
+    data:{ labels, datasets:[{ data:valores, backgroundColor: hexToRgba(color,.75), borderRadius:6, maxBarThickness: opts.horizontal?18:38 }] },
+    options:{
+      indexAxis: opts.horizontal ? 'y' : 'x',
+      responsive:true, maintainAspectRatio:false, animation:{ duration:500 },
+      plugins:{ legend:{ display:false }, tooltip:{ backgroundColor:theme.panel, titleColor:theme.text, bodyColor:theme.text, borderColor:theme.grid, borderWidth:1, padding:9, cornerRadius:8,
+        callbacks:{ label:(item)=>{ const v = opts.horizontal ? item.parsed.x : item.parsed.y; return opts.formatMoney ? '$'+Number(v).toLocaleString('es-AR') : Number(v).toLocaleString('es-AR'); } } } },
+      scales:{
+        x:{ beginAtZero:true, grid:{ display: !!opts.horizontal, color:theme.grid }, ticks:{ color:theme.muted, font:{ size:10 } } },
+        y:{ beginAtZero:true, grid:{ display: !opts.horizontal, color:theme.grid }, ticks:{ color:theme.muted, font:{ size:10 } } }
+      }
+    }
+  });
+}
+
+function drawGenericDonutChart(canvas, labels, valores, colors){
+  if(!canvas || !labels.length) return;
+  destroyChartOn(canvas);
+  const theme = chartThemeColors();
+  new Chart(canvas.getContext('2d'), {
+    type:'doughnut',
+    data:{ labels, datasets:[{ data:valores, backgroundColor: colors, borderWidth:2, borderColor: theme.panel }] },
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'62%', animation:{ duration:500 },
+      plugins:{ legend:{ position:'right', labels:{ color:theme.muted, boxWidth:11, boxHeight:11, font:{ size:10.5 }, usePointStyle:true, pointStyle:'circle' } } } }
+  });
+}
+
+async function viewCRMEstadisticas(){
+  const e = await calcularEstadisticasCRM();
+  return `
+    <a href="#/crm" class="back-link">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Volver al CRM
+    </a>
+    <div class="page-header"><div><h1>Estadísticas CRM</h1><p>Vista completa del comportamiento de tu cartera de clientes</p></div></div>
+
+    <div class="grid-kpi" style="margin-bottom:22px;">
+      <div class="kpi-card" style="--kpi-color:var(--accent);"><div class="kpi-label">Clientes activos</div><div class="kpi-value">${e.totalActivos}</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--text-muted);"><div class="kpi-label">Clientes inactivos</div><div class="kpi-value">${e.totalInactivos}</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--teal);"><div class="kpi-label">Clientes recuperados</div><div class="kpi-value">${e.recuperados}</div><div class="kpi-sub">volvieron tras +180 días</div></div>
+      <div class="kpi-card" style="--kpi-color:#F0B429;"><div class="kpi-label">Promedio de gasto</div><div class="kpi-value" style="font-size:19px;">$${Math.round(e.promedioGasto).toLocaleString('es-AR')}</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--warning);"><div class="kpi-label">Frecuencia de visitas</div><div class="kpi-value" style="font-size:19px;">${e.frecuenciaVisitasPromedio!=null?e.frecuenciaVisitasPromedio+' días':'—'}</div></div>
+      <div class="kpi-card" style="--kpi-color:#5B9BD5;"><div class="kpi-label">Vehículos atendidos</div><div class="kpi-value">${e.vehiculosAtendidos}</div></div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px;">
+      <div class="cfg-section-title">Clientes nuevos por mes</div>
+      <div class="chart-canvas-box" style="height:230px;"><canvas id="crmstat-nuevos-chart"></canvas></div>
+    </div>
+
+    <div class="crm-resumen-grid" style="margin-bottom:20px;">
+      <div class="card">
+        <div class="cfg-section-title">Top 20 clientes</div>
+        ${e.top20.length ? e.top20.map((x,i)=>`
+          <div class="doc-item" style="padding:9px 12px;">
+            <span style="width:20px; color:var(--text-muted); font-size:11px; font-weight:700;">${i+1}</span>
+            <span class="doc-name" style="flex:1;"><a href="#/clientes/${x.cliente.id}" style="color:inherit; text-decoration:none;">${Utils.escapeHTML(clienteNombreCompleto(x.cliente))}</a> ${badgeVipHTML(x.stats.nivel, true)}</span>
+            <span class="doc-date">$${x.stats.comprasTotales.toLocaleString('es-AR')}</span>
+          </div>`).join('') : `<div class="crm-alerts-empty">Todavía no hay compras registradas</div>`}
+      </div>
+      <div class="crm-resumen-side">
+        <div class="card">
+          <div class="cfg-section-title">Activos vs. inactivos</div>
+          <div class="chart-canvas-box" style="height:190px;"><canvas id="crmstat-activos-chart"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="crm-resumen-grid">
+      <div class="card"><div class="cfg-section-title">Marcas más frecuentes</div>${e.marcasTop.length?`<div class="chart-canvas-box" style="height:240px;"><canvas id="crmstat-marcas-chart"></canvas></div>`:`<div class="crm-alerts-empty">Sin vehículos registrados</div>`}</div>
+      <div class="card"><div class="cfg-section-title">Modelos más frecuentes</div>${e.modelosTop.length?`<div class="chart-canvas-box" style="height:240px;"><canvas id="crmstat-modelos-chart"></canvas></div>`:`<div class="crm-alerts-empty">Sin vehículos registrados</div>`}</div>
+    </div>
+  `;
+}
+
+async function bindCRMEstadisticasEvents(){
+  const e = await calcularEstadisticasCRM();
+  const mutedColor = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#9AA3AF';
+  drawGenericBarChart(document.getElementById('crmstat-nuevos-chart'), e.mesesLabels, e.nuevosPorMes);
+  drawGenericDonutChart(document.getElementById('crmstat-activos-chart'), ['Activos','Inactivos'], [e.totalActivos, e.totalInactivos], ['#25D366', mutedColor]);
+  drawGenericBarChart(document.getElementById('crmstat-marcas-chart'), e.marcasTop.map(m=>m[0]), e.marcasTop.map(m=>m[1]), { horizontal:true, color:'#5B9BD5' });
+  drawGenericBarChart(document.getElementById('crmstat-modelos-chart'), e.modelosTop.map(m=>m[0]), e.modelosTop.map(m=>m[1]), { horizontal:true, color:'#8B5CF6' });
+}
+
+/* -----------------------------------------------------------------------
+   20-C-TER. CRM — HOME (Fase 1: KPIs reales + buscador + fichas de clientes)
+----------------------------------------------------------------------- */
+async function viewCRMHome(){
+  const clientesTodos = await DB.getAll('clientes');
+  const clientes = clientesTodos.filter(c=>c.activo!==false);
+  const hoy = new Date();
+  const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+
+  const nuevosEsteMes = clientes.filter(c => c.fechaCreacion && new Date(c.fechaCreacion) >= inicioMes).length;
+  const cumpleanosEsteMes = clientes.filter(c => {
+    if(!c.fechaNacimiento) return false;
+    const d = new Date(c.fechaNacimiento);
+    return d.getMonth() === hoy.getMonth();
+  }).length;
+
+  const statsPorCliente = {};
+  await Promise.all(clientes.map(async c => {
+    const [stats, saldo] = await Promise.all([ calcularStatsCliente(c.id), saldoCuentaCorriente(c.id) ]);
+    statsPorCliente[c.id] = { ...stats, saldo };
+  }));
+  const conDeuda = clientes.filter(c => statsPorCliente[c.id] && statsPorCliente[c.id].saldo > 0.009).length;
+
+  const tarjetas = clientes
+    .slice()
+    .sort((a,b)=> clienteNombreCompleto(a).localeCompare(clienteNombreCompleto(b)))
+    .map(c=>{
+      const nombre = clienteNombreCompleto(c);
+      const st = statsPorCliente[c.id] || { nivel: NIVELES_VIP[0], ultimaVisita:null };
+      const searchKey = [nombre, c.documentoNumero, c.telefono, c.whatsapp, c.email, c.localidad].filter(Boolean).join(' ').toLowerCase();
+      return `<a href="#/clientes/${c.id}" class="crm-client-card" data-search="${Utils.escapeHTML(searchKey)}">
+        <div class="crm-client-card-top">
+          <div class="avatar-md">${c.foto?`<img src="${c.foto}">`:Utils.iniciales(nombre)}</div>
+          <div style="min-width:0;">
+            <div class="crm-client-card-name">${Utils.escapeHTML(nombre)}</div>
+            <div class="crm-client-card-sub">${c.tipoCliente}${badgeVipHTML(st.nivel, true) ? ' · '+st.nivel.key : ''}</div>
+          </div>
+        </div>
+        <div class="crm-client-card-meta">
+          ${c.telefono?`<span>${svgIcon('telefono')}${Utils.escapeHTML(c.telefono)}</span>`:''}
+          <span>${svgIcon('historial')}${st.ultimaVisita ? 'Última visita: '+Utils_fmtFechaSolo(st.ultimaVisita) : 'Sin visitas registradas'}</span>
+        </div>
+      </a>`;
+    }).join('');
+
+  return `
+    <div class="page-header">
+      <div><h1>CRM</h1><p>Vista general de la relación con tus clientes</p></div>
+      <div style="display:flex; gap:8px;">
+        <a href="#/crmestadisticas" class="btn btn-ghost">${svgIcon('reportes')} Ver estadísticas</a>
+        <button class="btn btn-accent" id="btn-crm-nuevo-cliente">${svgIcon('clientes')} Nuevo cliente</button>
+      </div>
+    </div>
+    <div class="grid-kpi">
+      <div class="kpi-card" style="--kpi-color:var(--accent);"><div class="kpi-label">Clientes activos</div><div class="kpi-value">${clientes.length}</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--teal);"><div class="kpi-label">Nuevos este mes</div><div class="kpi-value">${nuevosEsteMes}</div></div>
+      <div class="kpi-card" style="--kpi-color:#F5A623;"><div class="kpi-label">Cumpleaños este mes</div><div class="kpi-value">${cumpleanosEsteMes}</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--danger);"><div class="kpi-label">Con deuda</div><div class="kpi-value">${conDeuda}</div></div>
+    </div>
+    <div class="crm-home-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input type="text" id="crm-home-search" placeholder="Buscar cliente, teléfono, DNI/CUIT, localidad...">
+    </div>
+    <div class="crm-client-grid" id="crm-client-grid">
+      ${tarjetas || `<div class="empty-state">${svgIcon('clientes')}<h3>Todavía no hay clientes cargados</h3><p>Creá el primer cliente para empezar a usar el CRM.</p></div>`}
+    </div>
+  `;
+}
+
+function bindCRMHomeEvents(){
+  const btnNuevo = document.getElementById('btn-crm-nuevo-cliente');
+  if(btnNuevo) btnNuevo.onclick = () => openClienteModal();
+  const buscador = document.getElementById('crm-home-search');
+  if(buscador){
+    buscador.addEventListener('input', ()=>{
+      const q = buscador.value.trim().toLowerCase();
+      document.querySelectorAll('#crm-client-grid .crm-client-card').forEach(card=>{
+        card.style.display = (!q || card.dataset.search.includes(q)) ? '' : 'none';
+      });
+    });
+  }
 }
 
 async function viewClientesList(){
@@ -4308,13 +5910,31 @@ function clienteFormHTML(c){
     </div>
     <div class="field-row">
       <div class="field"><label>${tipo==='Empresa'?'CUIT':'DNI'}</label><input type="text" id="clf-documentoNumero" value="${c?Utils.escapeHTML(c.documentoNumero||''):''}"></div>
-      <div class="field"><label>Teléfono</label><input type="text" id="clf-telefono" value="${c?Utils.escapeHTML(c.telefono||''):''}"></div>
+      <div class="field"><label>Condición IVA</label>
+        <select class="select-input" id="clf-condicionIVA">${CONDICIONES_IVA.map(civa=>`<option value="${civa}" ${c&&c.condicionIVA===civa?'selected':''}>${civa}</option>`).join('')}</select>
+      </div>
     </div>
     <div class="field-row">
+      <div class="field"><label>Teléfono</label><input type="text" id="clf-telefono" value="${c?Utils.escapeHTML(c.telefono||''):''}"></div>
       <div class="field"><label>WhatsApp</label><input type="text" id="clf-whatsapp" value="${c?Utils.escapeHTML(c.whatsapp||''):''}"></div>
-      <div class="field"><label>Email</label><input type="email" id="clf-email" value="${c?Utils.escapeHTML(c.email||''):''}"></div>
     </div>
+    <div class="field"><label>Email</label><input type="email" id="clf-email" value="${c?Utils.escapeHTML(c.email||''):''}"></div>
     <div class="field"><label>Dirección</label><input type="text" id="clf-direccion" value="${c?Utils.escapeHTML(c.direccion||''):''}"></div>
+    <div class="field-row">
+      <div class="field"><label>Localidad</label><input type="text" id="clf-localidad" value="${c?Utils.escapeHTML(c.localidad||''):''}"></div>
+      <div class="field"><label>Código Postal</label><input type="text" id="clf-codigoPostal" value="${c?Utils.escapeHTML(c.codigoPostal||''):''}"></div>
+    </div>
+    <div class="field">
+      <label>Provincia</label>
+      <select class="select-input" id="clf-provincia">
+        <option value="">Sin especificar</option>
+        ${PROVINCIAS_AR.map(p=>`<option value="${p}" ${c&&c.provincia===p?'selected':''}>${p}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Fecha de nacimiento</label><input type="date" id="clf-fechaNacimiento" value="${c?(c.fechaNacimiento||''):''}"></div>
+      <div class="field"><label>Cliente desde</label><input type="date" id="clf-clienteDesde" value="${c?(c.clienteDesde||(c.fechaCreacion?Utils.fechaLocalYMD(c.fechaCreacion):'')):''}"></div>
+    </div>
     <div class="field"><label>Observaciones</label><textarea class="textarea-input" id="clf-observaciones">${c?Utils.escapeHTML(c.observaciones||''):''}</textarea></div>
   `;
 }
@@ -4354,10 +5974,16 @@ function openClienteModal(cliente=null){
     const payload = {
       tipoCliente, nombre, apellido, razonSocial,
       documentoNumero: document.getElementById('clf-documentoNumero').value.trim(),
+      condicionIVA: document.getElementById('clf-condicionIVA').value,
       telefono: document.getElementById('clf-telefono').value.trim(),
       whatsapp: document.getElementById('clf-whatsapp').value.trim(),
       email: document.getElementById('clf-email').value.trim(),
       direccion: document.getElementById('clf-direccion').value.trim(),
+      localidad: document.getElementById('clf-localidad').value.trim(),
+      codigoPostal: document.getElementById('clf-codigoPostal').value.trim(),
+      provincia: document.getElementById('clf-provincia').value,
+      fechaNacimiento: document.getElementById('clf-fechaNacimiento').value || null,
+      clienteDesde: document.getElementById('clf-clienteDesde').value || null,
       observaciones: document.getElementById('clf-observaciones').value.trim(),
       foto
     };
@@ -4458,6 +6084,23 @@ async function viewClienteDetalle(id){
     ${notasCreditoHTML}
   `;
 
+  const stats = await calcularStatsCliente(id);
+  const edad = calcularEdad(cliente.fechaNacimiento);
+  const timelineEventos = await construirTimelineCliente(id);
+  const comunicacionesCount = (await DB.getAllByIndex('comunicaciones','clienteId', id)).length;
+  const recordatoriosCount = (await DB.getAllByIndex('recordatorios','clienteId', id)).filter(r=>r.estado==='Pendiente').length + (await recordatoriosAutomaticosCliente(id)).length;
+  const clienteDesdeVal = cliente.clienteDesde || (cliente.fechaCreacion ? Utils.fechaLocalYMD(cliente.fechaCreacion) : null);
+  const [recManualesResumen, recAutoResumen, comunicacionesResumen] = await Promise.all([
+    DB.getAllByIndex('recordatorios','clienteId', id),
+    recordatoriosAutomaticosCliente(id),
+    DB.getAllByIndex('comunicaciones','clienteId', id)
+  ]);
+  recAutoResumen.forEach(a=>a.__auto=true);
+  const resumenRecordatorios = [...recAutoResumen, ...recManualesResumen.filter(r=>r.estado==='Pendiente')]
+    .sort((a,b)=>{ const fa=a.__auto?(a.proximoServiceFecha||'9999'):a.fecha; const fb=b.__auto?(b.proximoServiceFecha||'9999'):b.fecha; return new Date(fa)-new Date(fb); })
+    .slice(0,3);
+  const resumenComunicaciones = comunicacionesResumen.sort((a,b)=> new Date(b.fecha)-new Date(a.fecha)).slice(0,3);
+
   return `
     <a href="#/clientes" class="back-link">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -4466,14 +6109,17 @@ async function viewClienteDetalle(id){
     <div class="detail-header">
       <div class="avatar-lg">${cliente.foto?`<img src="${cliente.foto}">`:Utils.iniciales(nombre)}</div>
       <div class="detail-header-info">
-        <h1>${Utils.escapeHTML(nombre)} ${cliente.activo===false?'<span class="badge badge-neutral" style="margin-left:8px;">Baja</span>':''}</h1>
+        <h1>${Utils.escapeHTML(nombre)} ${badgeVipHTML(stats.nivel, false)} ${cliente.activo===false?'<span class="badge badge-neutral" style="margin-left:6px;">Inactivo</span>':'<span class="badge badge-ok" style="margin-left:6px;">Activo</span>'}</h1>
         <div class="meta">
           <span><span class="tag-chip">${cliente.tipoCliente}</span></span>
           ${cliente.documentoNumero?`<span class="font-mono">${Utils.escapeHTML(cliente.documentoNumero)}</span>`:''}
-          ${cliente.telefono?`<span>${svgIcon('caja')}${Utils.escapeHTML(cliente.telefono)}</span>`:''}
-          ${cliente.email?`<span>${Utils.escapeHTML(cliente.email)}</span>`:''}
-          ${cliente.direccion?`<span>${Utils.escapeHTML(cliente.direccion)}</span>`:''}
+          ${cliente.telefono?`<span>${svgIcon('telefono')}${Utils.escapeHTML(cliente.telefono)}</span>`:''}
+          ${cliente.email?`<span>${svgIcon('comunicaciones')}${Utils.escapeHTML(cliente.email)}</span>`:''}
+          ${cliente.fechaNacimiento?`<span>${svgIcon('calendario')}${Utils_fmtFechaSolo(cliente.fechaNacimiento)}${edad!=null?' ('+edad+' años)':''}</span>`:''}
+          ${(cliente.direccion||cliente.localidad)?`<span>${svgIcon('proveedores')}${[cliente.direccion,cliente.localidad,cliente.provincia].filter(Boolean).map(Utils.escapeHTML).join(', ')}</span>`:''}
+          <span>${svgIcon('crown')}Cliente desde ${clienteDesdeVal?Utils_fmtFechaSolo(clienteDesdeVal):'—'}</span>
         </div>
+        ${cliente.observaciones?`<div style="font-size:12px; color:var(--text-muted); margin-top:6px;">Observaciones: ${Utils.escapeHTML(cliente.observaciones)}</div>`:''}
       </div>
       <div class="detail-header-actions">
         <button class="btn btn-ghost" id="btn-editar-cliente-detalle">Editar</button>
@@ -4481,54 +6127,118 @@ async function viewClienteDetalle(id){
       </div>
     </div>
 
-    ${cliente.observaciones?`<div class="card" style="margin-bottom:18px;"><div class="cfg-section-title" style="font-size:13px;">Observaciones</div><p style="font-size:13px; color:var(--text-secondary);">${Utils.escapeHTML(cliente.observaciones)}</p></div>`:''}
+    <div class="crm-stat-strip">
+      <div class="crm-stat-box"><div class="crm-stat-label">Compras totales</div><div class="crm-stat-value">$${stats.comprasTotales.toLocaleString('es-AR')}</div><div class="crm-stat-sub">${stats.cantidadCompras} compra${stats.cantidadCompras===1?'':'s'}</div></div>
+      <div class="crm-stat-box"><div class="crm-stat-label">Deuda actual</div><div class="crm-stat-value ${saldoCtaCte>0.009?'saldo-deudor':'saldo-cero'}">$${saldoCtaCte.toLocaleString('es-AR')}</div><div class="crm-stat-sub">${saldoCtaCte>0.009?'Con saldo pendiente':'Sin deuda'}</div></div>
+      <div class="crm-stat-box"><div class="crm-stat-label">Última visita</div><div class="crm-stat-value" style="font-size:15px;">${stats.ultimaVisita?Utils_fmtFechaSolo(stats.ultimaVisita):'—'}</div></div>
+      <div class="crm-stat-box"><div class="crm-stat-label">Puntos disponibles</div><div class="crm-stat-value" style="color:${stats.nivel.color};">${stats.puntosDisponibles.toLocaleString('es-AR')}</div><div class="crm-stat-sub">${stats.puntosGanados} ganados · ${stats.puntosCanjeados} canjeados</div></div>
+    </div>
 
-    <div class="cfg-layout">
-      <div class="cfg-tabs">
-        <button class="cfg-tab active" data-tab="vehiculos">${svgIcon('vehiculos')} Vehículos <span class="badge badge-neutral" style="margin-left:auto;">${vehiculos.length}</span></button>
-        <button class="cfg-tab" data-tab="documentos">${svgIcon('logs')} Documentos <span class="badge badge-neutral" style="margin-left:auto;">${(cliente.documentos||[]).length}</span></button>
-        <button class="cfg-tab" data-tab="cuentacorriente">${svgIcon('cuentascorrientes')} Cuenta corriente</button>
-        <button class="cfg-tab" data-tab="historial">${svgIcon('historial')} Historial</button>
-      </div>
-      <div class="cfg-panel">
-
-        <div class="cfg-panel-section active" data-panel="vehiculos">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-            <div class="cfg-section-title" style="margin-bottom:0;">Vehículos de ${Utils.escapeHTML(nombre)}</div>
-            <button class="btn btn-accent btn-sm" id="btn-nuevo-vehiculo-cliente">${svgIcon('vehiculos')} Agregar vehículo</button>
-          </div>
-          ${vehiculos.length ? `<div class="grid-kpi" id="cliente-vehiculos-grid">${vehiculos.map(v=>vehicleMiniCardHTML(v)).join('')}</div>`
-            : `<div class="empty-state">${svgIcon('vehiculos')}<h3>Sin vehículos registrados</h3><p>Agregá el primer vehículo de este cliente.</p></div>`}
+    <div class="crm-tabs" id="crm-cliente-tabs">
+      <button class="crm-tab active" data-tab="resumen">${svgIcon('dashboard')} Resumen</button>
+      <button class="crm-tab" data-tab="vehiculos">${svgIcon('vehiculos')} Vehículos <span class="crm-tab-count">${vehiculos.length}</span></button>
+      <button class="crm-tab" data-tab="historial">${svgIcon('historial')} Historial</button>
+      <button class="crm-tab" data-tab="comunicaciones">${svgIcon('comunicaciones')} Comunicaciones <span class="crm-tab-count">${comunicacionesCount}</span></button>
+      <button class="crm-tab" data-tab="recordatorios">${svgIcon('calendario')} Recordatorios <span class="crm-tab-count">${recordatoriosCount}</span></button>
+      <button class="crm-tab" data-tab="documentos">${svgIcon('logs')} Documentos <span class="crm-tab-count">${(cliente.documentos||[]).length}</span></button>
+      <button class="crm-tab" data-tab="campanas">${svgIcon('cotizaciones')} Campañas</button>
+      <button class="crm-tab" data-tab="estadisticas">${svgIcon('reportes')} Estadísticas</button>
+      <div class="crm-tab-more">
+        <button class="crm-tab" id="btn-crm-tab-mas">${svgIcon('more')} Más</button>
+        <div class="crm-tab-more-menu" id="crm-tab-more-menu">
+          <button data-tab="cuentacorriente">${svgIcon('cuentascorrientes')} Cuenta corriente</button>
         </div>
+      </div>
+    </div>
 
-        <div class="cfg-panel-section" data-panel="documentos">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-            <div class="cfg-section-title" style="margin-bottom:0;">Documentos</div>
+    <div class="cfg-panel">
+
+      <div class="cfg-panel-section active" data-panel="resumen">
+        <div class="crm-resumen-grid">
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+              <div class="cfg-section-title" style="margin-bottom:0;">Vehículos</div>
+              <button class="btn btn-accent btn-sm" id="btn-nuevo-vehiculo-cliente-resumen">${svgIcon('vehiculos')} Agregar vehículo</button>
+            </div>
+            ${vehiculos.length ? `<div class="grid-kpi" style="margin-bottom:24px;">${vehiculos.map(v=>vehicleMiniCardHTML(v)).join('')}</div>`
+              : `<div class="empty-state" style="padding:30px; margin-bottom:12px;">${svgIcon('vehiculos')}<h3>Sin vehículos registrados</h3></div>`}
+            <div class="cfg-section-title">Línea de tiempo</div>
+            ${timelineHTML(timelineEventos)}
+          </div>
+          <div class="crm-resumen-side">
+            ${vipCardHTML(cliente, stats, clienteDesdeVal)}
             <div>
-              <input type="file" id="cli-doc-input" multiple class="hidden">
-              <button class="btn btn-accent btn-sm" id="btn-add-doc">Adjuntar documento</button>
+              <div class="crm-mini-list-title"><h4>Próximos recordatorios</h4><button class="crm-goto-tab" data-tab="recordatorios">Ver todos</button></div>
+              ${resumenRecordatorios.length ? resumenRecordatorios.map(r=>reminderRowHTML(r,{ocultarCliente:true})).join('') : `<div class="crm-alerts-empty">Sin recordatorios pendientes</div>`}
+            </div>
+            <div>
+              <div class="crm-mini-list-title"><h4>Últimas comunicaciones</h4><button class="crm-goto-tab" data-tab="comunicaciones">Ver todas</button></div>
+              ${resumenComunicaciones.length ? resumenComunicaciones.map(c=>{
+                const meta = TIPOS_COMUNICACION[c.tipo] || TIPOS_COMUNICACION['Nota'];
+                return `<div class="doc-item" style="padding:9px 12px;">
+                  <span class="crm-timeline-dot" style="position:static; width:22px; height:22px; --tl-color:${meta.color}; --tl-color-dim:${meta.colorDim};">${svgIcon(meta.icono)}</span>
+                  <span class="doc-name" style="flex:1;">${Utils.escapeHTML(c.tipo)}</span>
+                  <span class="doc-date">${Utils_fmtFechaSolo(c.fecha)}</span>
+                </div>`;
+              }).join('') : `<div class="crm-alerts-empty">Sin comunicaciones registradas</div>`}
             </div>
           </div>
-          <div class="doc-list" id="cli-doc-list">
-            ${(cliente.documentos||[]).length ? cliente.documentos.map(d=>`
-              <div class="doc-item" data-doc-id="${d.id}">
-                ${svgIcon('logs')}
-                <span class="doc-name">${Utils.escapeHTML(d.nombre)}</span>
-                <span class="doc-date">${Utils.fmtFecha(d.fecha)}</span>
-                <a class="btn btn-ghost btn-sm" href="${d.dataURL}" download="${Utils.escapeHTML(d.nombre)}">Descargar</a>
-                <button class="btn btn-danger-ghost btn-sm btn-del-doc" data-doc-id="${d.id}">Eliminar</button>
-              </div>`).join('') : `<div class="empty-state" style="padding:30px;">${svgIcon('logs')}<h3>Sin documentos adjuntos</h3></div>`}
+        </div>
+      </div>
+
+      <div class="cfg-panel-section" data-panel="vehiculos">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+          <div class="cfg-section-title" style="margin-bottom:0;">Vehículos de ${Utils.escapeHTML(nombre)}</div>
+          <button class="btn btn-accent btn-sm" id="btn-nuevo-vehiculo-cliente">${svgIcon('vehiculos')} Agregar vehículo</button>
+        </div>
+        ${vehiculos.length ? `<div class="grid-kpi" id="cliente-vehiculos-grid">${vehiculos.map(v=>vehicleMiniCardHTML(v)).join('')}</div>`
+          : `<div class="empty-state">${svgIcon('vehiculos')}<h3>Sin vehículos registrados</h3><p>Agregá el primer vehículo de este cliente.</p></div>`}
+      </div>
+
+      <div class="cfg-panel-section" data-panel="historial">
+        ${historialClienteHTML}
+      </div>
+
+      <div class="cfg-panel-section" data-panel="comunicaciones">
+        ${await comunicacionesClienteHTML(id)}
+      </div>
+
+      <div class="cfg-panel-section" data-panel="recordatorios">
+        ${await recordatoriosClienteHTML(id)}
+      </div>
+
+      <div class="cfg-panel-section" data-panel="documentos">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+          <div class="cfg-section-title" style="margin-bottom:0;">Documentos</div>
+          <div>
+            <input type="file" id="cli-doc-input" multiple class="hidden">
+            <button class="btn btn-accent btn-sm" id="btn-add-doc">Adjuntar documento</button>
           </div>
         </div>
-
-        <div class="cfg-panel-section" data-panel="cuentacorriente">
-          ${ctaCteClienteHTML}
+        <div class="doc-list" id="cli-doc-list">
+          ${(cliente.documentos||[]).length ? cliente.documentos.map(d=>`
+            <div class="doc-item" data-doc-id="${d.id}">
+              ${svgIcon('logs')}
+              <span class="doc-name">${Utils.escapeHTML(d.nombre)}</span>
+              <span class="doc-date">${Utils.fmtFecha(d.fecha)}</span>
+              <a class="btn btn-ghost btn-sm" href="${d.dataURL}" download="${Utils.escapeHTML(d.nombre)}">Descargar</a>
+              <button class="btn btn-danger-ghost btn-sm btn-del-doc" data-doc-id="${d.id}">Eliminar</button>
+            </div>`).join('') : `<div class="empty-state" style="padding:30px;">${svgIcon('logs')}<h3>Sin documentos adjuntos</h3></div>`}
         </div>
-        <div class="cfg-panel-section" data-panel="historial">
-          ${historialClienteHTML}
-        </div>
-
       </div>
+
+      <div class="cfg-panel-section" data-panel="campanas">
+        ${await campanasClienteHTML(id)}
+      </div>
+
+      <div class="cfg-panel-section" data-panel="estadisticas">
+        ${await estadisticasClienteHTML(id)}
+      </div>
+
+      <div class="cfg-panel-section" data-panel="cuentacorriente">
+        ${ctaCteClienteHTML}
+      </div>
+
     </div>
   `;
 }
@@ -4541,12 +6251,137 @@ function vehicleMiniCardHTML(v){
   </a>`;
 }
 
+/* -----------------------------------------------------------------------
+   20-C-DUODECIES. CRM Fase 6 — ESTADÍSTICAS del cliente (tab "Estadísticas")
+----------------------------------------------------------------------- */
+const PALETA_CATEGORIAS = ['#FF8C1A','#17B8A6','#5B9BD5','#F0B429','#E5484D','#8B5CF6','#25D366','#F5A623','#8FD3E8'];
+
+async function calcularEstadisticasClienteCharts(clienteId){
+  const [ventas, productos, historial] = await Promise.all([
+    DB.getAllByIndex('ventas','clienteId', clienteId),
+    DB.getAll('productos'),
+    DB.getAllByIndex('historialServicios','clienteId', clienteId)
+  ]);
+  const productosById = {}; productos.forEach(p=>productosById[p.id]=p);
+  const ventasOk = ventas.filter(v=>v.estado!=='anulada');
+
+  // Compras por año
+  const porAnio = {};
+  ventasOk.forEach(v=>{ const a = new Date(v.fecha).getFullYear(); porAnio[a] = (porAnio[a]||0) + (v.total||0); });
+  const anios = Object.keys(porAnio).sort();
+  const comprasPorAnio = { labels: anios, valores: anios.map(a=>porAnio[a]) };
+
+  // Gasto por categoría + productos más comprados
+  const porCategoria = {}; const porProducto = {};
+  ventasOk.forEach(v=>{
+    (v.items||[]).forEach(it=>{
+      const prod = productosById[it.productoId];
+      const cat = prod ? (prod.categoria||'Otros') : 'Otros';
+      const importe = (it.precioUnitario||it.precio||0) * (it.cantidad||1);
+      porCategoria[cat] = (porCategoria[cat]||0) + importe;
+      const nombreProd = it.nombre || (prod?prod.nombre:'Producto');
+      porProducto[nombreProd] = (porProducto[nombreProd]||0) + (it.cantidad||1);
+    });
+  });
+  const catLabels = Object.keys(porCategoria);
+  const gastoPorCategoria = { labels: catLabels, valores: catLabels.map(c=>porCategoria[c]) };
+  const productosTop = Object.entries(porProducto).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([nombre,cantidad])=>({nombre,cantidad}));
+
+  // Frecuencia de visitas (promedio de días entre visitas)
+  const fechas = [...ventasOk.map(v=>v.fecha), ...historial.map(h=>h.fecha)].filter(Boolean).sort((a,b)=> new Date(a)-new Date(b));
+  let frecuenciaDias = null;
+  if(fechas.length >= 2){
+    const dias = (new Date(fechas[fechas.length-1]) - new Date(fechas[0])) / 86400000;
+    frecuenciaDias = Math.round(dias / (fechas.length - 1));
+  }
+
+  // Últimos 12 meses
+  const hace12Meses = new Date(); hace12Meses.setFullYear(hace12Meses.getFullYear()-1);
+  const ventas12 = ventasOk.filter(v=> new Date(v.fecha) >= hace12Meses);
+  const ultimos12Meses = { total: ventas12.reduce((a,v)=>a+(v.total||0),0), cantidad: ventas12.length };
+
+  return { comprasPorAnio, gastoPorCategoria, productosTop, frecuenciaDias, ultimos12Meses };
+}
+
+function drawComprasPorAnioChart(canvas, labels, valores){
+  if(!canvas) return;
+  destroyChartOn(canvas);
+  const theme = chartThemeColors();
+  const cs = getComputedStyle(document.documentElement);
+  const accent = (cs.getPropertyValue('--accent')||'').trim() || '#FF8C1A';
+  new Chart(canvas.getContext('2d'), {
+    type:'bar',
+    data:{ labels, datasets:[{ data:valores, backgroundColor: hexToRgba(accent,.75), borderRadius:6, maxBarThickness:38 }] },
+    options:{
+      responsive:true, maintainAspectRatio:false, animation:{ duration:500 },
+      plugins:{ legend:{ display:false }, tooltip:{ backgroundColor:theme.panel, titleColor:theme.text, bodyColor:theme.text, borderColor:theme.grid, borderWidth:1, padding:9, cornerRadius:8,
+        callbacks:{ label:(item)=>`$${Number(item.parsed.y).toLocaleString('es-AR')}` } } },
+      scales:{ x:{ grid:{ display:false }, ticks:{ color:theme.muted, font:{ size:10.5 } } },
+        y:{ beginAtZero:true, grid:{ color:theme.grid }, ticks:{ color:theme.muted, font:{ size:10 }, callback:(v)=>'$'+Number(v).toLocaleString('es-AR') } } }
+    }
+  });
+}
+
+function drawGastoPorCategoriaChart(canvas, labels, valores){
+  if(!canvas) return;
+  destroyChartOn(canvas);
+  const theme = chartThemeColors();
+  if(!labels.length){ return; }
+  new Chart(canvas.getContext('2d'), {
+    type:'doughnut',
+    data:{ labels, datasets:[{ data:valores, backgroundColor: labels.map((_,i)=>PALETA_CATEGORIAS[i%PALETA_CATEGORIAS.length]), borderWidth:2, borderColor: theme.panel }] },
+    options:{
+      responsive:true, maintainAspectRatio:false, cutout:'62%', animation:{ duration:500 },
+      plugins:{ legend:{ position:'right', labels:{ color:theme.muted, boxWidth:11, boxHeight:11, font:{ size:10.5 }, usePointStyle:true, pointStyle:'circle' } },
+        tooltip:{ backgroundColor:theme.panel, titleColor:theme.text, bodyColor:theme.text, borderColor:theme.grid, borderWidth:1, padding:9, cornerRadius:8,
+          callbacks:{ label:(item)=>`${item.label}: $${Number(item.parsed).toLocaleString('es-AR')}` } } }
+    }
+  });
+}
+
+async function estadisticasClienteHTML(clienteId){
+  const e = await calcularEstadisticasClienteCharts(clienteId);
+  return `
+    <div class="grid-kpi" style="margin-bottom:20px;">
+      <div class="kpi-card" style="--kpi-color:var(--accent);"><div class="kpi-label">Frecuencia de visitas</div><div class="kpi-value" style="font-size:20px;">${e.frecuenciaDias!=null?e.frecuenciaDias+' días':'—'}</div><div class="kpi-sub">promedio entre visitas</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--teal);"><div class="kpi-label">Últimos 12 meses</div><div class="kpi-value">$${e.ultimos12Meses.total.toLocaleString('es-AR')}</div><div class="kpi-sub">${e.ultimos12Meses.cantidad} compra${e.ultimos12Meses.cantidad===1?'':'s'}</div></div>
+    </div>
+    <div class="crm-resumen-grid">
+      <div class="card">
+        <div class="cfg-section-title">Compras por año</div>
+        ${e.comprasPorAnio.labels.length ? `<div class="chart-canvas-box" style="height:220px;"><canvas id="clc-compras-anio-chart"></canvas></div>` : `<div class="crm-alerts-empty">Sin compras registradas todavía</div>`}
+      </div>
+      <div class="crm-resumen-side">
+        <div class="card">
+          <div class="cfg-section-title">Gasto por categoría</div>
+          ${e.gastoPorCategoria.labels.length ? `<div class="chart-canvas-box" style="height:200px;"><canvas id="clc-gasto-categoria-chart"></canvas></div>` : `<div class="crm-alerts-empty">Sin compras registradas todavía</div>`}
+        </div>
+        <div class="card">
+          <div class="cfg-section-title">Productos más comprados</div>
+          ${e.productosTop.length ? e.productosTop.map(p=>`<div class="doc-item" style="padding:8px 10px;"><span class="doc-name">${Utils.escapeHTML(p.nombre)}</span><span class="doc-date">x${p.cantidad}</span></div>`).join('') : `<div class="crm-alerts-empty">Sin productos comprados todavía</div>`}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderEstadisticasClienteCharts(datos){
+  drawComprasPorAnioChart(document.getElementById('clc-compras-anio-chart'), datos.comprasPorAnio.labels, datos.comprasPorAnio.valores);
+  drawGastoPorCategoriaChart(document.getElementById('clc-gasto-categoria-chart'), datos.gastoPorCategoria.labels, datos.gastoPorCategoria.valores);
+}
+
 async function renderSaldoHistorialChart(clienteId){
   const canvas = document.getElementById('clc-saldo-chart');
   if(!canvas) return; // menos de 2 movimientos: el contenedor del gráfico ni se renderizó
   const movimientos = (await DB.getAllByIndex('cuentasCorrientes','clienteId', clienteId)).sort((a,b)=> new Date(a.fecha)-new Date(b.fecha));
   drawSaldoHistorialChart(canvas, movimientos);
 }
+
+// Estado compartido del menú "Más" de la ficha de cliente: se declara acá
+// afuera para que los listeners de document/window se registren una sola
+// vez en toda la sesión, aunque la ficha se visite muchas veces en el día.
+let crmTabMasState = { btn:null, menu:null };
+let crmTabMasListenersListos = false;
 
 function bindClienteDetalleEvents(id){
   const btnCobrar = document.getElementById('btn-cobrar-ctacte');
@@ -4568,15 +6403,86 @@ function bindClienteDetalleEvents(id){
     };
   });
 
-  document.querySelectorAll('.cfg-tab').forEach(tab=>{
-    tab.onclick = () => {
-      document.querySelectorAll('.cfg-tab').forEach(t=>t.classList.remove('active'));
-      document.querySelectorAll('.cfg-panel-section').forEach(p=>p.classList.remove('active'));
-      tab.classList.add('active');
-      document.querySelector(`.cfg-panel-section[data-panel="${tab.dataset.tab}"]`).classList.add('active');
-      if(tab.dataset.tab === 'cuentacorriente') renderSaldoHistorialChart(id);
+  function activarPanelCliente(tabKey, tabBtn){
+    document.querySelectorAll('#crm-cliente-tabs .crm-tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.cfg-panel-section').forEach(p=>p.classList.remove('active'));
+    if(tabBtn) tabBtn.classList.add('active');
+    const panel = document.querySelector(`.cfg-panel-section[data-panel="${tabKey}"]`);
+    if(panel) panel.classList.add('active');
+    if(tabKey === 'cuentacorriente') renderSaldoHistorialChart(id);
+    if(tabKey === 'estadisticas') calcularEstadisticasClienteCharts(id).then(renderEstadisticasClienteCharts);
+  }
+
+  document.querySelectorAll('#crm-cliente-tabs > .crm-tab[data-tab]').forEach(tab=>{
+    tab.onclick = () => activarPanelCliente(tab.dataset.tab, tab);
+  });
+
+  const btnMas = document.getElementById('btn-crm-tab-mas');
+  const menuMas = document.getElementById('crm-tab-more-menu');
+  if(btnMas && menuMas){
+    // El menú se saca del contenedor de tabs (que tiene scroll horizontal)
+    // y se cuelga directo del body con position:fixed, para que el scroll
+    // interno de las pestañas no lo recorte ni lo esconda. Si quedó algún
+    // menú de una visita anterior a esta ficha colgado del body, se limpia.
+    document.querySelectorAll('#crm-tab-more-menu').forEach(el => { if(el !== menuMas) el.remove(); });
+    document.body.appendChild(menuMas);
+    crmTabMasState.btn = btnMas;
+    crmTabMasState.menu = menuMas;
+    function posicionarMenuMas(){
+      const r = crmTabMasState.btn.getBoundingClientRect();
+      crmTabMasState.menu.style.top = (r.bottom + 6) + 'px';
+      crmTabMasState.menu.style.left = 'auto';
+      crmTabMasState.menu.style.right = (window.innerWidth - r.right) + 'px';
+    }
+    btnMas.onclick = (e) => {
+      e.stopPropagation();
+      const abrir = !menuMas.classList.contains('open');
+      if(abrir) posicionarMenuMas();
+      menuMas.classList.toggle('open', abrir);
+    };
+    if(!crmTabMasListenersListos){
+      crmTabMasListenersListos = true;
+      document.addEventListener('click', (e)=>{
+        const { btn, menu } = crmTabMasState;
+        if(btn && menu && !menu.contains(e.target) && e.target!==btn) menu.classList.remove('open');
+      });
+      window.addEventListener('scroll', ()=>{
+        const { btn, menu } = crmTabMasState;
+        if(menu && menu.classList.contains('open')){
+          const r = btn.getBoundingClientRect();
+          menu.style.top = (r.bottom + 6) + 'px';
+          menu.style.right = (window.innerWidth - r.right) + 'px';
+        }
+      }, true);
+    }
+    menuMas.querySelectorAll('[data-tab]').forEach(opt=>{
+      opt.onclick = () => { activarPanelCliente(opt.dataset.tab, btnMas); menuMas.classList.remove('open'); };
+    });
+  }
+
+  document.querySelectorAll('.crm-goto-tab[data-tab]').forEach(btn=>{
+    btn.onclick = () => {
+      const targetTab = document.querySelector(`#crm-cliente-tabs > .crm-tab[data-tab="${btn.dataset.tab}"]`);
+      activarPanelCliente(btn.dataset.tab, targetTab);
     };
   });
+
+  const btnBeneficios = document.getElementById('btn-ver-beneficios-vip');
+  if(btnBeneficios) btnBeneficios.onclick = async () => {
+    const st = await calcularStatsCliente(id);
+    openBeneficiosVIPModal(st.nivel.key, st.comprasTotales);
+  };
+  const btnCanjear = document.getElementById('btn-canjear-puntos');
+  if(btnCanjear) btnCanjear.onclick = async () => {
+    const st = await calcularStatsCliente(id);
+    openCanjeModal(id, st.puntosDisponibles);
+  };
+
+  const btnNuevoVehResumen = document.getElementById('btn-nuevo-vehiculo-cliente-resumen');
+  if(btnNuevoVehResumen) btnNuevoVehResumen.onclick = () => openVehiculoModal(null, id);
+
+  bindComunicacionesEvents(id);
+  bindRecordatoriosClienteEvents(id);
 
   document.getElementById('btn-editar-cliente-detalle').onclick = async () => openClienteModal(await DB.get('clientes', id));
   document.getElementById('btn-toggle-baja-cliente').onclick = async () => {
