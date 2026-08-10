@@ -962,6 +962,11 @@ textarea.textarea-input{ resize:vertical; min-height:70px; }
 .visc-manage-wrap{ position:relative; }
 .visc-manage-popover{ position:absolute; top:calc(100% + 6px); right:0; width:230px; background:var(--bg-panel-raised); border:1px solid var(--border); border-radius:10px; padding:12px; z-index:50; box-shadow:var(--shadow-lift); }
 .visc-manage-popover input[type="text"]{ background:var(--bg-panel); border:1px solid var(--border-soft); border-radius:7px; padding:6px 8px; font-size:12.5px; color:var(--text-primary); }
+.cfg-lista-editable{ max-width:420px; }
+.cfg-lista-editable-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 10px; border-radius:8px; background:var(--bg-panel); border:1px solid var(--border-soft); margin-bottom:6px; font-size:13px; }
+.cfg-lista-editable-row .cfg-lista-editable-label{ flex:1; min-width:0; }
+.cfg-lista-editable-row input[type="text"]{ flex:1; min-width:0; background:var(--bg-panel-raised); border:1px solid var(--border-soft); border-radius:6px; padding:4px 8px; font-size:12.5px; color:var(--text-primary); }
+.cfg-lista-editable-empty{ font-size:12.5px; color:var(--text-muted); padding:6px 2px; }
 .autocomplete-item{ padding:9px 12px; font-size:12.5px; cursor:pointer; }
 .autocomplete-item:hover{ background:var(--bg-panel-alt); }
 
@@ -1391,6 +1396,9 @@ const PRIORIDAD_COLOR = { Alta:'var(--danger)', Media:'var(--warning)', Baja:'va
 // otorga 1 punto. No es un valor inventado: es una regla de negocio simple y
 // transparente, fácil de ajustar acá si en algún momento cambia.
 const PUNTOS_CADA_PESOS = 1000;
+// Los lavados (turnos de lavadero cobrados) suman puntos a mitad de tasa que
+// las compras normales: 0,5 pts cada $1000 → 1 pt cada $2000.
+const PUNTOS_CADA_PESOS_LAVADO = PUNTOS_CADA_PESOS * 2;
 const CONCEPTOS_CANJE = ['Descuento en compra','Producto','Servicio','Lavado','Otro'];
 // CRM Fase 5: campañas
 const ESTADOS_CAMPANA = ['Borrador','Lista para enviar'];
@@ -1455,11 +1463,15 @@ const DEFAULT_CONFIG = {
   horarios: DIAS_SEMANA.map(dia => ({ dia, cerrado: dia==='Domingo', apertura:'08:00', cierre:'18:00' })),
   pieComprobantes:'',
   impresora:{ nombre:'', anchoPapel:'80mm' },
-  intentosMaximos:5, minutosBloqueo:15, minutosInactividad:10,
+  intentosMaximos:5, minutosBloqueo:15, minutosInactividad:10, bloqueoInactividadActivo:true,
   tema:'dark',
   diasRecordatorioBackup:7, ultimoBackupFecha:null,
   viscosidadesAceite:['0W20','0W30','5W20','5W30','5W40','10W30','10W40','10W60','15W40','15W50','20W50'],
   serviceChecklistItems: SERVICE_CHECKLIST_ITEMS.map(it=>({...it})),
+  // Top 15 marcas con mayor volumen de patentamientos en Argentina en los
+  // últimos ~20 años (autos + utilitarios livianos), según series históricas
+  // de ACARA. Es un punto de partida editable desde Configuración → Listas.
+  marcasVehiculo:['Volkswagen','Ford','Chevrolet','Toyota','Fiat','Renault','Peugeot','Citroën','Nissan','Honda','Jeep','RAM','Chery','Suzuki','Hyundai'],
   // CRM Fase 5: credenciales de la API oficial de WhatsApp Business (Meta
   // Cloud API). Quedan guardadas para cuando se habilite el envío real; por
   // ahora el módulo de Campañas NO envía nada, solo arma la audiencia y el
@@ -2495,17 +2507,20 @@ async function handleLoginSubmit(evt){
 const InactivityLock = {
   timer:null,
   minutos:10,
+  activo:true,
   async init(){
     const cfg = Config.cache || await Config.load();
     this.minutos = cfg.minutosInactividad || 10;
+    this.activo = cfg.bloqueoInactividadActivo !== false;
     ['mousemove','keydown','click','scroll','touchstart'].forEach(evt=>{
       document.addEventListener(evt, () => this.reset(), { passive:true });
     });
     this.reset();
   },
   reset(){
-    if(document.getElementById('lock-screen').classList.contains('hidden') === false) return;
     clearTimeout(this.timer);
+    if(!this.activo) return;
+    if(document.getElementById('lock-screen').classList.contains('hidden') === false) return;
     this.timer = setTimeout(() => this.trigger(), this.minutos * 60000);
   },
   async trigger(){
@@ -2757,7 +2772,7 @@ async function router(){
     case 'backups': outlet.innerHTML = await viewBackups(); bindBackupsEvents(); break;
     case 'configuracion':
       if(Session.get().rol !== 'Administrador'){ outlet.innerHTML = viewNoPermiso(); return; }
-      outlet.innerHTML = await viewConfiguracion(); bindConfiguracionEvents(); break;
+      outlet.innerHTML = await viewConfiguracion(); bindConfiguracionEvents(param); break;
     case 'crm':
       outlet.innerHTML = await viewCRMHome(); bindCRMHomeEvents();
       break;
@@ -4188,6 +4203,7 @@ const CFG_TABS = [
   { key:'comprobantes', label:'Comprobantes', icon:'reportes' },
   { key:'impresoras', label:'Impresoras', icon:'pos' },
   { key:'whatsapp', label:'WhatsApp Business', icon:'comunicaciones' },
+  { key:'listas', label:'Listas y catálogos', icon:'gear' },
   { key:'seguridad', label:'Seguridad', icon:'lock' },
   { key:'datos', label:'Base de datos', icon:'backups' }
 ];
@@ -4304,6 +4320,32 @@ async function viewConfiguracion(){
           <div class="modal-actions"><button class="btn btn-accent" id="cfg-save-whatsapp">Guardar cambios</button></div>
         </div>
 
+        <div class="cfg-panel-section" data-panel="listas">
+          <div class="cfg-section-title">Marcas de vehículos</div>
+          <div class="cfg-section-sub">Opciones disponibles en el campo "Marca" al cargar un vehículo. Viene precargada con las 15 marcas de mayor volumen de patentamientos en Argentina de los últimos ~20 años (ACARA); podés agregar, quitar o renombrar libremente.</div>
+          <div id="cfg-marca-list" class="cfg-lista-editable"></div>
+          <div style="display:flex; gap:8px; margin-top:10px; max-width:340px;">
+            <input type="text" id="cfg-marca-nueva" placeholder="Ej: Kia" style="flex:1; min-width:0;">
+            <button type="button" class="btn btn-accent btn-sm" id="cfg-marca-add">+ Agregar</button>
+          </div>
+
+          <div class="cfg-section-title" style="margin-top:30px;">Viscosidades de aceite</div>
+          <div class="cfg-section-sub">Opciones disponibles en el campo "Tipo / Viscosidad" al cargar un service.</div>
+          <div id="cfg-visc-list" class="cfg-lista-editable"></div>
+          <div style="display:flex; gap:8px; margin-top:10px; max-width:340px;">
+            <input type="text" id="cfg-visc-nueva" placeholder="Ej: 5W30" style="flex:1; min-width:0;">
+            <button type="button" class="btn btn-accent btn-sm" id="cfg-visc-add">+ Agregar</button>
+          </div>
+
+          <div class="cfg-section-title" style="margin-top:30px;">Ítems de checklist de service</div>
+          <div class="cfg-section-sub">Opciones disponibles en "Ítems realizados en este service", tanto en el historial como en cotizaciones.</div>
+          <div id="cfg-checklist-list" class="cfg-lista-editable"></div>
+          <div style="display:flex; gap:8px; margin-top:10px; max-width:340px;">
+            <input type="text" id="cfg-checklist-nuevo" placeholder="Ej: Alineación y balanceo" style="flex:1; min-width:0;">
+            <button type="button" class="btn btn-accent btn-sm" id="cfg-checklist-add">+ Agregar</button>
+          </div>
+        </div>
+
         <div class="cfg-panel-section" data-panel="seguridad">
           <div class="cfg-section-title">Seguridad de acceso</div>
           <div class="cfg-section-sub">Estos valores se aplican a partir del próximo intento de inicio de sesión.</div>
@@ -4311,7 +4353,17 @@ async function viewConfiguracion(){
             <div class="field"><label>Intentos fallidos máximos</label><input type="number" min="1" max="10" id="cfg-intentosMaximos" value="${cfg.intentosMaximos}"></div>
             <div class="field"><label>Minutos de bloqueo</label><input type="number" min="1" max="120" id="cfg-minutosBloqueo" value="${cfg.minutosBloqueo}"></div>
           </div>
-          <div class="field" style="max-width:calc(50% - 6px);"><label>Minutos de inactividad para bloqueo automático</label><input type="number" min="1" max="120" id="cfg-minutosInactividad" value="${cfg.minutosInactividad}"></div>
+
+          <div class="cfg-section-title" style="margin-top:24px;">Bloqueo automático por inactividad</div>
+          <div class="cfg-section-sub">Si está activado, la app se bloquea sola y pide la contraseña del usuario cuando nadie la toca durante los minutos indicados.</div>
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+            <label class="switch"><input type="checkbox" id="cfg-bloqueoInactividadActivo" ${cfg.bloqueoInactividadActivo!==false?'checked':''}><span class="switch-slider"></span></label>
+            <span style="font-size:13px;">${cfg.bloqueoInactividadActivo!==false?'Activado':'Desactivado'}</span>
+          </div>
+          <div class="field" id="cfg-minutosInactividad-wrap" style="max-width:calc(50% - 6px); ${cfg.bloqueoInactividadActivo===false?'opacity:.45; pointer-events:none;':''}">
+            <label>Minutos de inactividad para bloqueo automático</label>
+            <input type="number" min="1" max="120" id="cfg-minutosInactividad" value="${cfg.minutosInactividad}">
+          </div>
           <div class="modal-actions"><button class="btn btn-accent" id="cfg-save-seguridad">Guardar cambios</button></div>
         </div>
 
@@ -4362,16 +4414,19 @@ async function viewConfiguracion(){
   `;
 }
 
-function bindConfiguracionEvents(){
+function bindConfiguracionEvents(tabInicial){
   // Tabs
+  function activarTab(key){
+    document.querySelectorAll('.cfg-tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.cfg-panel-section').forEach(p=>p.classList.remove('active'));
+    const tab = document.querySelector(`.cfg-tab[data-tab="${key}"]`);
+    const panel = document.querySelector(`.cfg-panel-section[data-panel="${key}"]`);
+    if(tab && panel){ tab.classList.add('active'); panel.classList.add('active'); }
+  }
   document.querySelectorAll('.cfg-tab').forEach(tab=>{
-    tab.onclick = () => {
-      document.querySelectorAll('.cfg-tab').forEach(t=>t.classList.remove('active'));
-      document.querySelectorAll('.cfg-panel-section').forEach(p=>p.classList.remove('active'));
-      tab.classList.add('active');
-      document.querySelector(`.cfg-panel-section[data-panel="${tab.dataset.tab}"]`).classList.add('active');
-    };
+    tab.onclick = () => activarTab(tab.dataset.tab);
   });
+  if(tabInicial && CFG_TABS.some(t=>t.key===tabInicial)) activarTab(tabInicial);
 
   const btnReiniciarBD = document.getElementById('btn-reiniciar-bd');
   if(btnReiniciarBD) btnReiniciarBD.onclick = () => openReiniciarBaseDatosModal();
@@ -4487,15 +4542,133 @@ function bindConfiguracionEvents(){
     Toast.show('success','Guardado','Las credenciales de WhatsApp Business se actualizaron.');
   };
 
+  // Listas y catálogos: marcas de vehículos
+  function renderCfgMarcas(){
+    const lista = Config.cache.marcasVehiculo || [];
+    document.getElementById('cfg-marca-list').innerHTML = lista.length ? lista.map(m=>`
+      <div class="cfg-lista-editable-row" data-m="${Utils.escapeHTML(m)}">
+        <span class="cfg-lista-editable-label">${Utils.escapeHTML(m)}</span>
+        <button type="button" class="btn btn-danger-ghost btn-sm cfg-marca-del" data-m="${Utils.escapeHTML(m)}">Quitar</button>
+      </div>`).join('') : `<div class="cfg-lista-editable-empty">Sin marcas cargadas.</div>`;
+    document.querySelectorAll('.cfg-marca-del').forEach(btn=>{
+      btn.onclick = async () => {
+        const nuevaLista = (Config.cache.marcasVehiculo||[]).filter(x=>x!==btn.dataset.m);
+        await Config.save({ marcasVehiculo:nuevaLista });
+        renderCfgMarcas();
+      };
+    });
+  }
+  renderCfgMarcas();
+  document.getElementById('cfg-marca-add').onclick = async () => {
+    const input = document.getElementById('cfg-marca-nueva');
+    const valor = input.value.trim();
+    if(!valor) return;
+    const lista = Config.cache.marcasVehiculo || [];
+    if(lista.some(x=>x.toLowerCase()===valor.toLowerCase())){ Toast.show('info','Ya existe','Esa marca ya está en la lista.'); return; }
+    await Config.save({ marcasVehiculo:[...lista, valor].sort() });
+    input.value = '';
+    renderCfgMarcas();
+  };
+  document.getElementById('cfg-marca-nueva').addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); document.getElementById('cfg-marca-add').click(); } });
+
+  // Listas y catálogos: viscosidades de aceite
+  function renderCfgViscosidades(){
+    const lista = Config.cache.viscosidadesAceite || [];
+    document.getElementById('cfg-visc-list').innerHTML = lista.length ? lista.map(v=>`
+      <div class="cfg-lista-editable-row" data-v="${Utils.escapeHTML(v)}">
+        <span class="cfg-lista-editable-label">${Utils.escapeHTML(v)}</span>
+        <button type="button" class="btn btn-danger-ghost btn-sm cfg-visc-del" data-v="${Utils.escapeHTML(v)}">Quitar</button>
+      </div>`).join('') : `<div class="cfg-lista-editable-empty">Sin viscosidades cargadas.</div>`;
+    document.querySelectorAll('.cfg-visc-del').forEach(btn=>{
+      btn.onclick = async () => {
+        const nuevaLista = (Config.cache.viscosidadesAceite||[]).filter(x=>x!==btn.dataset.v);
+        await Config.save({ viscosidadesAceite:nuevaLista });
+        renderCfgViscosidades();
+      };
+    });
+  }
+  renderCfgViscosidades();
+  document.getElementById('cfg-visc-add').onclick = async () => {
+    const input = document.getElementById('cfg-visc-nueva');
+    const valor = input.value.trim().toUpperCase();
+    if(!valor) return;
+    const lista = Config.cache.viscosidadesAceite || [];
+    if(lista.includes(valor)){ Toast.show('info','Ya existe','Esa viscosidad ya está en la lista.'); return; }
+    await Config.save({ viscosidadesAceite:[...lista, valor] });
+    input.value = '';
+    renderCfgViscosidades();
+  };
+  document.getElementById('cfg-visc-nueva').addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); document.getElementById('cfg-visc-add').click(); } });
+
+  // Listas y catálogos: ítems de checklist de service
+  function renderCfgChecklist(){
+    const lista = Config.cache.serviceChecklistItems || SERVICE_CHECKLIST_ITEMS;
+    document.getElementById('cfg-checklist-list').innerHTML = lista.length ? lista.map(it=>`
+      <div class="cfg-lista-editable-row" data-key="${it.key}">
+        <span class="cfg-lista-editable-label">${Utils.escapeHTML(it.label)}</span>
+        <button type="button" class="btn btn-ghost btn-sm cfg-checklist-edit" data-key="${it.key}">Editar</button>
+        <button type="button" class="btn btn-danger-ghost btn-sm cfg-checklist-del" data-key="${it.key}">Quitar</button>
+      </div>`).join('') : `<div class="cfg-lista-editable-empty">Sin ítems cargados.</div>`;
+    document.querySelectorAll('.cfg-checklist-del').forEach(btn=>{
+      btn.onclick = async () => {
+        const nuevaLista = (Config.cache.serviceChecklistItems||[]).filter(x=>x.key!==btn.dataset.key);
+        await Config.save({ serviceChecklistItems:nuevaLista });
+        renderCfgChecklist();
+      };
+    });
+    document.querySelectorAll('.cfg-checklist-edit').forEach(btn=>{
+      btn.onclick = () => {
+        const fila = btn.closest('.cfg-lista-editable-row');
+        const labelSpan = fila.querySelector('.cfg-lista-editable-label');
+        const labelActual = (Config.cache.serviceChecklistItems||[]).find(x=>x.key===btn.dataset.key)?.label || '';
+        labelSpan.outerHTML = `<input type="text" class="cfg-checklist-edit-input" value="${Utils.escapeHTML(labelActual)}">`;
+        const inputEdit = fila.querySelector('.cfg-checklist-edit-input');
+        inputEdit.focus(); inputEdit.select();
+        async function confirmarEdicion(){
+          const nuevoLabel = inputEdit.value.trim();
+          if(nuevoLabel && nuevoLabel!==labelActual){
+            const nuevaLista = (Config.cache.serviceChecklistItems||[]).map(x=>x.key===btn.dataset.key?{...x,label:nuevoLabel}:x);
+            await Config.save({ serviceChecklistItems:nuevaLista });
+          }
+          renderCfgChecklist();
+        }
+        inputEdit.addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); confirmarEdicion(); } if(e.key==='Escape'){ renderCfgChecklist(); } });
+        inputEdit.addEventListener('blur', confirmarEdicion);
+      };
+    });
+  }
+  renderCfgChecklist();
+  document.getElementById('cfg-checklist-add').onclick = async () => {
+    const input = document.getElementById('cfg-checklist-nuevo');
+    const label = input.value.trim();
+    if(!label) return;
+    const lista = Config.cache.serviceChecklistItems || [];
+    if(lista.some(x=>x.label.toLowerCase()===label.toLowerCase())){ Toast.show('info','Ya existe','Ese ítem ya está en la lista.'); return; }
+    const nuevoKey = `item_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+    await Config.save({ serviceChecklistItems:[...lista, { key:nuevoKey, label }] });
+    input.value = '';
+    renderCfgChecklist();
+  };
+  document.getElementById('cfg-checklist-nuevo').addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); document.getElementById('cfg-checklist-add').click(); } });
+
   // Seguridad
+  const chkBloqueoInactividad = document.getElementById('cfg-bloqueoInactividadActivo');
+  chkBloqueoInactividad.onchange = () => {
+    const wrap = document.getElementById('cfg-minutosInactividad-wrap');
+    wrap.style.opacity = chkBloqueoInactividad.checked ? '' : '.45';
+    wrap.style.pointerEvents = chkBloqueoInactividad.checked ? '' : 'none';
+    chkBloqueoInactividad.parentElement.nextElementSibling.textContent = chkBloqueoInactividad.checked ? 'Activado' : 'Desactivado';
+  };
   document.getElementById('cfg-save-seguridad').onclick = async () => {
     const intentosMaximos = Math.max(1, Math.min(10, Number(document.getElementById('cfg-intentosMaximos').value) || 5));
     const minutosBloqueo = Math.max(1, Math.min(120, Number(document.getElementById('cfg-minutosBloqueo').value) || 15));
     const minutosInactividad = Math.max(1, Math.min(120, Number(document.getElementById('cfg-minutosInactividad').value) || 10));
-    await Config.save({ intentosMaximos, minutosBloqueo, minutosInactividad });
+    const bloqueoInactividadActivo = chkBloqueoInactividad.checked;
+    await Config.save({ intentosMaximos, minutosBloqueo, minutosInactividad, bloqueoInactividadActivo });
     InactivityLock.minutos = minutosInactividad;
+    InactivityLock.activo = bloqueoInactividadActivo;
     InactivityLock.reset();
-    await Audit.log('configuracion_editada', `Seguridad actualizada (intentos:${intentosMaximos}, bloqueo:${minutosBloqueo}m, inactividad:${minutosInactividad}m).`);
+    await Audit.log('configuracion_editada', `Seguridad actualizada (intentos:${intentosMaximos}, bloqueo:${minutosBloqueo}m, inactividad:${bloqueoInactividadActivo?minutosInactividad+'m':'desactivado'}).`);
     Toast.show('success','Seguridad actualizada','Los nuevos valores ya están activos.');
   };
 }
@@ -4611,24 +4784,41 @@ function calcularNivelVIP(comprasTotales){
   return nivel;
 }
 
+// Lavados (turnos de lavadero) ya cobrados de un cliente. Solo cuentan los
+// turnos "Completado" (cobrados) vinculados a un cliente real (clienteId).
+async function obtenerLavadosClientePagados(clienteId){
+  const turnos = await DB.getAllByIndex('lavaderoTurnos','clienteId', clienteId);
+  return turnos.filter(t=> t.estado==='Completado' && t.pagado);
+}
+
 async function calcularStatsCliente(clienteId){
-  const [ventas, historial, canjes] = await Promise.all([
+  const [ventas, historial, canjes, lavados] = await Promise.all([
     DB.getAllByIndex('ventas','clienteId', clienteId),
     DB.getAllByIndex('historialServicios','clienteId', clienteId),
-    DB.getAllByIndex('canjesFidelizacion','clienteId', clienteId)
+    DB.getAllByIndex('canjesFidelizacion','clienteId', clienteId),
+    obtenerLavadosClientePagados(clienteId)
   ]);
   const ventasCompletadas = ventas.filter(v=>v.estado!=='anulada');
-  const comprasTotales = ventasCompletadas.reduce((acc,v)=>acc+(v.total||0), 0);
+  const comprasVentas = ventasCompletadas.reduce((acc,v)=>acc+(v.total||0), 0);
+  const montoLavados = lavados.reduce((acc,t)=>acc+(t.precio||0), 0);
+  // "comprasTotales" (define nivel VIP y se muestra como gasto del cliente)
+  // incluye ventas + lavados.
+  const comprasTotales = comprasVentas + montoLavados;
   const fechasVisita = [
     ...ventasCompletadas.map(v=>v.fecha),
-    ...historial.map(h=>h.fecha)
+    ...historial.map(h=>h.fecha),
+    ...lavados.map(t=>t.fechaCompletado || t.fecha)
   ].filter(Boolean).sort((a,b)=> new Date(b)-new Date(a));
   const ultimaVisita = fechasVisita[0] || null;
-  const puntosGanados = Math.floor(comprasTotales / PUNTOS_CADA_PESOS);
+  // Puntos: 1 pt cada $1000 en compras (ventas) + 0,5 pt cada $1000 en
+  // lavados (= 1 pt cada $2000 de lavado). Se calcula sobre cada monto por
+  // separado, no sobre comprasTotales, para respetar la tasa distinta.
+  const puntosGanados = Math.floor(comprasVentas / PUNTOS_CADA_PESOS) + Math.floor(montoLavados / PUNTOS_CADA_PESOS_LAVADO);
   const puntosCanjeados = canjes.reduce((acc,c)=>acc+(c.puntos||0), 0);
   const puntosDisponibles = Math.max(0, puntosGanados - puntosCanjeados);
   return {
-    comprasTotales, cantidadCompras: ventasCompletadas.length, ultimaVisita,
+    comprasTotales, comprasVentas, cantidadCompras: ventasCompletadas.length, ultimaVisita,
+    montoLavados, cantidadLavados: lavados.length,
     nivel: calcularNivelVIP(comprasTotales),
     puntosGanados, puntosCanjeados, puntosDisponibles
   };
@@ -4648,11 +4838,12 @@ const TIPOS_COMUNICACION = {
 };
 
 async function construirTimelineCliente(clienteId, limite=15){
-  const [historial, ventas, comunicaciones, canjes] = await Promise.all([
+  const [historial, ventas, comunicaciones, canjes, lavados] = await Promise.all([
     DB.getAllByIndex('historialServicios','clienteId', clienteId),
     DB.getAllByIndex('ventas','clienteId', clienteId),
     DB.getAllByIndex('comunicaciones','clienteId', clienteId),
-    DB.getAllByIndex('canjesFidelizacion','clienteId', clienteId)
+    DB.getAllByIndex('canjesFidelizacion','clienteId', clienteId),
+    obtenerLavadosClientePagados(clienteId)
   ]);
   const vehiculosById = {};
   (await DB.getAll('vehiculos')).forEach(v=>vehiculosById[v.id]=v);
@@ -4686,6 +4877,14 @@ async function construirTimelineCliente(clienteId, limite=15){
       fecha: c.fecha, icono:'crown', color:'#F0B429', colorDim:'rgba(240,180,41,.14)',
       titulo: `Canje de ${c.puntos} pts`,
       desc: c.concepto || ''
+    });
+  });
+  lavados.forEach(t=>{
+    const pts = Math.floor((t.precio||0) / PUNTOS_CADA_PESOS_LAVADO);
+    eventos.push({
+      fecha: t.fechaCompletado || t.fecha, icono:'lavadero', color:'#2FA8D8', colorDim:'rgba(47,168,216,.14)',
+      titulo: `Lavado — ${t.servicioNombre||''}`,
+      desc: `${t.vehiculoDescripcion?t.vehiculoDescripcion+' · ':''}$${(t.precio||0).toLocaleString('es-AR')}${pts>0?' · +'+pts+' pts':''}`
     });
   });
   return eventos.sort((a,b)=> new Date(b.fecha)-new Date(a.fecha)).slice(0, limite);
@@ -4782,7 +4981,7 @@ function openBeneficiosVIPModal(nivelActualKey, comprasTotales){
   }).join('');
   Modal.open(
     'Niveles y beneficios VIP',
-    `<p style="font-size:12.5px; color:var(--text-secondary); margin-bottom:14px;">El nivel se recalcula automáticamente según el total histórico de compras del cliente. Cada $${PUNTOS_CADA_PESOS.toLocaleString('es-AR')} en compras suman 1 punto, canjeable por descuentos, productos, servicios o lavado.</p>
+    `<p style="font-size:12.5px; color:var(--text-secondary); margin-bottom:14px;">El nivel se recalcula automáticamente según el total histórico de compras del cliente. Cada $${PUNTOS_CADA_PESOS.toLocaleString('es-AR')} en compras suman 1 punto, y cada $${PUNTOS_CADA_PESOS_LAVADO.toLocaleString('es-AR')} en lavados suman 1 punto (0,5 pts cada $1000), canjeables por descuentos, productos, servicios o lavado.</p>
      ${filas}
      <div class="modal-actions"><button class="btn btn-accent" id="beneficios-cerrar">Cerrar</button></div>`,
     { width:'440px' }
@@ -5072,7 +5271,7 @@ async function viewCampanaForm(campanaId){
         ${destinatarios.map(d=>`
           <div class="campana-dest-row">
             <div class="txt"><b>${Utils.escapeHTML(d.nombre)}</b> — ${Utils.escapeHTML(d.mensaje)}</div>
-            ${d.telefono ? `<a class="campana-wa-btn" target="_blank" rel="noopener" href="https://wa.me/${d.telefono.replace(/\D/g,'')}?text=${encodeURIComponent(d.mensaje)}">${svgIcon('whatsapp')} Abrir WhatsApp</a>` : `<span class="campana-wa-btn disabled">${svgIcon('whatsapp')} Sin teléfono</span>`}
+            ${d.telefono ? `<button type="button" class="campana-wa-btn btn-abrir-wa-campana" data-tel="${d.telefono.replace(/\D/g,'')}" data-msg="${Utils.escapeHTML(d.mensaje)}">${svgIcon('whatsapp')} Abrir WhatsApp</button>` : `<span class="campana-wa-btn disabled">${svgIcon('whatsapp')} Sin teléfono</span>`}
           </div>
         `).join('')}
       </div>
@@ -5122,6 +5321,10 @@ async function bindCampanaFormEvents(campanaId){
 
   document.getElementById('btn-guardar-borrador-campana').onclick = () => guardar('Borrador');
   document.getElementById('btn-preparar-envio-campana').onclick = () => guardar('Lista para enviar');
+
+  document.querySelectorAll('.btn-abrir-wa-campana').forEach(btn=>{
+    btn.onclick = () => abrirWhatsApp(btn.dataset.tel, btn.dataset.msg);
+  });
 }
 
 async function campanasClienteHTML(clienteId){
@@ -5566,12 +5769,16 @@ async function obtenerAlertasCRMDashboard(){
    20-C-TREDECIES. CRM Fase 6 — ESTADÍSTICAS CRM globales (#/crmestadisticas)
 ----------------------------------------------------------------------- */
 async function obtenerFechasVisitaCliente(clienteId){
-  const [ventas, historial] = await Promise.all([
+  const [ventas, historial, lavados] = await Promise.all([
     DB.getAllByIndex('ventas','clienteId', clienteId),
-    DB.getAllByIndex('historialServicios','clienteId', clienteId)
+    DB.getAllByIndex('historialServicios','clienteId', clienteId),
+    obtenerLavadosClientePagados(clienteId)
   ]);
-  return [...ventas.filter(v=>v.estado!=='anulada').map(v=>v.fecha), ...historial.map(h=>h.fecha)]
-    .filter(Boolean).sort((a,b)=> new Date(a)-new Date(b));
+  return [
+    ...ventas.filter(v=>v.estado!=='anulada').map(v=>v.fecha),
+    ...historial.map(h=>h.fecha),
+    ...lavados.map(t=>t.fechaCompletado || t.fecha)
+  ].filter(Boolean).sort((a,b)=> new Date(a)-new Date(b));
 }
 
 async function calcularEstadisticasCRM(){
@@ -6128,7 +6335,7 @@ async function viewClienteDetalle(id){
     </div>
 
     <div class="crm-stat-strip">
-      <div class="crm-stat-box"><div class="crm-stat-label">Compras totales</div><div class="crm-stat-value">$${stats.comprasTotales.toLocaleString('es-AR')}</div><div class="crm-stat-sub">${stats.cantidadCompras} compra${stats.cantidadCompras===1?'':'s'}</div></div>
+      <div class="crm-stat-box"><div class="crm-stat-label">Compras totales</div><div class="crm-stat-value">$${stats.comprasTotales.toLocaleString('es-AR')}</div><div class="crm-stat-sub">${stats.cantidadCompras} compra${stats.cantidadCompras===1?'':'s'}${stats.cantidadLavados?' · '+stats.cantidadLavados+' lavado'+(stats.cantidadLavados===1?'':'s'):''}</div></div>
       <div class="crm-stat-box"><div class="crm-stat-label">Deuda actual</div><div class="crm-stat-value ${saldoCtaCte>0.009?'saldo-deudor':'saldo-cero'}">$${saldoCtaCte.toLocaleString('es-AR')}</div><div class="crm-stat-sub">${saldoCtaCte>0.009?'Con saldo pendiente':'Sin deuda'}</div></div>
       <div class="crm-stat-box"><div class="crm-stat-label">Última visita</div><div class="crm-stat-value" style="font-size:15px;">${stats.ultimaVisita?Utils_fmtFechaSolo(stats.ultimaVisita):'—'}</div></div>
       <div class="crm-stat-box"><div class="crm-stat-label">Puntos disponibles</div><div class="crm-stat-value" style="color:${stats.nivel.color};">${stats.puntosDisponibles.toLocaleString('es-AR')}</div><div class="crm-stat-sub">${stats.puntosGanados} ganados · ${stats.puntosCanjeados} canjeados</div></div>
@@ -6257,10 +6464,11 @@ function vehicleMiniCardHTML(v){
 const PALETA_CATEGORIAS = ['#FF8C1A','#17B8A6','#5B9BD5','#F0B429','#E5484D','#8B5CF6','#25D366','#F5A623','#8FD3E8'];
 
 async function calcularEstadisticasClienteCharts(clienteId){
-  const [ventas, productos, historial] = await Promise.all([
+  const [ventas, productos, historial, lavados] = await Promise.all([
     DB.getAllByIndex('ventas','clienteId', clienteId),
     DB.getAll('productos'),
-    DB.getAllByIndex('historialServicios','clienteId', clienteId)
+    DB.getAllByIndex('historialServicios','clienteId', clienteId),
+    obtenerLavadosClientePagados(clienteId)
   ]);
   const productosById = {}; productos.forEach(p=>productosById[p.id]=p);
   const ventasOk = ventas.filter(v=>v.estado!=='anulada');
@@ -6287,8 +6495,8 @@ async function calcularEstadisticasClienteCharts(clienteId){
   const gastoPorCategoria = { labels: catLabels, valores: catLabels.map(c=>porCategoria[c]) };
   const productosTop = Object.entries(porProducto).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([nombre,cantidad])=>({nombre,cantidad}));
 
-  // Frecuencia de visitas (promedio de días entre visitas)
-  const fechas = [...ventasOk.map(v=>v.fecha), ...historial.map(h=>h.fecha)].filter(Boolean).sort((a,b)=> new Date(a)-new Date(b));
+  // Frecuencia de visitas (promedio de días entre visitas) — incluye lavados
+  const fechas = [...ventasOk.map(v=>v.fecha), ...historial.map(h=>h.fecha), ...lavados.map(t=>t.fechaCompletado || t.fecha)].filter(Boolean).sort((a,b)=> new Date(a)-new Date(b));
   let frecuenciaDias = null;
   if(fechas.length >= 2){
     const dias = (new Date(fechas[fechas.length-1]) - new Date(fechas[0])) / 86400000;
@@ -6630,7 +6838,19 @@ function vehiculoFormHTML(v, clientes, clienteIdFijo){
       <div class="field"><label>Dominio (patente)</label><input type="text" id="vf-dominio" style="text-transform:uppercase;" value="${v?Utils.escapeHTML(v.dominio):''}"></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Marca</label><input type="text" id="vf-marca" value="${v?Utils.escapeHTML(v.marca):''}"></div>
+      <div class="field"><label>Marca</label>
+        <select class="select-input" id="vf-marca-select">
+          <option value="">Seleccioná...</option>
+          ${(() => {
+            const lista = Config.cache.marcasVehiculo || [];
+            const marcaActual = v ? v.marca : '';
+            const listaCompleta = marcaActual && !lista.includes(marcaActual) ? [...lista, marcaActual].sort() : lista;
+            return listaCompleta.map(m=>`<option value="${Utils.escapeHTML(m)}" ${marcaActual===m?'selected':''}>${Utils.escapeHTML(m)}</option>`).join('');
+          })()}
+          <option value="__otra__">Otra (especificar)...</option>
+        </select>
+        <input type="text" id="vf-marca" placeholder="Nombre de la marca" style="margin-top:6px; display:none;" value="${v?Utils.escapeHTML(v.marca):''}">
+      </div>
       <div class="field"><label>Modelo</label><input type="text" id="vf-modelo" value="${v?Utils.escapeHTML(v.modelo):''}"></div>
     </div>
     <div class="field-row">
@@ -6685,6 +6905,31 @@ async function openVehiculoModal(vehiculo=null, clienteIdFijo=null){
   );
   const fotosState = vehiculo && vehiculo.fotos ? [...vehiculo.fotos] : [];
   renderVehiclePhotoGrid(fotosState);
+
+  // Marca: select con las marcas más comunes + opción "Otra" con texto libre.
+  const marcaSelect = document.getElementById('vf-marca-select');
+  const marcaInput = document.getElementById('vf-marca');
+  if(marcaSelect.value === '' && marcaInput.value){
+    // El valor actual del vehículo no coincide con ninguna opción visible
+    // (no debería pasar porque se agrega dinámicamente, pero por las dudas).
+    marcaSelect.value = '__otra__';
+  }
+  if(marcaSelect.value === '__otra__' || (!marcaInput.value && !marcaSelect.value)){
+    marcaInput.style.display = marcaSelect.value==='__otra__' ? '' : 'none';
+  } else {
+    marcaInput.style.display = 'none';
+  }
+  marcaSelect.onchange = () => {
+    if(marcaSelect.value === '__otra__'){
+      marcaInput.style.display = '';
+      marcaInput.value = '';
+      marcaInput.focus();
+    } else {
+      marcaInput.style.display = 'none';
+      marcaInput.value = marcaSelect.value;
+    }
+  };
+
   document.getElementById('vf-photos-input').onchange = async (e) => {
     for(const f of Array.from(e.target.files)) fotosState.push(await Utils.readFileAsDataURL(f));
     renderVehiclePhotoGrid(fotosState);
@@ -6984,7 +7229,7 @@ function bindHistorialPlanificacionEvents(){
     btn.onclick = () => {
       const telefono = btn.dataset.whatsapp;
       const mensaje = btn.dataset.mensaje;
-      window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`, '_blank', 'noopener');
+      abrirWhatsApp(telefono, mensaje);
       btn.classList.add('recordado');
     };
   });
@@ -7229,18 +7474,7 @@ function historialFormHTML(h, vehiculo, usuariosActivos, verCosto){
       <div class="field">
         <label style="display:flex; justify-content:space-between; align-items:center;">
           <span>Tipo / Viscosidad</span>
-          <span class="visc-manage-wrap">
-            <a href="javascript:void(0)" id="hf-gestionar-viscosidades" style="font-size:10.5px; font-weight:600; text-transform:none; letter-spacing:0;">Gestionar lista</a>
-            <div class="visc-manage-popover hidden" id="hf-visc-popover">
-              <div style="font-size:11px; font-weight:700; margin-bottom:8px; color:var(--text-secondary);">Viscosidades disponibles</div>
-              <div id="hf-visc-list" style="max-height:160px; overflow-y:auto; margin-bottom:8px;"></div>
-              <div style="display:flex; gap:6px;">
-                <input type="text" id="hf-visc-nueva" placeholder="Ej: 5W30" style="flex:1; min-width:0;">
-                <button type="button" class="btn btn-accent btn-sm" id="hf-visc-add">+</button>
-              </div>
-              <button type="button" class="btn btn-ghost btn-sm" id="hf-visc-cerrar" style="margin-top:8px; width:100%;">Cerrar</button>
-            </div>
-          </span>
+          <a href="#/configuracion/listas" onclick="Modal.close()" style="font-size:10.5px; font-weight:600; text-transform:none; letter-spacing:0;">Editar opciones</a>
         </label>
         <select class="select-input" id="hf-aceiteTipo">
           <option value="">Seleccionar...</option>
@@ -7258,18 +7492,7 @@ function historialFormHTML(h, vehiculo, usuariosActivos, verCosto){
     <div class="field">
       <label style="display:flex; justify-content:space-between; align-items:center;">
         <span>Ítems realizados en este service</span>
-        <span class="visc-manage-wrap">
-          <a href="javascript:void(0)" id="hf-gestionar-checklist" style="font-size:10.5px; font-weight:600; text-transform:none; letter-spacing:0;">Gestionar lista</a>
-          <div class="visc-manage-popover hidden" id="hf-checklist-popover" style="width:280px;">
-            <div style="font-size:11px; font-weight:700; margin-bottom:8px; color:var(--text-secondary);">Ítems disponibles</div>
-            <div id="hf-checklist-manage-list" style="max-height:220px; overflow-y:auto; margin-bottom:8px;"></div>
-            <div style="display:flex; gap:6px;">
-              <input type="text" id="hf-checklist-nuevo" placeholder="Ej: Alineación y balanceo" style="flex:1; min-width:0;">
-              <button type="button" class="btn btn-accent btn-sm" id="hf-checklist-add">+</button>
-            </div>
-            <button type="button" class="btn btn-ghost btn-sm" id="hf-checklist-cerrar" style="margin-top:8px; width:100%;">Cerrar</button>
-          </div>
-        </span>
+        <a href="#/configuracion/listas" onclick="Modal.close()" style="font-size:10.5px; font-weight:600; text-transform:none; letter-spacing:0;">Editar opciones</a>
       </label>
       <div class="checklist-grid" id="hf-checklist-grid">
         ${(Config.cache?.serviceChecklistItems||SERVICE_CHECKLIST_ITEMS).map(it=>`
@@ -7392,141 +7615,6 @@ async function openHistorialModal(historial, vehiculo){
   document.querySelectorAll('.hf-item-check').forEach(chk=>{
     chk.onchange = () => chk.closest('.checklist-item').classList.toggle('checked', chk.checked);
   });
-
-  // Gestión de la lista de viscosidades de aceite (se guarda en Config, no
-  // en un modal aparte, para no perder lo que ya se cargó en este service).
-  const selectViscosidad = document.getElementById('hf-aceiteTipo');
-  const btnGestionarVisc = document.getElementById('hf-gestionar-viscosidades');
-  const popoverVisc = document.getElementById('hf-visc-popover');
-  function renderViscosidadesList(){
-    const lista = Config.cache.viscosidadesAceite || [];
-    document.getElementById('hf-visc-list').innerHTML = lista.length ? lista.map(v=>`
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; padding:4px 0; font-size:12.5px;">
-        <span>${Utils.escapeHTML(v)}</span>
-        <button type="button" class="btn btn-danger-ghost btn-sm hf-visc-del" data-v="${Utils.escapeHTML(v)}" style="padding:2px 8px; font-size:11px;">Quitar</button>
-      </div>`).join('') : `<div style="font-size:11.5px; color:var(--text-muted);">Sin viscosidades cargadas.</div>`;
-    document.querySelectorAll('.hf-visc-del').forEach(btn=>{
-      btn.onclick = async () => {
-        const nuevaLista = (Config.cache.viscosidadesAceite||[]).filter(x=>x!==btn.dataset.v);
-        await Config.save({ viscosidadesAceite:nuevaLista });
-        renderViscosidadesList();
-        actualizarOpcionesViscosidad();
-      };
-    });
-  }
-  function actualizarOpcionesViscosidad(){
-    const valorPrevio = selectViscosidad.value;
-    const lista = Config.cache.viscosidadesAceite || [];
-    selectViscosidad.innerHTML = `<option value="">Seleccionar...</option>` + lista.map(v=>`<option value="${Utils.escapeHTML(v)}">${Utils.escapeHTML(v)}</option>`).join('');
-    if(valorPrevio && lista.includes(valorPrevio)){ selectViscosidad.value = valorPrevio; }
-    else if(valorPrevio){
-      const opt = document.createElement('option');
-      opt.value = valorPrevio; opt.textContent = `${valorPrevio} (fuera de lista)`; opt.selected = true;
-      selectViscosidad.appendChild(opt);
-    }
-  }
-  if(btnGestionarVisc){
-    btnGestionarVisc.onclick = (e) => { e.preventDefault(); e.stopPropagation(); popoverVisc.classList.toggle('hidden'); renderViscosidadesList(); };
-    document.getElementById('hf-visc-cerrar').onclick = () => popoverVisc.classList.add('hidden');
-    document.getElementById('hf-visc-add').onclick = async () => {
-      const input = document.getElementById('hf-visc-nueva');
-      const valor = input.value.trim().toUpperCase();
-      if(!valor) return;
-      const lista = Config.cache.viscosidadesAceite || [];
-      if(lista.includes(valor)){ Toast.show('info','Ya existe','Esa viscosidad ya está en la lista.'); return; }
-      await Config.save({ viscosidadesAceite:[...lista, valor] });
-      input.value = '';
-      renderViscosidadesList();
-      actualizarOpcionesViscosidad();
-      selectViscosidad.value = valor;
-    };
-  }
-
-  // Gestión de los ítems del checklist "Ítems realizados en este service"
-  // (compartida con Cotizaciones). Igual criterio que las viscosidades: se
-  // guarda en Config y se edita en un popover, sin cerrar el formulario.
-  const btnGestionarChecklist = document.getElementById('hf-gestionar-checklist');
-  const popoverChecklist = document.getElementById('hf-checklist-popover');
-  const gridChecklist = document.getElementById('hf-checklist-grid');
-
-  function estadoActualChecklist(){
-    // Preserva lo tildado actualmente antes de volver a dibujar la grilla.
-    const estado = {};
-    document.querySelectorAll('.hf-item-check').forEach(chk => { estado[chk.dataset.key] = chk.checked; });
-    return estado;
-  }
-  function bindChecklistCheckboxes(){
-    document.querySelectorAll('.hf-item-check').forEach(chk=>{
-      chk.onchange = () => chk.closest('.checklist-item').classList.toggle('checked', chk.checked);
-    });
-  }
-  function renderChecklistGrid(estadoPrevio){
-    const lista = Config.cache.serviceChecklistItems || SERVICE_CHECKLIST_ITEMS;
-    gridChecklist.innerHTML = lista.map(it=>`
-      <label class="checklist-item ${estadoPrevio[it.key]?'checked':''}" data-key="${it.key}">
-        <input type="checkbox" class="hf-item-check" data-key="${it.key}" ${estadoPrevio[it.key]?'checked':''}>
-        ${Utils.escapeHTML(it.label)}
-      </label>`).join('');
-    bindChecklistCheckboxes();
-  }
-  function renderChecklistManageList(){
-    const lista = Config.cache.serviceChecklistItems || SERVICE_CHECKLIST_ITEMS;
-    document.getElementById('hf-checklist-manage-list').innerHTML = lista.length ? lista.map(it=>`
-      <div class="hf-checklist-manage-row" data-key="${it.key}" style="display:flex; align-items:center; justify-content:space-between; gap:6px; padding:4px 0; font-size:12px;">
-        <span class="hf-checklist-manage-label" style="flex:1;">${Utils.escapeHTML(it.label)}</span>
-        <button type="button" class="btn btn-ghost btn-sm hf-checklist-edit" data-key="${it.key}" style="padding:2px 7px; font-size:11px;">✎</button>
-        <button type="button" class="btn btn-danger-ghost btn-sm hf-checklist-del" data-key="${it.key}" style="padding:2px 7px; font-size:11px;">Quitar</button>
-      </div>`).join('') : `<div style="font-size:11.5px; color:var(--text-muted);">Sin ítems cargados.</div>`;
-
-    document.querySelectorAll('.hf-checklist-del').forEach(btn=>{
-      btn.onclick = async () => {
-        const estadoPrevio = estadoActualChecklist();
-        const nuevaLista = (Config.cache.serviceChecklistItems||[]).filter(x=>x.key!==btn.dataset.key);
-        await Config.save({ serviceChecklistItems:nuevaLista });
-        renderChecklistManageList();
-        renderChecklistGrid(estadoPrevio);
-      };
-    });
-    document.querySelectorAll('.hf-checklist-edit').forEach(btn=>{
-      btn.onclick = () => {
-        const fila = btn.closest('.hf-checklist-manage-row');
-        const labelSpan = fila.querySelector('.hf-checklist-manage-label');
-        const labelActual = (Config.cache.serviceChecklistItems||[]).find(x=>x.key===btn.dataset.key)?.label || '';
-        labelSpan.outerHTML = `<input type="text" class="hf-checklist-edit-input" value="${Utils.escapeHTML(labelActual)}" style="flex:1; min-width:0; background:var(--bg-panel); border:1px solid var(--border-soft); border-radius:6px; padding:3px 6px; font-size:12px; color:var(--text-primary);">`;
-        const inputEdit = fila.querySelector('.hf-checklist-edit-input');
-        inputEdit.focus(); inputEdit.select();
-        async function confirmarEdicion(){
-          const nuevoLabel = inputEdit.value.trim();
-          if(nuevoLabel && nuevoLabel!==labelActual){
-            const estadoPrevio = estadoActualChecklist();
-            const nuevaLista = (Config.cache.serviceChecklistItems||[]).map(x=>x.key===btn.dataset.key?{...x,label:nuevoLabel}:x);
-            await Config.save({ serviceChecklistItems:nuevaLista });
-            renderChecklistGrid(estadoPrevio);
-          }
-          renderChecklistManageList();
-        }
-        inputEdit.addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); confirmarEdicion(); } if(e.key==='Escape'){ renderChecklistManageList(); } });
-        inputEdit.addEventListener('blur', confirmarEdicion);
-      };
-    });
-  }
-  if(btnGestionarChecklist){
-    btnGestionarChecklist.onclick = (e) => { e.preventDefault(); e.stopPropagation(); popoverChecklist.classList.toggle('hidden'); renderChecklistManageList(); };
-    document.getElementById('hf-checklist-cerrar').onclick = () => popoverChecklist.classList.add('hidden');
-    document.getElementById('hf-checklist-add').onclick = async () => {
-      const input = document.getElementById('hf-checklist-nuevo');
-      const label = input.value.trim();
-      if(!label) return;
-      const lista = Config.cache.serviceChecklistItems || [];
-      if(lista.some(x=>x.label.toLowerCase()===label.toLowerCase())){ Toast.show('info','Ya existe','Ese ítem ya está en la lista.'); return; }
-      const nuevoKey = `item_${Date.now()}_${Math.floor(Math.random()*1000)}`;
-      const estadoPrevio = estadoActualChecklist();
-      await Config.save({ serviceChecklistItems:[...lista, { key:nuevoKey, label }] });
-      input.value = '';
-      renderChecklistManageList();
-      renderChecklistGrid(estadoPrevio);
-    };
-  }
 
   // Ítems facturables: si el service es viejo (sin itemsVendidos), se migra su precio/costo
   // manual a un único ítem editable para no perder información.
@@ -9568,6 +9656,26 @@ async function finalizarVenta(){
 function whatsappUrlDesdeNumero(numero){
   const digits = (numero||'').replace(/\D/g,'');
   return digits ? `https://wa.me/${digits}` : '';
+}
+// Abre un chat de WhatsApp con mensaje precargado. En celulares usa el
+// esquema de la app (whatsapp://) para ir directo a la app sin pasar por
+// wa.me en el navegador; si la app no responde en un momento (no está
+// instalada), cae a wa.me como respaldo. En desktop usa wa.me directamente
+// (abre WhatsApp Web o el selector de la app de escritorio).
+function abrirWhatsApp(telefono, mensaje){
+  const digits = (telefono||'').replace(/\D/g,'');
+  if(!digits){ Toast.show('error','Falta el número','Este contacto no tiene WhatsApp cargado.'); return; }
+  const texto = encodeURIComponent(mensaje||'');
+  const urlWeb = `https://wa.me/${digits}?text=${texto}`;
+  const esMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if(!esMobile){ window.open(urlWeb, '_blank', 'noopener'); return; }
+  const urlApp = `whatsapp://send?phone=${digits}&text=${texto}`;
+  let seFue = false;
+  const marcarSalida = () => { seFue = true; };
+  document.addEventListener('visibilitychange', marcarSalida, { once:true });
+  window.addEventListener('pagehide', marcarSalida, { once:true });
+  window.location.href = urlApp;
+  setTimeout(() => { if(!seFue) window.open(urlWeb, '_blank', 'noopener'); }, 1200);
 }
 function generarQRSvg(texto, cellSize=3, margin=1){
   if(!texto) return '';
@@ -11968,7 +12076,7 @@ async function abrirEstadoCuentaModal(clienteId){
     btnWa.onclick = () => {
       const telefono = whatsappDestino.replace(/\D/g,'');
       const lineas = [`Hola ${clienteNombreCompleto(cliente)}, te paso tu estado de cuenta en ${cfg.nombreEmpresa}.`,'', `Saldo actual: $${saldo.toLocaleString('es-AR')}`, '', 'Cualquier consulta, escribinos. ¡Gracias!'];
-      window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(lineas.join('\n'))}`, '_blank', 'noopener');
+      abrirWhatsApp(telefono, lineas.join('\n'));
     };
   }
 }
@@ -12700,8 +12808,8 @@ async function openCotizacionTicketModal(c){
   if(whatsappDestino){
     btnWa.onclick = () => {
       const telefono = whatsappDestino.replace(/\D/g,'');
-      const texto = encodeURIComponent(cotizacionWhatsappTexto(c, mostrarItems, cfg));
-      window.open(`https://wa.me/${telefono}?text=${texto}`, '_blank', 'noopener');
+      const texto = cotizacionWhatsappTexto(c, mostrarItems, cfg);
+      abrirWhatsApp(telefono, texto);
     };
   }
 }
@@ -13174,7 +13282,7 @@ function bindLavaderoTurnoRowActions(){
     const telefono = (t.clienteTelefono||'').replace(/\D/g,'');
     if(!telefono){ Toast.show('error','Sin teléfono','Este turno no tiene un teléfono cargado.'); return; }
     const mensaje = `Hola ${t.clienteNombre}! Te escribimos de ${Config.cache.nombreEmpresa} para avisarte que tu ${t.vehiculoDescripcion||'vehículo'} ya está listo para retirar. ¡Te esperamos!`;
-    window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`, '_blank', 'noopener');
+    abrirWhatsApp(telefono, mensaje);
   });
   document.querySelectorAll('.btn-ver-turno').forEach(btn=>btn.onclick=async()=>{
     const t = await DB.get('lavaderoTurnos', Number(btn.dataset.id));
