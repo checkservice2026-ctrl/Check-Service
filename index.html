@@ -1464,6 +1464,7 @@ const DEFAULT_CONFIG = {
   pieComprobantes:'',
   impresora:{ nombre:'', anchoPapel:'80mm' },
   intentosMaximos:5, minutosBloqueo:15, minutosInactividad:10, bloqueoInactividadActivo:true,
+  mpBackendUrl:'',
   tema:'dark',
   diasRecordatorioBackup:7, ultimoBackupFecha:null,
   viscosidadesAceite:['0W20','0W30','5W20','5W30','5W40','10W30','10W40','10W60','15W40','15W50','20W50'],
@@ -4201,6 +4202,7 @@ const CFG_TABS = [
   { key:'apariencia', label:'Apariencia', icon:'configuracion' },
   { key:'horarios', label:'Horarios', icon:'historial' },
   { key:'comprobantes', label:'Comprobantes', icon:'reportes' },
+  { key:'pagos', label:'Cobro con QR', icon:'pos' },
   { key:'impresoras', label:'Impresoras', icon:'pos' },
   { key:'whatsapp', label:'WhatsApp Business', icon:'comunicaciones' },
   { key:'listas', label:'Listas y catálogos', icon:'gear' },
@@ -4290,6 +4292,16 @@ async function viewConfiguracion(){
           <div class="cfg-section-sub">Texto que se imprime al final de presupuestos, facturas y tickets del POS.</div>
           <div class="field"><textarea class="textarea-input" id="cfg-pieComprobantes" placeholder="Ej: Garantía de 90 días en mano de obra. ¡Gracias por su visita!">${Utils.escapeHTML(cfg.pieComprobantes)}</textarea></div>
           <div class="modal-actions"><button class="btn btn-accent" id="cfg-save-comprobantes">Guardar cambios</button></div>
+        </div>
+
+        <div class="cfg-panel-section" data-panel="pagos">
+          <div class="cfg-section-title">Cobro con QR (Mercado Pago)</div>
+          <div class="cfg-section-sub">Dirección de tu backend propio que conecta la app con el QR fijo de Mercado Pago. Es la URL que te dio Render (u otro hosting) al desplegarlo — sin la barra "/" al final.</div>
+          <div class="field"><label>URL del backend</label><input type="text" id="cfg-mpBackendUrl" placeholder="https://check-service-mp-backend.onrender.com" value="${Utils.escapeHTML(cfg.mpBackendUrl||'')}"></div>
+          <div class="modal-actions">
+            <button class="btn btn-ghost" id="cfg-mp-test">Probar conexión</button>
+            <button class="btn btn-accent" id="cfg-save-pagos">Guardar cambios</button>
+          </div>
         </div>
 
         <div class="cfg-panel-section" data-panel="impresoras">
@@ -4650,6 +4662,27 @@ function bindConfiguracionEvents(tabInicial){
     renderCfgChecklist();
   };
   document.getElementById('cfg-checklist-nuevo').addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); document.getElementById('cfg-checklist-add').click(); } });
+
+  // Cobro con QR (Mercado Pago)
+  document.getElementById('cfg-save-pagos').onclick = async () => {
+    const mpBackendUrl = document.getElementById('cfg-mpBackendUrl').value.trim().replace(/\/+$/,'');
+    await Config.save({ mpBackendUrl });
+    Toast.show('success','Guardado','Configuración de cobro con QR actualizada.');
+  };
+  document.getElementById('cfg-mp-test').onclick = async () => {
+    const url = document.getElementById('cfg-mpBackendUrl').value.trim().replace(/\/+$/,'');
+    if(!url){ Toast.show('error','Falta la URL','Completá la URL del backend antes de probar.'); return; }
+    const btn = document.getElementById('cfg-mp-test');
+    btn.disabled = true; btn.textContent = 'Probando...';
+    try{
+      const resp = await fetch(url, { method:'GET' });
+      if(resp.ok) Toast.show('success','Conexión OK', 'El backend respondió correctamente.');
+      else Toast.show('error','No responde bien', `El backend devolvió un error (HTTP ${resp.status}).`);
+    }catch(e){
+      Toast.show('error','No se pudo conectar', 'Revisá la URL, y que el servicio esté "Live" en Render (puede tardar unos segundos en despertar si estaba dormido).');
+    }
+    btn.disabled = false; btn.textContent = 'Probar conexión';
+  };
 
   // Seguridad
   const chkBloqueoInactividad = document.getElementById('cfg-bloqueoInactividadActivo');
@@ -9556,6 +9589,97 @@ async function bindPOSEvents(){
   await renderPOSMode();
 }
 
+/* -----------------------------------------------------------------------
+   COBRO CON QR FIJO DE MERCADO PAGO
+   Le pide al backend propio (configurado en Configuración → Cobro con QR)
+   que le asigne el monto al QR fijo del mostrador, y espera a que el
+   cliente pague, consultando el estado cada 3 segundos. Devuelve una
+   Promise<boolean>: true si se confirmó el pago, false si se canceló o
+   fue rechazado.
+----------------------------------------------------------------------- */
+function esperarPagoQR({ monto, referencia, descripcion }){
+  return new Promise(async (resolve) => {
+    const cfg = Config.cache || await Config.load();
+    const backendUrl = (cfg.mpBackendUrl||'').trim().replace(/\/+$/,'');
+    if(!backendUrl){
+      Toast.show('error','Falta configurar el QR', 'Cargá la URL de tu backend en Configuración → Cobro con QR.');
+      resolve(false);
+      return;
+    }
+
+    let cancelado = false;
+    let intervalo = null;
+
+    Modal.open(
+      'Esperando pago con QR',
+      `
+      <div style="text-align:center; padding:10px 0;">
+        <div style="font-size:13px; color:var(--text-secondary); margin-bottom:6px;">Que el cliente escanee el QR del mostrador por</div>
+        <div style="font-size:32px; font-weight:800; margin-bottom:14px;">$${monto.toLocaleString('es-AR')}</div>
+        <div class="mp-qr-spinner" style="width:38px; height:38px; border:3px solid var(--border-soft); border-top-color:var(--accent); border-radius:50%; margin:0 auto 14px; animation:mp-qr-spin 1s linear infinite;"></div>
+        <div id="mp-qr-estado" style="font-size:12.5px; color:var(--text-secondary);">Esperando confirmación de Mercado Pago...</div>
+      </div>
+      <style>@keyframes mp-qr-spin{ to{ transform:rotate(360deg); } }</style>
+      <div class="modal-actions"><button class="btn btn-ghost" id="mp-qr-cancelar">Cancelar cobro</button></div>
+      `,
+      { width:'340px', persistent:true }
+    );
+
+    document.getElementById('mp-qr-cancelar').onclick = () => {
+      cancelado = true;
+      clearInterval(intervalo);
+      Modal.close();
+      resolve(false);
+    };
+
+    try{
+      const respInicio = await fetch(`${backendUrl}/api/mp/cobrar`, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ monto, referencia, descripcion })
+      });
+      if(!respInicio.ok){
+        if(cancelado) return;
+        const detalle = await respInicio.text().catch(()=>'');
+        Modal.close();
+        Toast.show('error','No se pudo generar el cobro', 'Mercado Pago o el backend rechazaron la solicitud. Revisá la configuración e intentá de nuevo.');
+        console.error('Error al iniciar cobro QR:', respInicio.status, detalle);
+        resolve(false);
+        return;
+      }
+    }catch(e){
+      if(cancelado) return;
+      Modal.close();
+      Toast.show('error','No se pudo conectar con el backend', 'Puede estar "dormido" (Render free) — probá de nuevo en unos segundos, o revisá la URL en Configuración.');
+      resolve(false);
+      return;
+    }
+
+    intervalo = setInterval(async () => {
+      if(cancelado) return;
+      try{
+        const resp = await fetch(`${backendUrl}/api/mp/estado/${encodeURIComponent(referencia)}`);
+        if(!resp.ok) return;
+        const data = await resp.json();
+        if(data.estado === 'pagado'){
+          clearInterval(intervalo);
+          if(cancelado) return;
+          const estadoEl = document.getElementById('mp-qr-estado');
+          if(estadoEl) estadoEl.textContent = '¡Pago confirmado!';
+          SoundFX.cierreCaja();
+          setTimeout(() => { Modal.close(); resolve(true); }, 600);
+        } else if(data.estado === 'rechazado'){
+          clearInterval(intervalo);
+          if(cancelado) return;
+          Modal.close();
+          Toast.show('error','Pago rechazado o cancelado', 'El cliente canceló el pago o Mercado Pago lo rechazó.');
+          resolve(false);
+        }
+      }catch(e){ /* reintenta en el próximo ciclo */ }
+    }, 3000);
+  });
+}
+
 async function finalizarVenta(){
   if(!posCart.length){ SoundFX.error(); Toast.show('error','Carrito vacío','Agregá al menos un producto.'); return; }
 
@@ -9617,6 +9741,11 @@ async function finalizarVenta(){
   const descuentoTotal = subtotal * (descPct/100);
   const total = subtotal - descuentoTotal;
   const numero = (await DB.count('ventas')) + 1;
+
+  if(medioPago === 'QR'){
+    const pagoConfirmado = await esperarPagoQR({ monto: total, referencia: `venta-${numero}-${Date.now()}`, descripcion: `Venta #${numero}` });
+    if(!pagoConfirmado) return; // el usuario canceló o el pago no se acreditó: no se registra nada
+  }
 
   const venta = {
     numero, fecha: Utils.nowISO(), clienteId,
@@ -13517,6 +13646,58 @@ async function openTurnoModal(turno=null, fechaPrefill=null){
 }
 
 /* ---------- Modal: cobrar turno (impacta en Caja o Cuenta Corriente) ---------- */
+/* Ticket imprimible (80mm) — comprobante de cobro de un turno de lavadero,
+   mismo formato que el resto de los tickets de la app. */
+function lavaderoTurnoTicketHTML(turno, cfg){
+  return `
+    <div class="ticket-preview" id="lt-ticket-content">
+      ${cfg.logo?`<div class="tp-logo"><img src="${cfg.logo}"></div>`:''}
+      <div style="text-align:center; font-weight:700;">${Utils.escapeHTML(cfg.nombreEmpresa)}</div>
+      ${cfg.direccion?`<div style="text-align:center;">${Utils.escapeHTML(cfg.direccion)}</div>`:''}
+      ${cfg.whatsapp?`<div style="text-align:center;">Whatsapp: ${Utils.escapeHTML(cfg.whatsapp)}</div>`:''}
+      <hr>
+      <div class="tp-title">COMPROBANTE DE LAVADO</div>
+      <div class="tp-row"><span>Turno:</span><span>#${turno.id}</span></div>
+      <div class="tp-row"><span>Fecha:</span><span>${new Date(turno.fecha+'T00:00:00').toLocaleDateString('es-AR')}</span></div>
+      <div class="tp-row"><span>Horario:</span><span>${turno.horaInicio}${turno.horaFin?' - '+turno.horaFin:''}</span></div>
+      <div class="tp-row"><span>Atendió:</span><span>${Utils.escapeHTML(turno.usuarioNombre||'—')}</span></div>
+      <hr>
+      <div class="tp-row"><span>Cliente:</span><span>${Utils.escapeHTML(turno.clienteNombre||'Consumidor Final')}</span></div>
+      ${turno.clienteTelefono?`<div class="tp-row"><span>Teléfono:</span><span>${Utils.escapeHTML(turno.clienteTelefono)}</span></div>`:''}
+      ${turno.vehiculoDescripcion?`<div class="tp-row"><span>Vehículo:</span><span>${Utils.escapeHTML(turno.vehiculoDescripcion)}</span></div>`:''}
+      <hr>
+      <div class="tp-row"><span>Servicio:</span><span>${Utils.escapeHTML(turno.servicioNombre)}</span></div>
+      ${turno.observaciones?`<div style="font-size:10.5px; margin-top:4px;">Obs: ${Utils.escapeHTML(turno.observaciones)}</div>`:''}
+      <hr>
+      <div class="tp-row" style="font-weight:700; font-size:14px;"><span>TOTAL</span><span>$${turno.precio.toLocaleString('es-AR')}</span></div>
+      <div class="tp-row"><span>Medio de pago:</span><span>${Utils.escapeHTML(turno.medioPago||'—')}</span></div>
+      <hr>
+      ${cfg.pieComprobantes?`<div style="text-align:center;">${Utils.escapeHTML(cfg.pieComprobantes)}</div>`:''}
+      <div class="tp-firma">
+        <div class="tp-firma-linea"></div>
+        <div style="text-align:center; font-size:10px; margin-top:4px;">Firma y aclaración</div>
+      </div>
+      <div style="text-align:center; margin-top:10px; font-weight:700;">${Utils.escapeHTML(cfg.nombreEmpresa)}</div>
+    </div>
+  `;
+}
+async function abrirLavadoTicketModal(turno){
+  const cfg = Config.cache || await Config.load();
+  Modal.open(
+    'Lavado cobrado — Turno #' + turno.id,
+    `
+    <div id="print-ticket-area">${lavaderoTurnoTicketHTML(turno, cfg)}</div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="lt-ticket-cerrar">Cerrar</button>
+      <button class="btn btn-accent" id="lt-ticket-imprimir">Imprimir / Guardar PDF</button>
+    </div>
+    `,
+    { width:'380px', persistent:true }
+  );
+  document.getElementById('lt-ticket-cerrar').onclick = () => { Modal.close(); renderLavaderoTab(); };
+  document.getElementById('lt-ticket-imprimir').onclick = () => window.print();
+}
+
 async function openCobrarTurnoModal(turno){
   const clientes = turno.clienteId ? [] : (await DB.getAll('clientes')).filter(c=>c.activo!==false).sort((a,b)=>clienteNombreCompleto(a).localeCompare(clienteNombreCompleto(b)));
   Modal.open(
@@ -13572,14 +13753,18 @@ async function openCobrarTurnoModal(turno){
       if(!chequeoLimiteTurno.ok){ Toast.show('error','Límite de cuenta corriente superado', chequeoLimiteTurno.mensaje); return; }
     }
 
+    if(medioPago === 'QR'){
+      const pagoConfirmado = await esperarPagoQR({ monto: precio, referencia: `turno-${turno.id}-${Date.now()}`, descripcion: `Lavado — ${turno.servicioNombre}` });
+      if(!pagoConfirmado) return; // cancelado o no acreditado: no se marca el turno como cobrado
+    }
+
     const turnoActualizado = { ...turno, precio, medioPago, estado:'Completado', pagado:true, fechaCompletado:Utils.nowISO(), clienteId:clienteIdParaCargo, clienteNombre:clienteNombreParaCargo };
     await aplicarEfectosTurno(turnoActualizado, `Lavadero — turno del ${turno.fecha} ${turno.horaInicio} (${turnoActualizado.clienteNombre})`);
     avisarSiCercaDelLimite(chequeoLimiteTurno);
     await DB.put('lavaderoTurnos', turnoActualizado);
     await Audit.log('turno_completado', `Turno de ${turnoActualizado.clienteNombre} cobrado: $${precio.toLocaleString('es-AR')} (${medioPago}).`);
     Toast.show('success','Turno cobrado', `$${precio.toLocaleString('es-AR')}`);
-    Modal.close();
-    renderLavaderoTab();
+    await abrirLavadoTicketModal(turnoActualizado);
   };
 }
 
