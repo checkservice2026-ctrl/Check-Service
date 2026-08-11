@@ -1374,7 +1374,7 @@ const TIPOS_VEHICULO = ['Automóvil','Pickup','SUV','Moto','Camión','Utilitario
 const COMBUSTIBLES = ['Nafta','Diesel','GNC','Eléctrico','Híbrido'];
 const CATEGORIAS_PRODUCTO = ['Aceites','Filtros','Frenos','Correas','Baterías','Refrigerantes y líquidos','Accesorios','Repuestos','Otros'];
 const UNIDADES_PRODUCTO = ['Unidad','Litro','Caja','Par','Juego'];
-const MEDIOS_PAGO = ['Efectivo','Transferencia','Tarjeta','QR','Cuenta corriente'];
+const MEDIOS_PAGO = ['Efectivo','Transferencia','Tarjeta','QR','QR Mercado Pago','Cuenta corriente'];
 const MOTIVOS_NOTA_CREDITO = ['Devolución de mercadería','Error de facturación','Descuento posterior','Servicio no conforme','Otro'];
 const ESTADOS_PAGO_COMPRA = ['Pendiente','Parcial','Pagada'];
 const CONDICIONES_IVA = ['Consumidor Final','Responsable Inscripto','Monotributista','Exento','No Categorizado'];
@@ -7471,6 +7471,12 @@ async function openRegistrarPagoHistorialModal(h){
 
     const fechaISO = combinarFechaConHoraActual(fechaPago);
     const motivo = `Pago service ${h.fecha}${vehiculo?' - '+vehiculo.dominio:''}`;
+
+    if(medioPago === 'QR Mercado Pago'){
+      const pagoConfirmado = await esperarPagoQR({ monto, referencia: `service-${h.id}-${Date.now()}`, descripcion: motivo });
+      if(!pagoConfirmado) return; // cancelado o no acreditado: no se registra el pago
+    }
+
     if(medioPago === 'Cuenta corriente'){
       await registrarMovimientoCtaCte(h.clienteId, { tipo:'cargo', concepto:motivo, monto, referencia:`historial:${h.id}`, fecha:fechaISO });
       avisarSiCercaDelLimite(chequeoLimite);
@@ -9742,7 +9748,7 @@ async function finalizarVenta(){
   const total = subtotal - descuentoTotal;
   const numero = (await DB.count('ventas')) + 1;
 
-  if(medioPago === 'QR'){
+  if(medioPago === 'QR Mercado Pago'){
     const pagoConfirmado = await esperarPagoQR({ monto: total, referencia: `venta-${numero}-${Date.now()}`, descripcion: `Venta #${numero}` });
     if(!pagoConfirmado) return; // el usuario canceló o el pago no se acreditó: no se registra nada
   }
@@ -11034,7 +11040,7 @@ async function viewCajaList(){
   const totalDiscriminado = saldoEfectivo + saldoBancario;
   const pctEfectivo = totalDiscriminado > 0.009 ? Math.max(0, saldoEfectivo/totalDiscriminado*100) : 50;
   const pctBancario = 100 - pctEfectivo;
-  const DOT_COLORS = { 'Transferencia':'var(--info)', 'Tarjeta':'var(--warning)', 'QR':'var(--teal)' };
+  const DOT_COLORS = { 'Transferencia':'var(--info)', 'Tarjeta':'var(--warning)', 'QR':'var(--teal)', 'QR Mercado Pago':'#2FA8D8' };
 
   const session = Session.get();
   return `
@@ -11063,7 +11069,7 @@ async function viewCajaList(){
         </div>
         <div class="csb-value" style="color:${saldoBancario>=0?'inherit':'var(--danger)'};">$${saldoBancario.toLocaleString('es-AR')}</div>
         <div class="csb-chips">
-          ${['QR','Tarjeta','Transferencia'].map(m=>`<span class="csb-chip"><span class="csb-chip-dot" style="background:${DOT_COLORS[m]};"></span>${m} <b>$${(saldoPorMedio[m]||0).toLocaleString('es-AR')}</b></span>`).join('')}
+          ${['QR Mercado Pago','QR','Tarjeta','Transferencia'].map(m=>`<span class="csb-chip"><span class="csb-chip-dot" style="background:${DOT_COLORS[m]};"></span>${m} <b>$${(saldoPorMedio[m]||0).toLocaleString('es-AR')}</b></span>`).join('')}
         </div>
       </div>
     </div>
@@ -12114,6 +12120,11 @@ async function openRegistrarPagoClienteModal(clienteId){
     const fechaPago = document.getElementById('rpc-fecha').value;
     if(!fechaPago){ Toast.show('error','Falta la fecha','Indicá la fecha del pago.'); return; }
     const idsSeleccionados = new Set(checks().filter(ch=>ch.checked).map(ch=>Number(ch.dataset.id)));
+
+    if(medioPago === 'QR Mercado Pago'){
+      const pagoConfirmado = await esperarPagoQR({ monto, referencia: `ctacte-${clienteId}-${Date.now()}`, descripcion: `Cobro cuenta corriente — ${clienteNombreCompleto(cliente)}` });
+      if(!pagoConfirmado) return; // cancelado o no acreditado: no se registra el cobro
+    }
 
     // Orden de aplicación: primero las facturas seleccionadas (en orden
     // cronológico), y después el resto de las pendientes de más vieja a
@@ -13753,7 +13764,7 @@ async function openCobrarTurnoModal(turno){
       if(!chequeoLimiteTurno.ok){ Toast.show('error','Límite de cuenta corriente superado', chequeoLimiteTurno.mensaje); return; }
     }
 
-    if(medioPago === 'QR'){
+    if(medioPago === 'QR Mercado Pago'){
       const pagoConfirmado = await esperarPagoQR({ monto: precio, referencia: `turno-${turno.id}-${Date.now()}`, descripcion: `Lavado — ${turno.servicioNombre}` });
       if(!pagoConfirmado) return; // cancelado o no acreditado: no se marca el turno como cobrado
     }
