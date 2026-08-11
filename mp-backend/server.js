@@ -159,12 +159,23 @@ app.post('/api/mp/webhook', async (req, res) => {
 });
 
 // -----------------------------------------------------------------------
-// -----------------------------------------------------------------------
 // GET /api/mp/debug/pos
 // Diagnóstico: lista tus cajas reales en Mercado Pago, con su external_id
 // verdadero (el que hay que cargar en MP_EXTERNAL_POS_ID). Visitá esta URL
 // desde el navegador para verlo.
 // -----------------------------------------------------------------------
+app.get('/api/mp/debug/pos', async (_req, res) => {
+  try {
+    const resp = await fetch('https://api.mercadopago.com/pos', {
+      headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}` }
+    });
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'No se pudo consultar Mercado Pago.', detalle: err.message });
+  }
+});
+
 // -----------------------------------------------------------------------
 // GET /api/mp/debug/fijar-external-id
 // Uso único: le asigna un external_id de texto a tu caja "QR #1" (id
@@ -186,17 +197,35 @@ app.get('/api/mp/debug/fijar-external-id', async (_req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'No se pudo actualizar la caja.', detalle: err.message });
   }
-});app.get('/api/mp/debug/pos', async (_req, res) => {
+});
+
+// -----------------------------------------------------------------------
+// POST /api/mp/cancelar
+// Body: { referencia: string }
+// Le avisa a Mercado Pago que borre el monto pendiente del QR fijo, para
+// que si alguien lo escanea después no le siga apareciendo el monto viejo.
+// -----------------------------------------------------------------------
+app.post('/api/mp/cancelar', async (req, res) => {
   try {
-    const resp = await fetch('https://api.mercadopago.com/pos', {
+    const { referencia } = req.body || {};
+    const url = `https://api.mercadopago.com/instore/qr/seller/collectors/${mpUserId}/pos/${encodeURIComponent(MP_EXTERNAL_POS_ID)}/orders`;
+    const resp = await fetch(url, {
+      method: 'DELETE',
       headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}` }
     });
-    const data = await resp.json();
-    res.json(data);
+    // 204 = se borró bien. 404 puede pasar si ya no había nada pendiente
+    // (por ejemplo, si el cliente ya había pagado justo antes de cancelar)
+    // — no lo tratamos como error real.
+    if(referencia) cobros.delete(referencia);
+    res.json({ ok: resp.status === 204 || resp.status === 404, status: resp.status });
   } catch (err) {
-    res.status(500).json({ error: 'No se pudo consultar Mercado Pago.', detalle: err.message });
+    console.error('Error al cancelar el cobro QR:', err);
+    res.status(500).json({ error: 'No se pudo cancelar en Mercado Pago.' });
   }
-});app.get('/', (_req, res) => res.send('Check Service — backend de Mercado Pago funcionando.'));
+});
+
+// -----------------------------------------------------------------------
+app.get('/', (_req, res) => res.send('Check Service — backend de Mercado Pago funcionando.'));
 
 (async () => {
   try {
