@@ -996,6 +996,18 @@ textarea.textarea-input{ resize:vertical; min-height:70px; }
   #print-report-area, #print-report-area *{ visibility:visible !important; }
 }
 
+/* Etiquetas de código de barras (impresión en hoja, varias por página) */
+#print-barcode-area{ display:none; }
+.barcode-label{ display:inline-flex; flex-direction:column; align-items:center; justify-content:center; width:60mm; height:38mm; box-sizing:border-box; padding:2mm; break-inside:avoid; page-break-inside:avoid; }
+.barcode-label-nombre{ font-family:Arial,sans-serif; font-size:9.5px; font-weight:700; color:#000; text-align:center; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-bottom:3px; }
+.barcode-label-precio{ font-family:Arial,sans-serif; font-size:13px; font-weight:800; color:#000; margin-top:3px; }
+.barcode-label svg{ max-width:100%; height:auto; }
+@media print{
+  #print-barcode-area{ display:flex !important; flex-wrap:wrap; gap:2mm; position:absolute; left:0; top:0; width:100%; background:#fff; }
+  #print-barcode-area, #print-barcode-area *{ visibility:visible !important; }
+  @page{ size:auto; margin:5mm; }
+}
+
 /* Recordatorio de backup */
 #backup-banner{
   display:flex; align-items:center; gap:12px; padding:10px 22px; font-size:12.8px;
@@ -1318,6 +1330,7 @@ textarea.textarea-input{ resize:vertical; min-height:70px; }
 
 <input type="file" id="file-import-backup" accept="application/json" class="hidden">
 <div id="toast-container"></div>
+<div id="print-barcode-area"></div>
 
 <script>
 /* qrcode-generator (Kazuhiko Arase) - MIT License - vendorizada offline para generar el QR de WhatsApp en los tickets */
@@ -2609,7 +2622,8 @@ const ICONS = {
   trash:'<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>',
   star:'<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
   whatsapp:'<path d="M3 21l1.65-4.95A9 9 0 1112 21a8.96 8.96 0 01-4.35-1.12L3 21z"/><path d="M8.5 8.5c.3-.6.6-.6.9-.6h.4c.2 0 .5 0 .7.5s.7 1.8.8 1.9c.1.2.1.4 0 .6-.1.2-.2.3-.4.5s-.4.4-.2.7c.2.4.9 1.4 1.9 2.3 1.3 1.1 2.3 1.5 2.7 1.6.3.1.5.1.7-.1.2-.2.7-.9.9-1.1.2-.3.4-.2.7-.1s1.8.9 2.1 1c.3.1.5.2.6.3.1.2.1.9-.2 1.7-.3.8-1.6 1.5-2.3 1.6-.6.1-1.3.1-2.1-.1-.5-.2-1.1-.4-1.9-.7-3.3-1.4-5.4-4.7-5.6-4.9-.2-.2-1.3-1.7-1.3-3.3 0-1.6.8-2.3 1.1-2.7z"/>',
-  info:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>'
+  info:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
+  barcode:'<path d="M3 5v14M7 5v14M10 5v14M13 5v14M15 5v14M18 5v14M21 5v14"/>'
 };
 function svgIcon(name){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]||ICONS.gear}</svg>`; }
 
@@ -8066,7 +8080,7 @@ async function viewProductosList(){
       <div><h1>Productos</h1><p>${productos.filter(p=>p.activo!==false).length} productos activos de ${productos.length} registrados</p></div>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <button class="btn btn-ghost" id="btn-exportar-productos">${svgIcon('reportes')} Exportar Excel</button>
-        ${puedeGestionar?`<button class="btn btn-ghost" id="btn-gestionar-marcas">${svgIcon('productos')} Marcas</button><button class="btn btn-ghost" id="btn-ajuste-precios">${svgIcon('caja')} Ajustar precios por marca</button><button class="btn btn-ghost" id="btn-importar-productos">${svgIcon('backups')} Importar productos</button><button class="btn btn-accent" id="btn-nuevo-producto">${svgIcon('productos')} Nuevo producto</button>`:''}
+        ${puedeGestionar?`<button class="btn btn-ghost" id="btn-exportar-precios">${svgIcon('reportes')} Exportar precios (CSV)</button><button class="btn btn-ghost" id="btn-importar-precios">${svgIcon('backups')} Actualizar precios (CSV)</button><button class="btn btn-ghost" id="btn-gestionar-marcas">${svgIcon('productos')} Marcas</button><button class="btn btn-ghost" id="btn-ajuste-precios">${svgIcon('caja')} Ajustar precios por marca</button><button class="btn btn-ghost" id="btn-importar-productos">${svgIcon('backups')} Importar productos</button><button class="btn btn-accent" id="btn-nuevo-producto">${svgIcon('productos')} Nuevo producto</button>`:''}
       </div>
     </div>
     <div class="toolbar-filters">
@@ -8100,6 +8114,7 @@ async function viewProductosList(){
               <td><button class="star-btn ${p.favorito?'active':''} btn-fav-producto" data-id="${p.id}" title="Marcar como favorito">${p.favorito?'★':'☆'}</button></td>
               <td style="text-align:right; white-space:nowrap;">
                 <a class="btn btn-ghost btn-sm" href="#/productos/${p.id}">Kardex</a>
+                <button class="btn btn-ghost btn-sm btn-codigo-barras" data-id="${p.id}" title="Generar e imprimir código de barras">${svgIcon('barcode')}</button>
                 ${puedeGestionar?`<button class="btn btn-ghost btn-sm btn-edit-producto" data-id="${p.id}">Editar</button><button class="btn ${p.activo===false?'btn-ghost':'btn-danger-ghost'} btn-sm btn-toggle-baja-producto" data-id="${p.id}">${p.activo===false?'Alta':'Baja'}</button>`:''}
               </td>
             </tr>`).join('') : `<tr><td colspan="9"><div class="empty-state">${svgIcon('productos')}<h3>Todavía no hay productos cargados</h3><p>Registrá tu primer producto para empezar a vender y controlar stock.</p></div></td></tr>`}
@@ -8117,10 +8132,17 @@ function bindProductosListEvents(){
   const btnImportar = document.getElementById('btn-importar-productos');
   if(btnImportar) btnImportar.onclick = () => openImportarProductosModal();
   document.getElementById('btn-exportar-productos').onclick = exportarProductosExcel;
+  const btnExportarPrecios = document.getElementById('btn-exportar-precios');
+  if(btnExportarPrecios) btnExportarPrecios.onclick = exportarPreciosProductosCSV;
+  const btnImportarPrecios = document.getElementById('btn-importar-precios');
+  if(btnImportarPrecios) btnImportarPrecios.onclick = () => openActualizarPreciosModal();
   const btnAjuste = document.getElementById('btn-ajuste-precios');
   if(btnAjuste) btnAjuste.onclick = () => openAjustePreciosMasivoModal();
   document.querySelectorAll('.btn-edit-producto').forEach(btn=>{
     btn.onclick = async () => openProductoModal(await DB.get('productos', Number(btn.dataset.id)));
+  });
+  document.querySelectorAll('.btn-codigo-barras').forEach(btn=>{
+    btn.onclick = async () => abrirModalCodigoBarras(await DB.get('productos', Number(btn.dataset.id)));
   });
   document.querySelectorAll('.btn-toggle-baja-producto').forEach(btn=>{
     btn.onclick = async () => {
@@ -8303,6 +8325,330 @@ async function exportarProductosExcel(){
   exportExcel(`productos_${new Date().toISOString().slice(0,10)}.xls`, headers, rows);
   await Audit.log('productos_exportados', `Exportación de ${productos.length} producto(s) a Excel.`);
   Toast.show('success','Exportado', `${productos.length} producto(s) exportado(s).`);
+}
+
+/* Convierte texto a número aceptando formato argentino ("1.234,50" o "1234,50")
+   y formato internacional ("1234.50"), con o sin símbolo $ y espacios. */
+function parsearNumeroFlexible(v){
+  if(v==null) return NaN;
+  let s = String(v).trim().replace(/\$/g,'').replace(/\s/g,'');
+  if(!s) return NaN;
+  const tieneComa = s.includes(','), tienePunto = s.includes('.');
+  if(tieneComa && tienePunto){
+    // El separador que aparece último es el decimal; el otro son miles y se descarta.
+    if(s.lastIndexOf(',') > s.lastIndexOf('.')) s = s.replace(/\./g,'').replace(',', '.');
+    else s = s.replace(/,/g,'');
+  }else if(tieneComa){
+    s = s.replace(',', '.');
+  }
+  const n = parseFloat(s);
+  return isNaN(n) ? NaN : n;
+}
+
+/* Exporta un CSV (no el .xls falso, para poder reimportarlo tal cual) con
+   código, nombre (solo de referencia) y precios de costo/venta, para
+   completar rápido en Excel y volver a subirlo con "Actualizar precios". */
+async function exportarPreciosProductosCSV(){
+  const productos = (await DB.getAll('productos')).filter(p=>p.activo!==false).sort((a,b)=>a.nombre.localeCompare(b.nombre));
+  if(!productos.length){ Toast.show('error','Nada para exportar','No hay productos activos.'); return; }
+  const headers = ['Código','Nombre','Precio costo','Precio venta'];
+  const rows = productos.map(p=>[p.codigo, p.nombre, (p.precioCosto||0).toFixed(2), (p.precioVenta||0).toFixed(2)]);
+  exportCSV(`precios_productos_${new Date().toISOString().slice(0,10)}.csv`, headers, rows);
+  await Audit.log('precios_productos_exportados', `Exportación de precios de ${productos.length} producto(s) a CSV.`);
+  Toast.show('success','Exportado', `${productos.length} producto(s) exportado(s). Editá "Precio costo" y "Precio venta" en Excel sin tocar la columna Código, guardá como CSV y subilo con "Actualizar precios".`);
+}
+
+/* Importa el CSV generado por exportarPreciosProductosCSV (o cualquier CSV con
+   columnas Código, Precio costo, Precio venta) y actualiza esos dos campos en
+   los productos existentes que coincidan por código. No crea productos nuevos
+   ni toca stock, nombre, categoría ni ningún otro dato. */
+async function openActualizarPreciosModal(){
+  let filas = [];
+  let cambios = []; // { producto, costoNuevo, ventaNuevo, costoValido, ventaValido }
+
+  Modal.open(
+    'Actualizar precios desde Excel/CSV',
+    `
+    <p style="font-size:12.5px; color:var(--text-muted); margin-bottom:14px;">
+      Subí el CSV exportado con "Exportar precios (CSV)" ya completado en Excel (o cualquier CSV con columnas
+      <b>Código</b>, <b>Precio costo</b> y <b>Precio venta</b>). Se actualizan solo esos dos precios de los productos
+      cuyo código coincida con uno ya cargado en el sistema — no se crean productos nuevos ni se toca el stock.
+    </p>
+    <input type="file" id="acp-file" accept=".csv,.txt" class="hidden">
+    <button class="btn btn-ghost" id="acp-elegir-archivo" type="button">${svgIcon('backups')} Elegir archivo .csv</button>
+    <div id="acp-preview-wrap" class="hidden" style="margin-top:16px;">
+      <div class="card" style="padding:0; overflow-x:auto; max-height:320px; overflow-y:auto;">
+        <table class="data-table" id="acp-preview-table">
+          <thead><tr><th>Código</th><th>Nombre</th><th>Costo actual → nuevo</th><th>Venta actual → nuevo</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p id="acp-count-info" style="font-size:12px; color:var(--text-muted); margin-top:10px;"></p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="acp-cancel">Cancelar</button>
+      <button class="btn btn-accent hidden" id="acp-confirmar">Actualizar precios</button>
+    </div>
+    `,
+    { width:'640px' }
+  );
+
+  async function procesarArchivo(texto){
+    filas = parseCSV(texto);
+    if(!filas.length){ Toast.show('error','Archivo vacío','No se encontraron filas para importar.'); return; }
+
+    const primera = (filas[0][0]||'').toLowerCase();
+    const tieneHeader = /c[oó]dig/.test(primera);
+    const dataRows = tieneHeader ? filas.slice(1) : filas;
+    if(!dataRows.length){ Toast.show('error','Nada para importar',''); return; }
+
+    // Detecta columnas por encabezado si está disponible; si no, asume 0=código,2=costo,3=venta (formato del export).
+    let colCodigo = 0, colCosto = 2, colVenta = 3;
+    if(tieneHeader){
+      const header = filas[0].map(h=>h.toLowerCase());
+      const idx = (re) => header.findIndex(h=>re.test(h));
+      const iCodigo = idx(/c[oó]dig/), iCosto = idx(/costo/), iVenta = idx(/venta/);
+      if(iCodigo>=0) colCodigo = iCodigo;
+      if(iCosto>=0) colCosto = iCosto;
+      if(iVenta>=0) colVenta = iVenta;
+    }
+
+    cambios = [];
+    for(const f of dataRows){
+      const codigo = (f[colCodigo]||'').trim();
+      if(!codigo) continue;
+      const producto = await DB.getByIndex('productos','codigo', codigo);
+      const costoTexto = f[colCosto], ventaTexto = f[colVenta];
+      const costoNuevo = parsearNumeroFlexible(costoTexto);
+      const ventaNuevo = parsearNumeroFlexible(ventaTexto);
+      cambios.push({
+        codigo, producto,
+        costoNuevo, ventaNuevo,
+        costoValido: !isNaN(costoNuevo), ventaValido: !isNaN(ventaNuevo)
+      });
+    }
+    renderPreview();
+  }
+
+  function renderPreview(){
+    const tbody = document.querySelector('#acp-preview-table tbody');
+    tbody.innerHTML = cambios.map(c => {
+      if(!c.producto){
+        return `<tr><td class="font-mono">${Utils.escapeHTML(c.codigo)}</td><td colspan="3" style="color:var(--danger);">Código no encontrado en el sistema — se omite</td></tr>`;
+      }
+      const costoHTML = c.costoValido
+        ? `$${Number(c.producto.precioCosto||0).toLocaleString('es-AR')} → <b>$${c.costoNuevo.toLocaleString('es-AR')}</b>`
+        : `<span style="color:var(--danger);">Valor inválido — se omite este campo</span>`;
+      const ventaHTML = c.ventaValido
+        ? `$${Number(c.producto.precioVenta||0).toLocaleString('es-AR')} → <b>$${c.ventaNuevo.toLocaleString('es-AR')}</b>`
+        : `<span style="color:var(--danger);">Valor inválido — se omite este campo</span>`;
+      return `<tr><td class="font-mono">${Utils.escapeHTML(c.codigo)}</td><td>${Utils.escapeHTML(c.producto.nombre)}</td><td class="font-mono">${costoHTML}</td><td class="font-mono">${ventaHTML}</td></tr>`;
+    }).join('') || `<tr><td colspan="4" style="color:var(--text-muted);">Sin filas para mostrar</td></tr>`;
+
+    const encontrados = cambios.filter(c=>c.producto);
+    document.getElementById('acp-count-info').textContent =
+      `${cambios.length} fila(s) leída(s) · ${encontrados.length} producto(s) encontrado(s) · ${cambios.length - encontrados.length} código(s) no encontrado(s).`;
+    document.getElementById('acp-preview-wrap').classList.remove('hidden');
+    document.getElementById('acp-confirmar').classList.toggle('hidden', !encontrados.length);
+  }
+
+  document.getElementById('acp-elegir-archivo').onclick = () => document.getElementById('acp-file').click();
+  document.getElementById('acp-file').onchange = async (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    const texto = await Utils.readFileAsText(file);
+    await procesarArchivo(texto);
+  };
+  document.getElementById('acp-cancel').onclick = () => Modal.close();
+
+  document.getElementById('acp-confirmar').onclick = async () => {
+    let actualizados = 0, omitidos = 0;
+    for(const c of cambios){
+      if(!c.producto){ omitidos++; continue; }
+      if(!c.costoValido && !c.ventaValido){ omitidos++; continue; }
+      const patch = {};
+      if(c.costoValido) patch.precioCosto = c.costoNuevo;
+      if(c.ventaValido) patch.precioVenta = c.ventaNuevo;
+      await DB.put('productos', { ...c.producto, ...patch });
+      actualizados++;
+    }
+    await Audit.log('precios_productos_actualizados', `Actualización masiva de precios vía CSV: ${actualizados} producto(s) actualizado(s), ${omitidos} omitido(s).`);
+    Toast.show('success','Precios actualizados', `${actualizados} producto(s) actualizado(s) · ${omitidos} omitido(s).`);
+    Modal.close();
+    router();
+  };
+}
+
+/* -----------------------------------------------------------------------
+   20-Q. CÓDIGO DE BARRAS EAN (generación e impresión de etiquetas)
+   Implementación propia del estándar EAN-13/EAN-8 (algoritmo público, sin
+   dependencias externas) para poder imprimir la etiqueta de cualquier
+   producto. Si el producto no tiene cargado un código de barras válido,
+   se ofrece generar uno nuevo dentro del rango de uso interno (prefijo
+   "20", reservado por el estándar para numeración interna de comercios)
+   a partir de su código interno, con dígito verificador correcto.
+----------------------------------------------------------------------- */
+const EAN_L_CODE = {0:'0001101',1:'0011001',2:'0010011',3:'0111101',4:'0100011',5:'0110001',6:'0101111',7:'0111011',8:'0110111',9:'0001011'};
+const EAN_G_CODE = {0:'0100111',1:'0110011',2:'0011011',3:'0100001',4:'0011101',5:'0111001',6:'0000101',7:'0010001',8:'0001001',9:'0010111'};
+const EAN_R_CODE = {0:'1110010',1:'1100110',2:'1101100',3:'1000010',4:'1011100',5:'1001110',6:'1010000',7:'1000100',8:'1001000',9:'1110100'};
+// Patrón de paridad (L/G) del grupo izquierdo según el primer dígito del EAN-13.
+const EAN13_PARIDAD = {0:'LLLLLL',1:'LLGLGG',2:'LLGGLG',3:'LLGGGL',4:'LGLLGG',5:'LGGLLG',6:'LGGGLL',7:'LGLGLG',8:'LGLGGL',9:'LGGLGL'};
+
+/* Calcula el dígito verificador EAN a partir de los dígitos de datos
+   (12 dígitos para EAN-13, 7 para EAN-8). */
+function eanDigitoVerificador(digitos){
+  let suma = 0;
+  for(let i=0;i<digitos.length;i++){
+    // Contando desde la derecha, las posiciones impares pesan x3.
+    const pesoX3 = (digitos.length - i) % 2 === 1;
+    suma += Number(digitos[i]) * (pesoX3 ? 3 : 1);
+  }
+  return (10 - (suma % 10)) % 10;
+}
+
+function esEAN13Valido(codigo){
+  if(!/^\d{13}$/.test(codigo||'')) return false;
+  return eanDigitoVerificador(codigo.slice(0,12).split('')) === Number(codigo[12]);
+}
+function esEAN8Valido(codigo){
+  if(!/^\d{8}$/.test(codigo||'')) return false;
+  return eanDigitoVerificador(codigo.slice(0,7).split('')) === Number(codigo[7]);
+}
+
+/* Genera un EAN-13 interno y válido a partir del id del producto, usando el
+   prefijo "20" (rango 200-299, reservado por el estándar GS1 para uso
+   interno de cada comercio, no se puede confundir con un código real de
+   fábrica). */
+function generarEAN13Interno(productoId){
+  const cuerpo = '20' + String(productoId).padStart(10,'0');
+  const dv = eanDigitoVerificador(cuerpo.split(''));
+  return cuerpo + dv;
+}
+
+/* Devuelve { codigo, tipo } listo para dibujar: usa el código de barras
+   cargado si ya es un EAN-13 u EAN-8 válido; si no, genera uno interno
+   EAN-13 a partir del id (sin guardar nada todavía). */
+function resolverCodigoEAN(producto){
+  const actual = (producto.codigoBarras||'').trim();
+  if(esEAN13Valido(actual)) return { codigo:actual, tipo:'EAN13', generado:false };
+  if(esEAN8Valido(actual)) return { codigo:actual, tipo:'EAN8', generado:false };
+  return { codigo:generarEAN13Interno(producto.id), tipo:'EAN13', generado:true };
+}
+
+/* Dibuja las barras (sin texto) de un EAN-13/EAN-8 ya validado, devolviendo
+   el string binario completo (incluye guardas). */
+function eanPatronBinario(codigo, tipo){
+  if(tipo === 'EAN8'){
+    const izq = codigo.slice(0,4).split('').map(d=>EAN_L_CODE[d]).join('');
+    const der = codigo.slice(4,8).split('').map(d=>EAN_R_CODE[d]).join('');
+    return '101' + izq + '01010' + der + '101';
+  }
+  const paridad = EAN13_PARIDAD[codigo[0]];
+  const grupoIzq = codigo.slice(1,7);
+  const grupoDer = codigo.slice(7,13);
+  const izq = grupoIzq.split('').map((d,i)=> (paridad[i]==='L'?EAN_L_CODE:EAN_G_CODE)[d]).join('');
+  const der = grupoDer.split('').map(d=>EAN_R_CODE[d]).join('');
+  return '101' + izq + '01010' + der + '101';
+}
+
+/* Genera el SVG completo de una etiqueta EAN-13/EAN-8 con el número
+   legible debajo de las barras, al estilo de una etiqueta de góndola. */
+function generarSvgEAN(codigo, tipo, opciones={}){
+  const anchoModulo = opciones.anchoModulo || 2.6;
+  const alto = opciones.alto || 95;
+  const patron = eanPatronBinario(codigo, tipo);
+  const anchoTotal = patron.length * anchoModulo;
+  const margenTexto = 22;
+  const svgAlto = alto + margenTexto;
+
+  let x = 0;
+  let barras = '';
+  const esGuarda = (i) => {
+    if(tipo==='EAN8') return i<3 || (i>=3+28 && i<3+28+5) || i>=patron.length-3;
+    return i<3 || (i>=3+42 && i<3+42+5) || i>=patron.length-3;
+  };
+  for(let i=0;i<patron.length;i++){
+    if(patron[i]==='1'){
+      const h = esGuarda(i) ? alto : alto - 12;
+      barras += `<rect x="${x.toFixed(2)}" y="0" width="${anchoModulo.toFixed(2)}" height="${h}" fill="#000"/>`;
+    }
+    x += anchoModulo;
+  }
+
+  // Texto: primer dígito a la izquierda de la barra, luego los dos grupos separados, centrados bajo cada mitad.
+  // Tamaño y estilo pensados para leerse igual de claro que el número impreso de fábrica en el producto.
+  const fs = 'font-family="Arial,Helvetica,sans-serif" font-size="15" font-weight="600"';
+  let textoHTML = '';
+  if(tipo==='EAN13'){
+    const grupoIzq = codigo.slice(1,7), grupoDer = codigo.slice(7,13);
+    const xIzq = 3*anchoModulo + (42*anchoModulo)/2;
+    const xDer = (3+42+5)*anchoModulo + (42*anchoModulo)/2;
+    textoHTML = `
+      <text x="-4" y="${alto+18}" ${fs} text-anchor="end">${codigo[0]}</text>
+      <text x="${xIzq}" y="${alto+18}" ${fs} text-anchor="middle" letter-spacing="1">${grupoIzq}</text>
+      <text x="${xDer}" y="${alto+18}" ${fs} text-anchor="middle" letter-spacing="1">${grupoDer}</text>`;
+  }else{
+    const grupoIzq = codigo.slice(0,4), grupoDer = codigo.slice(4,8);
+    const xIzq = 3*anchoModulo + (28*anchoModulo)/2;
+    const xDer = (3+28+5)*anchoModulo + (28*anchoModulo)/2;
+    textoHTML = `
+      <text x="${xIzq}" y="${alto+18}" ${fs} text-anchor="middle" letter-spacing="1">${grupoIzq}</text>
+      <text x="${xDer}" y="${alto+18}" ${fs} text-anchor="middle" letter-spacing="1">${grupoDer}</text>`;
+  }
+
+  return `<svg viewBox="-14 0 ${(anchoTotal+20).toFixed(2)} ${svgAlto}" width="${(anchoTotal+20).toFixed(0)}" xmlns="http://www.w3.org/2000/svg" style="background:#fff;">
+    <rect x="-14" y="-6" width="${(anchoTotal+20).toFixed(2)}" height="${(svgAlto+6).toFixed(2)}" fill="#fff"/>
+    ${barras}
+    ${textoHTML}
+  </svg>`;
+}
+
+async function abrirModalCodigoBarras(producto){
+  const resuelto = resolverCodigoEAN(producto);
+  let codigoActual = resuelto.codigo, tipoActual = resuelto.tipo;
+
+  const renderModal = (generado) => `
+    <p style="font-size:12.5px; color:var(--text-muted); margin-bottom:6px;">
+      ${producto.codigo} · ${Utils.escapeHTML(producto.nombre)}
+    </p>
+    ${generado ? `<p style="font-size:12px; background:var(--warning-dim); color:var(--warning); padding:8px 10px; border-radius:8px; margin-bottom:14px;">
+        Este producto no tenía un código de barras EAN válido cargado, así que se generó uno nuevo de uso interno (EAN-13, prefijo 20). Si imprimís esta etiqueta, se va a guardar como el código de barras del producto para poder escanearlo en el POS.
+      </p>` : ''}
+    <div style="display:flex; justify-content:center; padding:16px; background:#fff; border-radius:10px; margin-bottom:14px;" id="cb-preview">
+      ${generarSvgEAN(codigoActual, tipoActual)}
+    </div>
+    <div class="field"><label>Cantidad de etiquetas a imprimir</label><input type="number" id="cb-cantidad" value="1" min="1" max="60" style="max-width:120px;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="cb-cerrar">Cerrar</button>
+      <button class="btn btn-accent" id="cb-imprimir">Imprimir</button>
+    </div>
+  `;
+
+  Modal.open('Código de barras', renderModal(resuelto.generado), { width:'420px' });
+
+  document.getElementById('cb-cerrar').onclick = () => Modal.close();
+  document.getElementById('cb-imprimir').onclick = async () => {
+    const cantidad = Math.max(1, Math.min(60, Number(document.getElementById('cb-cantidad').value) || 1));
+
+    if(resuelto.generado){
+      await DB.put('productos', { ...producto, codigoBarras: codigoActual });
+      await Audit.log('producto_codigo_barras_generado', `Se generó y asignó el código de barras EAN-13 ${codigoActual} al producto ${producto.codigo} (${producto.nombre}).`);
+    }
+
+    const svg = generarSvgEAN(codigoActual, tipoActual);
+    const etiquetaHTML = `<div class="barcode-label">
+        <div class="barcode-label-nombre">${Utils.escapeHTML(producto.nombre)}</div>
+        ${svg}
+        <div class="barcode-label-precio">$${Number(producto.precioVenta||0).toLocaleString('es-AR')}</div>
+      </div>`;
+
+    const area = document.getElementById('print-barcode-area');
+    area.innerHTML = Array(cantidad).fill(etiquetaHTML).join('');
+
+    await Audit.log('producto_codigo_barras_impreso', `Impresión de ${cantidad} etiqueta(s) de código de barras del producto ${producto.codigo} (${producto.nombre}).`);
+    Modal.close();
+    window.print();
+  };
 }
 
 /* -----------------------------------------------------------------------
