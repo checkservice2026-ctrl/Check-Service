@@ -179,7 +179,7 @@ app.get('/api/mp/debug/fijar-external-id', async (_req, res) => {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${MP_ACCESS_TOKEN}`
       },
-      body: JSON.stringify({ external_id: 'checkservice_mostrador' })
+      body: JSON.stringify({ external_id: 'checkservicemostrador' })
     });
     const data = await resp.json();
     res.json({ status: resp.status, data });
