@@ -9631,9 +9631,26 @@ function esperarPagoQR({ monto, referencia, descripcion }){
       { width:'340px', persistent:true }
     );
 
-    document.getElementById('mp-qr-cancelar').onclick = () => {
+    document.getElementById('mp-qr-cancelar').onclick = async () => {
       cancelado = true;
       clearInterval(intervalo);
+      const btnCancelar = document.getElementById('mp-qr-cancelar');
+      if(btnCancelar){ btnCancelar.disabled = true; btnCancelar.textContent = 'Cancelando...'; }
+      try{
+        // Le avisamos a Mercado Pago que borre el monto pendiente del QR,
+        // para que no le quede ese valor cargado a alguien que lo escanee
+        // después. Si esto falla igual cerramos y volvemos, pero avisamos.
+        const respCancel = await fetch(`${backendUrl}/api/mp/cancelar`, {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify({ referencia })
+        });
+        if(!respCancel.ok){
+          Toast.show('info','Cobro cancelado en la app', 'No pudimos confirmar que el QR se haya liberado en Mercado Pago — si vas a cobrar otro monto distinto enseguida, fijate que no quede el valor anterior.');
+        }
+      }catch(e){
+        Toast.show('info','Cobro cancelado en la app', 'No se pudo avisar a Mercado Pago (sin conexión al backend) — el QR podría seguir con el monto anterior por un rato.');
+      }
       Modal.close();
       resolve(false);
     };
