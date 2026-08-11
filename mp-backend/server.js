@@ -105,6 +105,7 @@ app.post('/api/mp/cobrar', async (req, res) => {
     }
 
     cobros.set(referencia, { estado: 'pendiente', monto: Number(monto), fecha: new Date().toISOString() });
+    console.log(`Cobrar QR — referencia ${referencia} — $${monto} — OK (status ${resp.status})`);
     res.json({ ok: true, referencia, estado: 'pendiente' });
   } catch (err) {
     console.error(err);
@@ -137,11 +138,13 @@ app.post('/api/mp/cancelar', async (req, res) => {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}` }
     });
+    const textoResp = await resp.text().catch(()=> '');
+    console.log(`Cancelar QR — status ${resp.status} — respuesta: ${textoResp || '(vacía)'}`);
     // 204 = se borró bien. 404 puede pasar si ya no había nada pendiente
     // (por ejemplo, si el cliente ya había pagado justo antes de cancelar)
     // — no lo tratamos como error real.
     if (referencia) cobros.delete(referencia);
-    res.json({ ok: resp.status === 204 || resp.status === 404, status: resp.status });
+    res.json({ ok: resp.status === 204 || resp.status === 404, status: resp.status, detalle: textoResp });
   } catch (err) {
     console.error('Error al cancelar el cobro QR:', err);
     res.status(500).json({ error: 'No se pudo cancelar en Mercado Pago.' });
