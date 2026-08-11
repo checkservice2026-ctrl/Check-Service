@@ -967,6 +967,11 @@ textarea.textarea-input{ resize:vertical; min-height:70px; }
 .cfg-lista-editable-row .cfg-lista-editable-label{ flex:1; min-width:0; }
 .cfg-lista-editable-row input[type="text"]{ flex:1; min-width:0; background:var(--bg-panel-raised); border:1px solid var(--border-soft); border-radius:6px; padding:4px 8px; font-size:12.5px; color:var(--text-primary); }
 .cfg-lista-editable-empty{ font-size:12.5px; color:var(--text-muted); padding:6px 2px; }
+.bg-columns{ display:grid; grid-template-columns:1fr 1fr; gap:32px; margin-top:12px; }
+.bg-col-title{ font-size:11px; font-weight:800; letter-spacing:.06em; color:var(--text-muted); margin-bottom:8px; }
+.bg-row{ display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--border-soft); font-size:13px; }
+.bg-row-total{ font-weight:800; font-size:14px; border-bottom:none; border-top:2px solid var(--border-soft); margin-top:4px; padding-top:10px; }
+@media (max-width: 720px){ .bg-columns{ grid-template-columns:1fr; gap:20px; } }
 .autocomplete-item{ padding:9px 12px; font-size:12.5px; cursor:pointer; }
 .autocomplete-item:hover{ background:var(--bg-panel-alt); }
 
@@ -2640,6 +2645,7 @@ const NAV_SECTIONS = [
     { key:'caja', label:'Caja', icon:'caja' },
     { key:'gastos', label:'Gastos', icon:'gastos' },
     { key:'cuentascorrientes', label:'Cuentas Corrientes', icon:'cuentascorrientes' },
+    { key:'balancegeneral', label:'Balance General', icon:'reportes' },
     { key:'reportes', label:'Reportes', icon:'reportes' }
   ]},
   { title:'Sistema', items:[
@@ -2672,6 +2678,8 @@ function navItemPermitido(item, session){
   if((item.key==='caja' || item.key==='cuentascorrientes') && session && !canManageCaja(session.rol)) return false;
   // Gastos: mismos roles que Caja
   if(item.key==='gastos' && session && !canManageGastos(session.rol)) return false;
+  // Balance General: información financiera sensible, solo quien ve costos
+  if(item.key==='balancegeneral' && session && !canSeeCosto(session.rol)) return false;
   return true;
 }
 
@@ -2855,6 +2863,10 @@ async function router(){
     case 'cuentascorrientes':
       if(!canManageCaja(Session.get().rol)){ outlet.innerHTML = viewNoPermiso(); return; }
       outlet.innerHTML = await viewCuentasCorrientesList(); bindCuentasCorrientesListEvents();
+      break;
+    case 'balancegeneral':
+      if(!canSeeCosto(Session.get().rol)){ outlet.innerHTML = viewNoPermiso(); return; }
+      outlet.innerHTML = await viewBalanceGeneral(); await bindBalanceGeneralEvents();
       break;
     case 'reportes':
       outlet.innerHTML = await viewReportes(param); await bindReportesEvents(param);
@@ -12382,6 +12394,190 @@ function drawBarChart(canvas, labels, values, color, formatValue, seriesLabel){
 /* -----------------------------------------------------------------------
    20-R. MÓDULO REPORTES (Fase 7)
 ----------------------------------------------------------------------- */
+/* -----------------------------------------------------------------------
+   BALANCE GENERAL
+   Dos estados contables armados con datos reales de la app, sin ningún
+   valor inventado ni cargado a mano:
+     - Situación Patrimonial: foto de HOY (Activo, Pasivo, Patrimonio Neto).
+     - Estado de Resultados: Ingresos, Costos y Gastos de un período
+       elegido (por defecto, el mes en curso).
+----------------------------------------------------------------------- */
+
+async function calcularSituacionPatrimonial(){
+  const [porMedio, clientes, productos, compras] = await Promise.all([
+    cajaSaldoPorMedio(),
+    DB.getAll('clientes'),
+    DB.getAll('productos'),
+    DB.getAll('compras')
+  ]);
+
+  const cajaYBancos = Object.values(porMedio).reduce((acc,v)=>acc+v, 0);
+
+  // Cuentas por cobrar: lo que suman los clientes con saldo deudor.
+  // Si algún cliente tiene saldo a favor (le debemos nosotros a él), eso
+  // no es un activo — se muestra del lado del Pasivo, por separado.
+  const saldosClientes = await Promise.all(clientes.map(c=>saldoCuentaCorriente(c.id)));
+  const cuentasPorCobrar = saldosClientes.reduce((acc,s)=> acc + Math.max(0, s), 0);
+  const saldosAFavorClientes = saldosClientes.reduce((acc,s)=> acc + Math.max(0, -s), 0);
+
+  // Bienes de cambio: stock valorizado a costo (no a precio de venta —
+  // así es como se valúa inventario en un balance).
+  const bienesDeCambio = productos
+    .filter(p=>p.activo!==false)
+    .reduce((acc,p)=> acc + (p.stockActual||0) * (p.precioCosto||0), 0);
+
+  // Cuentas por pagar: lo que falta pagarles a proveedores por compras
+  // que no están 100% saldadas.
+  const cuentasPorPagar = compras.reduce((acc,c)=> acc + Math.max(0, (c.total||0) - (c.montoPagado||0)), 0);
+
+  const totalActivo = cajaYBancos + cuentasPorCobrar + bienesDeCambio;
+  const totalPasivo = cuentasPorPagar + saldosAFavorClientes;
+  const patrimonioNeto = totalActivo - totalPasivo;
+
+  return { cajaYBancos, porMedio, cuentasPorCobrar, bienesDeCambio, totalActivo, cuentasPorPagar, saldosAFavorClientes, totalPasivo, patrimonioNeto };
+}
+
+async function calcularEstadoResultados(desde, hasta){
+  const [ventas, productos, historial, turnos, gastos, notasCredito] = await Promise.all([
+    DB.getAll('ventas'),
+    DB.getAll('productos'),
+    DB.getAll('historialServicios'),
+    DB.getAll('lavaderoTurnos'),
+    DB.getAll('gastos'),
+    DB.getAll('notasCredito')
+  ]);
+  const costoPorProducto = {};
+  productos.forEach(p=> costoPorProducto[p.id] = p.precioCosto||0);
+
+  const enRango = (fecha) => { const d = Utils.fechaLocalYMD(fecha); return d>=desde && d<=hasta; };
+
+  const ventasPeriodo = ventas.filter(v=>v.estado!=='anulada' && enRango(v.fecha));
+  const ingresosVentas = ventasPeriodo.reduce((acc,v)=>acc+(v.total||0), 0);
+  // El costo de venta se estima con el costo ACTUAL registrado en cada
+  // producto (las ventas no guardan el costo histórico del momento en que
+  // se vendió) — es una aproximación razonable, no un costeo exacto.
+  const costoVentas = ventasPeriodo.reduce((acc,v)=> acc + (v.items||[]).reduce((a,it)=> a + (it.productoId ? (costoPorProducto[it.productoId]||0) * it.cantidad : 0), 0), 0);
+
+  const serviciosPeriodo = historial.filter(h=>enRango(h.fecha));
+  const ingresosServicios = serviciosPeriodo.reduce((acc,h)=>acc+(h.precio||0), 0);
+  const costoServicios = serviciosPeriodo.reduce((acc,h)=>acc+(h.costo||0), 0);
+
+  const lavadosPeriodo = turnos.filter(t=>t.estado==='Completado' && enRango(t.fechaCompletado||t.fecha));
+  const ingresosLavados = lavadosPeriodo.reduce((acc,t)=>acc+(t.precio||0), 0);
+
+  const notasCreditoPeriodo = notasCredito.filter(nc=>enRango(nc.fecha));
+  const totalNotasCredito = notasCreditoPeriodo.reduce((acc,nc)=>acc+(nc.monto||0), 0);
+
+  const gastosPeriodo = gastos.filter(g=>enRango(g.fecha));
+  const totalGastosOperativos = gastosPeriodo.reduce((acc,g)=>acc+(g.monto||0), 0);
+  const gastosPorCategoria = {};
+  gastosPeriodo.forEach(g=>{ gastosPorCategoria[g.categoriaNombre] = (gastosPorCategoria[g.categoriaNombre]||0) + g.monto; });
+
+  const totalIngresos = ingresosVentas + ingresosServicios + ingresosLavados - totalNotasCredito;
+  const totalCostosYGastos = costoVentas + costoServicios + totalGastosOperativos;
+  const resultadoPeriodo = totalIngresos - totalCostosYGastos;
+
+  return {
+    ingresosVentas, ingresosServicios, ingresosLavados, totalNotasCredito, totalIngresos,
+    costoVentas, costoServicios, totalGastosOperativos, gastosPorCategoria, totalCostosYGastos,
+    resultadoPeriodo,
+    cantidadVentas: ventasPeriodo.length, cantidadServicios: serviciosPeriodo.length, cantidadLavados: lavadosPeriodo.length
+  };
+}
+
+async function viewBalanceGeneral(){
+  const hoy = Utils.hoyLocal();
+  const desdeDefault = hoy.slice(0,8) + '01'; // primer día del mes en curso
+  return `
+    <div class="page-header"><div><h1>Balance General</h1><p>Situación patrimonial y estado de resultados — datos reales de la app, sin valores cargados a mano</p></div>
+      <button class="btn btn-ghost btn-sm" id="bg-imprimir">Imprimir</button>
+    </div>
+    <div id="bg-content"><div class="crm-alerts-empty">Calculando...</div></div>
+  `;
+}
+
+function balanceRowHTML(label, monto, esTotal){
+  return `<div class="bg-row ${esTotal?'bg-row-total':''}"><span>${label}</span><span>$${Math.round(monto).toLocaleString('es-AR')}</span></div>`;
+}
+
+async function bindBalanceGeneralEvents(){
+  const cont = document.getElementById('bg-content');
+  const hoy = Utils.hoyLocal();
+  let desde = hoy.slice(0,8) + '01';
+  let hasta = hoy;
+
+  async function render(){
+    const [situacion, resultados] = await Promise.all([
+      calcularSituacionPatrimonial(),
+      calcularEstadoResultados(desde, hasta)
+    ]);
+
+    cont.innerHTML = `
+      <div class="card" style="padding:18px; margin-bottom:20px;">
+        <div class="cfg-section-title">Situación Patrimonial</div>
+        <div class="cfg-section-sub">A hoy, ${new Date(hoy+'T00:00:00').toLocaleDateString('es-AR')}</div>
+        <div class="bg-columns">
+          <div>
+            <div class="bg-col-title">ACTIVO</div>
+            ${balanceRowHTML('Caja y Bancos', situacion.cajaYBancos)}
+            ${balanceRowHTML('Cuentas por Cobrar (clientes)', situacion.cuentasPorCobrar)}
+            ${balanceRowHTML('Bienes de Cambio (stock a costo)', situacion.bienesDeCambio)}
+            ${balanceRowHTML('Total Activo', situacion.totalActivo, true)}
+          </div>
+          <div>
+            <div class="bg-col-title">PASIVO</div>
+            ${balanceRowHTML('Cuentas por Pagar (proveedores)', situacion.cuentasPorPagar)}
+            ${situacion.saldosAFavorClientes>0?balanceRowHTML('Saldos a favor de clientes', situacion.saldosAFavorClientes):''}
+            ${balanceRowHTML('Total Pasivo', situacion.totalPasivo, true)}
+            <div class="bg-col-title" style="margin-top:18px;">PATRIMONIO NETO</div>
+            <div class="bg-row bg-row-total" style="color:${situacion.patrimonioNeto>=0?'var(--accent)':'var(--danger)'};"><span>Patrimonio Neto</span><span>$${Math.round(situacion.patrimonioNeto).toLocaleString('es-AR')}</span></div>
+          </div>
+        </div>
+        <div style="margin-top:14px; font-size:11.5px; color:var(--text-muted);">Caja y Bancos por medio de pago: ${Object.entries(situacion.porMedio).map(([m,v])=>`${m}: $${Math.round(v).toLocaleString('es-AR')}`).join(' · ')||'—'}</div>
+      </div>
+
+      <div class="card" style="padding:18px;">
+        <div class="cfg-section-title">Estado de Resultados</div>
+        <div class="toolbar-filters" style="margin:10px 0 16px;">
+          <input type="date" class="toolbar-select" id="bg-desde" value="${desde}">
+          <span style="color:var(--text-muted); font-size:12px;">a</span>
+          <input type="date" class="toolbar-select" id="bg-hasta" value="${hasta}">
+          <button class="btn btn-ghost btn-sm" id="bg-aplicar">Aplicar</button>
+        </div>
+        <div class="bg-columns">
+          <div>
+            <div class="bg-col-title">INGRESOS</div>
+            ${balanceRowHTML(`Ventas (${resultados.cantidadVentas})`, resultados.ingresosVentas)}
+            ${balanceRowHTML(`Servicios (${resultados.cantidadServicios})`, resultados.ingresosServicios)}
+            ${balanceRowHTML(`Lavados (${resultados.cantidadLavados})`, resultados.ingresosLavados)}
+            ${resultados.totalNotasCredito>0?balanceRowHTML('(–) Notas de crédito', -resultados.totalNotasCredito):''}
+            ${balanceRowHTML('Total Ingresos', resultados.totalIngresos, true)}
+          </div>
+          <div>
+            <div class="bg-col-title">COSTOS Y GASTOS</div>
+            ${balanceRowHTML('Costo de mercadería vendida (est.)', resultados.costoVentas)}
+            ${balanceRowHTML('Costo de repuestos en servicios', resultados.costoServicios)}
+            ${Object.entries(resultados.gastosPorCategoria).map(([cat,monto])=>balanceRowHTML(cat, monto)).join('')}
+            ${balanceRowHTML('Total Costos y Gastos', resultados.totalCostosYGastos, true)}
+            <div class="bg-col-title" style="margin-top:18px;">RESULTADO DEL PERÍODO</div>
+            <div class="bg-row bg-row-total" style="color:${resultados.resultadoPeriodo>=0?'var(--accent)':'var(--danger)'};"><span>${resultados.resultadoPeriodo>=0?'Utilidad':'Pérdida'}</span><span>$${Math.round(Math.abs(resultados.resultadoPeriodo)).toLocaleString('es-AR')}</span></div>
+          </div>
+        </div>
+        <div style="margin-top:14px; font-size:11.5px; color:var(--text-muted);">El costo de venta se estima con el costo actual cargado en cada producto (las ventas no guardan el costo histórico exacto del momento de la venta).</div>
+      </div>
+    `;
+
+    document.getElementById('bg-aplicar').onclick = () => {
+      desde = document.getElementById('bg-desde').value;
+      hasta = document.getElementById('bg-hasta').value;
+      if(desde && hasta) render();
+    };
+  }
+
+  document.getElementById('bg-imprimir').onclick = () => window.print();
+  await render();
+}
+
 const REPORTES_DEFINICIONES = [
   { key:'ventas', label:'Ventas', icon:'pos', usaFechas:true, visible: rol=>canUsarPOS(rol) },
   { key:'servicios', label:'Servicios', icon:'historial', usaFechas:true, visible: rol=>canManageHistorial(rol)||canSeeCosto(rol) },
