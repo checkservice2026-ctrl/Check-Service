@@ -165,7 +165,28 @@ app.post('/api/mp/webhook', async (req, res) => {
 // verdadero (el que hay que cargar en MP_EXTERNAL_POS_ID). Visitá esta URL
 // desde el navegador para verlo.
 // -----------------------------------------------------------------------
-app.get('/api/mp/debug/pos', async (_req, res) => {
+// -----------------------------------------------------------------------
+// GET /api/mp/debug/fijar-external-id
+// Uso único: le asigna un external_id de texto a tu caja "QR #1" (id
+// interno 132981842), porque las cajas creadas desde el panel no traen
+// uno por defecto. Después de ejecutar esto UNA vez, se puede borrar.
+// -----------------------------------------------------------------------
+app.get('/api/mp/debug/fijar-external-id', async (_req, res) => {
+  try {
+    const resp = await fetch('https://api.mercadopago.com/pos/132981842', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${MP_ACCESS_TOKEN}`
+      },
+      body: JSON.stringify({ external_id: 'checkservice_mostrador' })
+    });
+    const data = await resp.json();
+    res.json({ status: resp.status, data });
+  } catch (err) {
+    res.status(500).json({ error: 'No se pudo actualizar la caja.', detalle: err.message });
+  }
+});app.get('/api/mp/debug/pos', async (_req, res) => {
   try {
     const resp = await fetch('https://api.mercadopago.com/pos', {
       headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}` }
