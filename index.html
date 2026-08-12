@@ -144,14 +144,14 @@ a{ color:inherit; text-decoration:none; }
 .splash-brand{ text-align:center; }
 .splash-brand h1{
   font-size:30px; letter-spacing:.1em; text-transform:uppercase;
-  color:var(--text-primary); font-weight:800; line-height:1.2;
+  color:#ECEEF1; font-weight:800; line-height:1.2;
 }
 .splash-brand h1 span{ display:block; font-size:16px; letter-spacing:.32em; color:var(--accent); font-weight:700; margin-top:2px; }
-.splash-brand p{ color:var(--text-muted); font-size:12px; letter-spacing:.08em; margin-top:8px; text-transform:uppercase; }
+.splash-brand p{ color:#9AA3AF; font-size:12px; letter-spacing:.08em; margin-top:8px; text-transform:uppercase; }
 
 .splash-status{ width:280px; text-align:center; }
 .splash-status-text{
-  font-size:12.5px; color:var(--text-secondary); margin-bottom:10px; min-height:16px;
+  font-size:12.5px; color:#9AA3AF; margin-bottom:10px; min-height:16px;
   font-family:'Consolas','SF Mono',monospace; letter-spacing:.03em;
 }
 .splash-bar{ width:100%; height:4px; background:var(--border-soft); border-radius:4px; overflow:hidden; }
@@ -2240,7 +2240,8 @@ async function runSplashSequence(){
   // Si ya hay sesión iniciada y se llega con una ruta específica (ej: se abrió el POS
   // en una pestaña nueva), acortamos la animación para que se sienta instantáneo.
   const reingresoRapido = Session.isLoggedIn() && !!window.location.hash;
-  const stepDuration = reingresoRapido ? 90 : 750; // 5 pasos x 750ms ≈ 3.75s (dentro del rango 3-5s pedido)
+  // 5 pasos + los 350ms del fundido final sí o sí sumados dan justo 5000ms.
+  const stepDuration = reingresoRapido ? 90 : 930;
 
   for(let i=0;i<steps.length;i++){
     textEl.textContent = steps[i];
@@ -8080,7 +8081,7 @@ async function viewProductosList(){
       <div><h1>Productos</h1><p>${productos.filter(p=>p.activo!==false).length} productos activos de ${productos.length} registrados</p></div>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <button class="btn btn-ghost" id="btn-exportar-productos">${svgIcon('reportes')} Exportar Excel</button>
-        ${puedeGestionar?`<button class="btn btn-ghost" id="btn-exportar-precios">${svgIcon('reportes')} Exportar precios (CSV)</button><button class="btn btn-ghost" id="btn-importar-precios">${svgIcon('backups')} Actualizar precios (CSV)</button><button class="btn btn-ghost" id="btn-gestionar-marcas">${svgIcon('productos')} Marcas</button><button class="btn btn-ghost" id="btn-ajuste-precios">${svgIcon('caja')} Ajustar precios por marca</button><button class="btn btn-ghost" id="btn-importar-productos">${svgIcon('backups')} Importar productos</button><button class="btn btn-accent" id="btn-nuevo-producto">${svgIcon('productos')} Nuevo producto</button>`:''}
+        ${puedeGestionar?`<button class="btn btn-ghost" id="btn-exportar-precios">${svgIcon('reportes')} Exportar precios (CSV)</button><button class="btn btn-ghost" id="btn-importar-precios">${svgIcon('backups')} Actualizar precios (CSV)</button><button class="btn btn-ghost" id="btn-exportar-stock">${svgIcon('reportes')} Exportar stock (CSV)</button><button class="btn btn-ghost" id="btn-importar-stock">${svgIcon('backups')} Cargar stock masivo (CSV)</button><button class="btn btn-ghost" id="btn-gestionar-marcas">${svgIcon('productos')} Marcas</button><button class="btn btn-ghost" id="btn-ajuste-precios">${svgIcon('caja')} Ajustar precios por marca</button><button class="btn btn-ghost" id="btn-importar-productos">${svgIcon('backups')} Importar productos</button><button class="btn btn-accent" id="btn-nuevo-producto">${svgIcon('productos')} Nuevo producto</button>`:''}
       </div>
     </div>
     <div class="toolbar-filters">
@@ -8136,6 +8137,10 @@ function bindProductosListEvents(){
   if(btnExportarPrecios) btnExportarPrecios.onclick = exportarPreciosProductosCSV;
   const btnImportarPrecios = document.getElementById('btn-importar-precios');
   if(btnImportarPrecios) btnImportarPrecios.onclick = () => openActualizarPreciosModal();
+  const btnExportarStock = document.getElementById('btn-exportar-stock');
+  if(btnExportarStock) btnExportarStock.onclick = exportarStockProductosCSV;
+  const btnImportarStock = document.getElementById('btn-importar-stock');
+  if(btnImportarStock) btnImportarStock.onclick = () => openCargaStockMasivaModal();
   const btnAjuste = document.getElementById('btn-ajuste-precios');
   if(btnAjuste) btnAjuste.onclick = () => openAjustePreciosMasivoModal();
   document.querySelectorAll('.btn-edit-producto').forEach(btn=>{
@@ -8351,11 +8356,11 @@ function parsearNumeroFlexible(v){
 async function exportarPreciosProductosCSV(){
   const productos = (await DB.getAll('productos')).filter(p=>p.activo!==false).sort((a,b)=>a.nombre.localeCompare(b.nombre));
   if(!productos.length){ Toast.show('error','Nada para exportar','No hay productos activos.'); return; }
-  const headers = ['Código','Nombre','Precio costo','Precio venta'];
-  const rows = productos.map(p=>[p.codigo, p.nombre, (p.precioCosto||0).toFixed(2), (p.precioVenta||0).toFixed(2)]);
+  const headers = ['Código','Código de barras','Nombre','Precio costo','Precio venta'];
+  const rows = productos.map(p=>[p.codigo, p.codigoBarras||'', p.nombre, (p.precioCosto||0).toFixed(2), (p.precioVenta||0).toFixed(2)]);
   exportCSV(`precios_productos_${new Date().toISOString().slice(0,10)}.csv`, headers, rows);
   await Audit.log('precios_productos_exportados', `Exportación de precios de ${productos.length} producto(s) a CSV.`);
-  Toast.show('success','Exportado', `${productos.length} producto(s) exportado(s). Editá "Precio costo" y "Precio venta" en Excel sin tocar la columna Código, guardá como CSV y subilo con "Actualizar precios".`);
+  Toast.show('success','Exportado', `${productos.length} producto(s) exportado(s). Editá "Precio costo" y "Precio venta" en Excel sin tocar las columnas Código/Código de barras, guardá como CSV y subilo con "Actualizar precios".`);
 }
 
 /* Importa el CSV generado por exportarPreciosProductosCSV (o cualquier CSV con
@@ -8403,7 +8408,7 @@ async function openActualizarPreciosModal(){
     if(!dataRows.length){ Toast.show('error','Nada para importar',''); return; }
 
     // Detecta columnas por encabezado si está disponible; si no, asume 0=código,2=costo,3=venta (formato del export).
-    let colCodigo = 0, colCosto = 2, colVenta = 3;
+    let colCodigo = 0, colCosto = 3, colVenta = 4;
     if(tieneHeader){
       const header = filas[0].map(h=>h.toLowerCase());
       const idx = (re) => header.findIndex(h=>re.test(h));
@@ -8474,6 +8479,154 @@ async function openActualizarPreciosModal(){
     }
     await Audit.log('precios_productos_actualizados', `Actualización masiva de precios vía CSV: ${actualizados} producto(s) actualizado(s), ${omitidos} omitido(s).`);
     Toast.show('success','Precios actualizados', `${actualizados} producto(s) actualizado(s) · ${omitidos} omitido(s).`);
+    Modal.close();
+    router();
+  };
+}
+
+/* -----------------------------------------------------------------------
+   20-P. CARGA MASIVA DE STOCK POR CSV
+   Mismo mecanismo de exportar/editar en Excel/reimportar que el de precios,
+   pero para stockActual. Cada fila importada genera un movimiento en el
+   kardex (movimientosStock) igual que un ajuste manual, para no perder
+   trazabilidad, y permite elegir entre "fijar" el valor de la planilla
+   como stock exacto o "sumarlo" al stock actual (para cargar una compra
+   grande sin tener que ir producto por producto).
+----------------------------------------------------------------------- */
+async function exportarStockProductosCSV(){
+  const productos = (await DB.getAll('productos')).filter(p=>p.activo!==false).sort((a,b)=>a.nombre.localeCompare(b.nombre));
+  if(!productos.length){ Toast.show('error','Nada para exportar','No hay productos activos.'); return; }
+  const headers = ['Código','Nombre','Unidad','Stock actual'];
+  const rows = productos.map(p=>[p.codigo, p.nombre, p.unidad||'', p.stockActual||0]);
+  exportCSV(`stock_productos_${new Date().toISOString().slice(0,10)}.csv`, headers, rows);
+  await Audit.log('stock_productos_exportado', `Exportación de stock de ${productos.length} producto(s) a CSV.`);
+  Toast.show('success','Exportado', `${productos.length} producto(s) exportado(s). Completá la columna "Stock actual" en Excel sin tocar la columna Código, guardá como CSV y subilo con "Cargar stock masivo".`);
+}
+
+async function openCargaStockMasivaModal(){
+  let filas = [];
+  let cambios = []; // { codigo, producto, valorPlanilla, valido }
+  let modo = 'ajuste'; // 'ajuste' = fija el valor de la planilla como stock exacto | 'ingreso' = lo suma al stock actual
+
+  Modal.open(
+    'Carga masiva de stock desde Excel/CSV',
+    `
+    <p style="font-size:12.5px; color:var(--text-muted); margin-bottom:14px;">
+      Subí el CSV exportado con "Exportar stock (CSV)" ya completado en Excel (o cualquier CSV con columnas
+      <b>Código</b> y <b>Stock actual</b>). Se actualiza el stock de los productos cuyo código coincida con uno
+      ya cargado en el sistema, y queda registrado en el kardex de cada producto como cualquier otro ajuste.
+    </p>
+    <div class="field">
+      <label>¿Qué hacer con el número de cada fila?</label>
+      <select class="select-input" id="csm-modo">
+        <option value="ajuste">Fijarlo como stock exacto (reemplaza el stock actual)</option>
+        <option value="ingreso">Sumarlo al stock actual (para cargar una compra/recepción)</option>
+      </select>
+    </div>
+    <input type="file" id="csm-file" accept=".csv,.txt" class="hidden">
+    <button class="btn btn-ghost" id="csm-elegir-archivo" type="button">${svgIcon('backups')} Elegir archivo .csv</button>
+    <div id="csm-preview-wrap" class="hidden" style="margin-top:16px;">
+      <div class="card" style="padding:0; overflow-x:auto; max-height:320px; overflow-y:auto;">
+        <table class="data-table" id="csm-preview-table">
+          <thead><tr><th>Código</th><th>Nombre</th><th>Stock actual → nuevo</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p id="csm-count-info" style="font-size:12px; color:var(--text-muted); margin-top:10px;"></p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="csm-cancel">Cancelar</button>
+      <button class="btn btn-accent hidden" id="csm-confirmar">Actualizar stock</button>
+    </div>
+    `,
+    { width:'640px' }
+  );
+
+  function calcularNuevo(c){
+    if(!c.valido) return null;
+    return modo==='ingreso' ? (c.producto.stockActual||0) + c.valorPlanilla : c.valorPlanilla;
+  }
+
+  async function procesarArchivo(texto){
+    filas = parseCSV(texto);
+    if(!filas.length){ Toast.show('error','Archivo vacío','No se encontraron filas para importar.'); return; }
+
+    const primera = (filas[0][0]||'').toLowerCase();
+    const tieneHeader = /c[oó]dig/.test(primera);
+    const dataRows = tieneHeader ? filas.slice(1) : filas;
+    if(!dataRows.length){ Toast.show('error','Nada para importar',''); return; }
+
+    let colCodigo = 0, colStock = 3;
+    if(tieneHeader){
+      const header = filas[0].map(h=>h.toLowerCase());
+      const idx = (re) => header.findIndex(h=>re.test(h));
+      const iCodigo = idx(/c[oó]dig/), iStock = idx(/stock/);
+      if(iCodigo>=0) colCodigo = iCodigo;
+      if(iStock>=0) colStock = iStock;
+    }
+
+    cambios = [];
+    for(const f of dataRows){
+      const codigo = (f[colCodigo]||'').trim();
+      if(!codigo) continue;
+      const producto = await DB.getByIndex('productos','codigo', codigo);
+      const valorPlanilla = parsearNumeroFlexible(f[colStock]);
+      cambios.push({ codigo, producto, valorPlanilla, valido: !isNaN(valorPlanilla) && valorPlanilla >= 0 });
+    }
+    renderPreview();
+  }
+
+  function renderPreview(){
+    const tbody = document.querySelector('#csm-preview-table tbody');
+    tbody.innerHTML = cambios.map(c => {
+      if(!c.producto){
+        return `<tr><td class="font-mono">${Utils.escapeHTML(c.codigo)}</td><td colspan="2" style="color:var(--danger);">Código no encontrado en el sistema — se omite</td></tr>`;
+      }
+      if(!c.valido){
+        return `<tr><td class="font-mono">${Utils.escapeHTML(c.codigo)}</td><td>${Utils.escapeHTML(c.producto.nombre)}</td><td style="color:var(--danger);">Valor inválido — se omite</td></tr>`;
+      }
+      const nuevo = calcularNuevo(c);
+      return `<tr><td class="font-mono">${Utils.escapeHTML(c.codigo)}</td><td>${Utils.escapeHTML(c.producto.nombre)}</td><td class="font-mono">${c.producto.stockActual||0} → <b>${nuevo}</b> ${Utils.escapeHTML(c.producto.unidad||'')}</td></tr>`;
+    }).join('') || `<tr><td colspan="3" style="color:var(--text-muted);">Sin filas para mostrar</td></tr>`;
+
+    const encontrados = cambios.filter(c=>c.producto && c.valido);
+    document.getElementById('csm-count-info').textContent =
+      `${cambios.length} fila(s) leída(s) · ${encontrados.length} producto(s) para actualizar · ${cambios.length - encontrados.length} omitido(s).`;
+    document.getElementById('csm-preview-wrap').classList.remove('hidden');
+    document.getElementById('csm-confirmar').classList.toggle('hidden', !encontrados.length);
+  }
+
+  document.getElementById('csm-modo').onchange = (e) => { modo = e.target.value; if(cambios.length) renderPreview(); };
+  document.getElementById('csm-elegir-archivo').onclick = () => document.getElementById('csm-file').click();
+  document.getElementById('csm-file').onchange = async (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    const texto = await Utils.readFileAsText(file);
+    await procesarArchivo(texto);
+  };
+  document.getElementById('csm-cancel').onclick = () => Modal.close();
+
+  document.getElementById('csm-confirmar').onclick = async () => {
+    let actualizados = 0, omitidos = 0;
+    const usuario = Session.get();
+    for(const c of cambios){
+      if(!c.producto || !c.valido){ omitidos++; continue; }
+      const stockAnterior = c.producto.stockActual||0;
+      const stockResultante = calcularNuevo(c);
+      if(stockResultante === stockAnterior){ omitidos++; continue; }
+      await DB.add('movimientosStock', {
+        productoId: c.producto.id, fecha: Utils.nowISO(),
+        tipo: modo==='ingreso' ? 'ingreso' : 'ajuste',
+        cantidad: modo==='ingreso' ? c.valorPlanilla : (stockResultante-stockAnterior),
+        stockAnterior, stockResultante,
+        motivo: 'Carga masiva de stock por CSV',
+        usuarioId: usuario.usuarioId, usuarioNombre: usuario.nombre
+      });
+      await DB.put('productos', { ...c.producto, stockActual: stockResultante });
+      actualizados++;
+    }
+    await Audit.log('stock_productos_carga_masiva', `Carga masiva de stock vía CSV (modo: ${modo}): ${actualizados} producto(s) actualizado(s), ${omitidos} omitido(s).`);
+    Toast.show('success','Stock actualizado', `${actualizados} producto(s) actualizado(s) · ${omitidos} omitido(s).`);
     Modal.close();
     router();
   };
@@ -12622,8 +12775,24 @@ function printReport(innerHTML){
   area.id = 'print-report-area';
   area.innerHTML = innerHTML;
   document.body.appendChild(area);
+
+  // Si hay un ticket térmico (80mm) o etiquetas de código de barras visibles
+  // en pantalla (por ejemplo el modal de una cotización sigue abierto), hay
+  // que ocultarlos durante esta impresión: si no, sus reglas CSS de
+  // "visibility:visible" en @media print quedan activas al mismo tiempo que
+  // las de este reporte y las dos áreas se superponen en la hoja impresa.
+  const areasAOcultar = ['print-ticket-area','print-barcode-area']
+    .map(id => document.getElementById(id))
+    .filter(el => el && el !== area);
+  const displaysPrevios = areasAOcultar.map(el => el.style.display);
+  areasAOcultar.forEach(el => el.style.display = 'none');
+
   window.print();
-  setTimeout(()=>area.remove(), 800);
+
+  setTimeout(()=>{
+    area.remove();
+    areasAOcultar.forEach((el,i) => el.style.display = displaysPrevios[i]);
+  }, 800);
 }
 function exportPDF(titulo, headers, rows, summaryHTML){
   const cfg = Config.cache;
@@ -13473,6 +13642,115 @@ function cotizacionTicketHTML(c, cfg, mostrarItems){
   `;
 }
 
+/* Versión A4 "moderna" de la cotización, pensada para exportar/guardar como
+   PDF prolijo (no para la térmica de 80mm). Convive con el ticket: el
+   ticket de 80mm sigue siendo el formato de impresión por defecto, esta
+   plantilla se dispara aparte con el botón "Exportar PDF (A4)". */
+function cotizacionA4HTML(c, cfg, mostrarItems){
+  const accent = cfg.colorAccent || '#2563eb';
+  const trabajosMarcados = c.trabajos ? (Config.cache?.serviceChecklistItems||SERVICE_CHECKLIST_ITEMS).filter(it=>c.trabajos[it.key]) : [];
+  const vencida = c.fecha && c.validezDias ? (Date.now() - new Date(c.fecha).getTime()) / 86400000 > c.validezDias : false;
+
+  const filasItems = mostrarItems ? c.items.map((it,i)=>`
+    <tr style="background:${i%2?'#f8f9fb':'#fff'};">
+      <td style="padding:10px 12px; border-bottom:1px solid #eee; text-align:center; color:#666;">${it.cantidad}</td>
+      <td style="padding:10px 12px; border-bottom:1px solid #eee;">${Utils.escapeHTML(it.descripcion)}</td>
+      <td style="padding:10px 12px; border-bottom:1px solid #eee; text-align:right; color:#666;">$${Number(it.precioUnitario).toLocaleString('es-AR')}</td>
+      <td style="padding:10px 12px; border-bottom:1px solid #eee; text-align:right; font-weight:600;">$${(it.cantidad*it.precioUnitario).toLocaleString('es-AR')}</td>
+    </tr>`).join('') : '';
+
+  return `
+  <div style="font-family:'Segoe UI',Arial,Helvetica,sans-serif; color:#1a1a1a; max-width:800px; margin:0 auto; padding:28px 34px;">
+
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; padding-bottom:20px; margin-bottom:22px; border-bottom:3px solid ${accent};">
+      <div style="display:flex; gap:14px; align-items:center;">
+        ${cfg.logo?`<img src="${cfg.logo}" style="max-height:58px; max-width:120px; object-fit:contain;">`:''}
+        <div>
+          <div style="font-size:19px; font-weight:800; letter-spacing:.2px;">${Utils.escapeHTML(cfg.nombreEmpresa||'')}</div>
+          ${cfg.razonSocial?`<div style="font-size:11px; color:#666;">${Utils.escapeHTML(cfg.razonSocial)}${cfg.cuit?' · CUIT '+Utils.escapeHTML(cfg.cuit):''}</div>`:''}
+          <div style="font-size:11px; color:#666; margin-top:2px;">
+            ${cfg.direccion?Utils.escapeHTML(cfg.direccion):''}${cfg.whatsapp?' · '+Utils.escapeHTML(cfg.whatsapp):''}${cfg.correo?' · '+Utils.escapeHTML(cfg.correo):''}
+          </div>
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div style="display:inline-block; background:${accent}; color:#fff; font-size:12px; font-weight:700; letter-spacing:1px; padding:5px 14px; border-radius:20px; margin-bottom:8px;">COTIZACIÓN</div>
+        <div style="font-size:22px; font-weight:800;">#${Utils.escapeHTML(c.numero)}</div>
+        <div style="font-size:11.5px; color:#666; margin-top:4px;">${new Date(c.fecha).toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'})}</div>
+        ${vencida?`<div style="font-size:10.5px; font-weight:700; color:#c0392b; margin-top:4px;">VENCIDA</div>`:`<div style="font-size:10.5px; color:#666; margin-top:4px;">Válida por ${c.validezDias} días</div>`}
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:22px;">
+      <div style="background:#f8f9fb; border-radius:10px; padding:14px 16px;">
+        <div style="font-size:10px; font-weight:700; letter-spacing:.8px; color:${accent}; margin-bottom:6px;">CLIENTE</div>
+        <div style="font-size:14px; font-weight:700;">${Utils.escapeHTML(c.clienteNombre)}</div>
+      </div>
+      ${(c.vehiculoDescripcion||c.vehiculoDominio)?`
+      <div style="background:#f8f9fb; border-radius:10px; padding:14px 16px;">
+        <div style="font-size:10px; font-weight:700; letter-spacing:.8px; color:${accent}; margin-bottom:6px;">VEHÍCULO</div>
+        <div style="font-size:14px; font-weight:700;">${Utils.escapeHTML(c.vehiculoDescripcion||'—')}${c.vehiculoAnio?' · '+c.vehiculoAnio:''}</div>
+        <div style="font-size:11.5px; color:#666; margin-top:2px;">
+          ${c.vehiculoDominio&&c.vehiculoDominio!=='N/D'?'Dominio '+Utils.escapeHTML(c.vehiculoDominio):''}
+          ${c.vehiculoKilometraje?(c.vehiculoDominio&&c.vehiculoDominio!=='N/D'?' · ':'')+Number(c.vehiculoKilometraje).toLocaleString('es-AR')+' km':''}
+        </div>
+      </div>` : ''}
+    </div>
+
+    ${trabajosMarcados.length?`
+    <div style="margin-bottom:22px;">
+      <div style="font-size:10px; font-weight:700; letter-spacing:.8px; color:${accent}; margin-bottom:8px;">TRABAJO A REALIZAR</div>
+      <div style="display:flex; flex-wrap:wrap; gap:6px;">
+        ${trabajosMarcados.map(it=>`<span style="background:#eef2ff; color:#333; font-size:11.5px; padding:5px 12px; border-radius:20px; border:1px solid #e0e6f5;">✓ ${Utils.escapeHTML(it.label)}</span>`).join('')}
+      </div>
+    </div>` : ''}
+
+    ${mostrarItems ? `
+    <table style="width:100%; border-collapse:collapse; margin-bottom:4px;">
+      <thead>
+        <tr style="background:${accent};">
+          <th style="padding:9px 12px; text-align:center; color:#fff; font-size:11px; font-weight:700; border-radius:8px 0 0 0;">CANT.</th>
+          <th style="padding:9px 12px; text-align:left; color:#fff; font-size:11px; font-weight:700;">DESCRIPCIÓN</th>
+          <th style="padding:9px 12px; text-align:right; color:#fff; font-size:11px; font-weight:700;">P. UNIT.</th>
+          <th style="padding:9px 12px; text-align:right; color:#fff; font-size:11px; font-weight:700; border-radius:0 8px 0 0;">TOTAL</th>
+        </tr>
+      </thead>
+      <tbody>${filasItems}</tbody>
+    </table>` : ''}
+
+    <div style="display:flex; justify-content:flex-end; margin-top:14px;">
+      <div style="min-width:260px;">
+        ${mostrarItems?`
+        <div style="display:flex; justify-content:space-between; padding:5px 4px; font-size:12.5px; color:#555;"><span>Subtotal</span><span>$${c.subtotal.toLocaleString('es-AR')}</span></div>
+        ${c.descuentoMonto?`<div style="display:flex; justify-content:space-between; padding:5px 4px; font-size:12.5px; color:#c0392b;"><span>Descuento (${c.descuentoPct}%)</span><span>-$${c.descuentoMonto.toLocaleString('es-AR')}</span></div>`:''}
+        `:''}
+        <div style="display:flex; justify-content:space-between; align-items:center; background:${accent}; color:#fff; padding:12px 16px; border-radius:10px; margin-top:6px;">
+          <span style="font-size:13px; font-weight:700; letter-spacing:.5px;">TOTAL</span>
+          <span style="font-size:20px; font-weight:800;">$${c.total.toLocaleString('es-AR')}</span>
+        </div>
+      </div>
+    </div>
+
+    ${c.observaciones?`
+    <div style="margin-top:22px; background:#fffbea; border:1px solid #f5e6a8; border-radius:10px; padding:12px 16px;">
+      <div style="font-size:10px; font-weight:700; letter-spacing:.8px; color:#8a6d00; margin-bottom:4px;">OBSERVACIONES</div>
+      <div style="font-size:12px; color:#555;">${Utils.escapeHTML(c.observaciones)}</div>
+    </div>` : ''}
+
+    <div style="margin-top:28px; padding-top:16px; border-top:1px solid #e5e5e5; display:flex; justify-content:space-between; align-items:center;">
+      <div style="font-size:10.5px; color:#888; max-width:70%;">
+        Los precios pueden variar sin previo aviso. Esta cotización tiene una validez de ${c.validezDias} días desde su emisión.
+        ${cfg.pieComprobantes?`<br>${Utils.escapeHTML(cfg.pieComprobantes)}`:''}
+      </div>
+      <div style="text-align:right; font-size:11px; color:#555;">
+        <div style="font-weight:700; color:#1a1a1a;">¡Gracias por elegirnos!</div>
+        ${cfg.paginaWeb?Utils.escapeHTML(cfg.paginaWeb)+'<br>':''}
+        ${cfg.instagram?Utils.escapeHTML(cfg.instagram):''}
+      </div>
+    </div>
+  </div>`;
+}
+
 async function openCotizacionTicketModal(c){
   const cfg = Config.cache || await Config.load();
   let mostrarItems = true;
@@ -13491,7 +13769,8 @@ async function openCotizacionTicketModal(c){
     <div class="modal-actions">
       <button class="btn btn-ghost" id="cot-cerrar">Cerrar</button>
       <button class="btn btn-ghost" id="cot-whatsapp" ${!whatsappDestino?'disabled':''}>Enviar por WhatsApp</button>
-      <button class="btn btn-accent" id="cot-imprimir">Imprimir / Guardar PDF</button>
+      <button class="btn btn-ghost" id="cot-pdf-a4">Exportar PDF (A4)</button>
+      <button class="btn btn-accent" id="cot-imprimir">Imprimir (térmica 80mm)</button>
     </div>
     `,
     { width:'380px', persistent:true }
@@ -13502,6 +13781,10 @@ async function openCotizacionTicketModal(c){
     document.getElementById('print-ticket-area').innerHTML = cotizacionTicketHTML(c, cfg, mostrarItems);
   };
   document.getElementById('cot-imprimir').onclick = () => window.print();
+  document.getElementById('cot-pdf-a4').onclick = async () => {
+    printReport(cotizacionA4HTML(c, cfg, mostrarItems));
+    await Audit.log('cotizacion_pdf_a4', `Exportación a PDF (A4) de la cotización #${c.numero}.`);
+  };
   document.getElementById('cot-cerrar').onclick = () => Modal.close();
   const btnWa = document.getElementById('cot-whatsapp');
   if(whatsappDestino){
