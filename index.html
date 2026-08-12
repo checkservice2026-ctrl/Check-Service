@@ -8496,11 +8496,11 @@ async function openActualizarPreciosModal(){
 async function exportarStockProductosCSV(){
   const productos = (await DB.getAll('productos')).filter(p=>p.activo!==false).sort((a,b)=>a.nombre.localeCompare(b.nombre));
   if(!productos.length){ Toast.show('error','Nada para exportar','No hay productos activos.'); return; }
-  const headers = ['Código','Nombre','Unidad','Stock actual'];
-  const rows = productos.map(p=>[p.codigo, p.nombre, p.unidad||'', p.stockActual||0]);
+  const headers = ['Código','Código de barras','Nombre','Unidad','Stock actual'];
+  const rows = productos.map(p=>[p.codigo, p.codigoBarras||'', p.nombre, p.unidad||'', p.stockActual||0]);
   exportCSV(`stock_productos_${new Date().toISOString().slice(0,10)}.csv`, headers, rows);
   await Audit.log('stock_productos_exportado', `Exportación de stock de ${productos.length} producto(s) a CSV.`);
-  Toast.show('success','Exportado', `${productos.length} producto(s) exportado(s). Completá la columna "Stock actual" en Excel sin tocar la columna Código, guardá como CSV y subilo con "Cargar stock masivo".`);
+  Toast.show('success','Exportado', `${productos.length} producto(s) exportado(s). Completá la columna "Stock actual" en Excel sin tocar las columnas Código/Código de barras, guardá como CSV y subilo con "Cargar stock masivo".`);
 }
 
 async function openCargaStockMasivaModal(){
@@ -8556,7 +8556,7 @@ async function openCargaStockMasivaModal(){
     const dataRows = tieneHeader ? filas.slice(1) : filas;
     if(!dataRows.length){ Toast.show('error','Nada para importar',''); return; }
 
-    let colCodigo = 0, colStock = 3;
+    let colCodigo = 0, colStock = 4;
     if(tieneHeader){
       const header = filas[0].map(h=>h.toLowerCase());
       const idx = (re) => header.findIndex(h=>re.test(h));
