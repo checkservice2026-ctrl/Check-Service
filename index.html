@@ -3031,7 +3031,7 @@ async function viewDashboard(){
   const vehiculosById = {}; vehiculos.forEach(v=>vehiculosById[v.id]=v);
   const clientesById = {}; clientes.forEach(c=>clientesById[c.id]=c);
   const inicioMes = new Date(); inicioMes.setDate(1); inicioMes.setHours(0,0,0,0);
-  const historialEsteMes = historial.filter(h => new Date(h.fecha) >= inicioMes);
+  const historialEsteMes = historial.filter(h => parsearFechaSegura(h.fecha) >= inicioMes);
   const vehiculosAtendidosMes = new Set(historialEsteMes.map(h=>h.vehiculoId)).size;
   const proximosServices = historial.filter(h => esServicioProximo(h, vehiculosById[h.vehiculoId])).length;
   const alertasCRM = await obtenerAlertasCRMDashboard();
@@ -4819,14 +4819,14 @@ function clienteNombreCompleto(c){
 ----------------------------------------------------------------------- */
 function Utils_fmtFechaSolo(iso){
   if(!iso) return '—';
-  const d = new Date(iso);
+  const d = parsearFechaSegura(iso);
   if(isNaN(d.getTime())) return '—';
   return d.toLocaleDateString('es-AR');
 }
 
 function calcularEdad(fechaNacIso){
   if(!fechaNacIso) return null;
-  const nac = new Date(fechaNacIso);
+  const nac = parsearFechaSegura(fechaNacIso);
   if(isNaN(nac.getTime())) return null;
   const hoy = new Date();
   let edad = hoy.getFullYear() - nac.getFullYear();
@@ -5771,7 +5771,7 @@ function bindRecordatoriosListEvents(){
    20-C-SEPTIES. CRM Fase 3 — Cumpleaños (#/cumpleanos)
 ----------------------------------------------------------------------- */
 function proximoCumpleanos(fechaNacIso){
-  const nac = new Date(fechaNacIso);
+  const nac = parsearFechaSegura(fechaNacIso);
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   let prox = new Date(hoy.getFullYear(), nac.getMonth(), nac.getDate());
   if(prox < hoy) prox = new Date(hoy.getFullYear()+1, nac.getMonth(), nac.getDate());
@@ -6004,7 +6004,7 @@ async function viewCRMHome(){
   const nuevosEsteMes = clientes.filter(c => c.fechaCreacion && new Date(c.fechaCreacion) >= inicioMes).length;
   const cumpleanosEsteMes = clientes.filter(c => {
     if(!c.fechaNacimiento) return false;
-    const d = new Date(c.fechaNacimiento);
+    const d = parsearFechaSegura(c.fechaNacimiento);
     return d.getMonth() === hoy.getMonth();
   }).length;
 
@@ -6289,7 +6289,7 @@ async function viewClienteDetalle(id){
         const veh = vehiculosByIdMap[h.vehiculoId];
         return `<div class="doc-item" style="align-items:flex-start; flex-direction:column; gap:4px; padding:12px 14px;">
           <div style="display:flex; justify-content:space-between; width:100%;">
-            <b style="font-size:13px;">${Utils.fmtFecha(h.fecha).split(' ')[0]}</b>
+            <b style="font-size:13px;">${parsearFechaSegura(h.fecha).toLocaleDateString('es-AR')}</b>
             ${veh?`<a href="#/vehiculos/${veh.id}" class="tag-chip">${Utils.escapeHTML(veh.dominio)}</a>`:''}
           </div>
           <div style="font-size:12.5px; color:var(--text-secondary);">${Utils.escapeHTML(h.aceiteMarca||'')} ${Utils.escapeHTML(h.aceiteTipo||'')} ${h.kilometraje?'· '+Number(h.kilometraje).toLocaleString('es-AR')+' km':''}</div>
@@ -7450,7 +7450,7 @@ function bindHistorialCardEvents(){
         }
       }
       if(montoPagado>0.009){
-        await revertirCobrosHistorial(h, `Eliminación de service del ${Utils.fmtFecha(h.fecha)} (vehículo ${h.vehiculoId})`);
+        await revertirCobrosHistorial(h, `Eliminación de service del ${parsearFechaSegura(h.fecha).toLocaleDateString('es-AR')} (vehículo ${h.vehiculoId})`);
       }
       await DB.del('historialServicios', h.id);
       await Audit.log('historial_eliminado', `Service del ${h.fecha} eliminado (vehículo ${h.vehiculoId})${montoPagado>0.009?`, revirtiendo $${montoPagado.toLocaleString('es-AR')} cobrados`:''}.`);
@@ -12210,31 +12210,71 @@ async function eliminarGasto(gastoId){
   await DB.del('gastos', gastoId);
   await Audit.log('gasto_eliminado', `Gasto eliminado — ${gasto.categoriaNombre}: $${gasto.monto.toLocaleString('es-AR')}.`);
 }
+/* Edita un gasto ya cargado. Como el gasto genera un egreso real en Caja,
+   para no perder el rastro contable se revierte el/los egreso(s) originales
+   (con un ingreso de anulación, igual que eliminarGasto) y se registra un
+   egreso nuevo con los datos actualizados, manteniendo la misma referencia
+   "gasto:ID" para que Caja, Cierre de Caja y Resumen del día sigan
+   reflejando todo sin lógica aparte. */
+async function editarGasto(gastoId, { categoriaId, fecha, monto, medioPago, concepto, observaciones }){
+  const gastoActual = await DB.get('gastos', gastoId);
+  if(!gastoActual) return;
+  const categoria = await DB.get('categoriasGastos', categoriaId);
+  const session = Session.get();
+  const conceptoFinal = concepto || categoria.nombre;
 
-async function openGastoModal(){
+  const refGasto = `gasto:${gastoId}`;
+  const egresos = (await DB.getAll('caja')).filter(m=>m.tipo==='egreso' && m.referencia===refGasto);
+  for(const m of egresos){
+    await registrarMovimientoCaja({ tipo:'ingreso', concepto:`Anulación por edición — ${m.concepto}`, monto:m.monto, medioPago:m.medioPago, referencia:refGasto });
+  }
+
+  await DB.put('gastos', {
+    ...gastoActual,
+    categoriaId, categoriaNombre: categoria.nombre, tipo: categoria.tipo,
+    fecha, monto, medioPago, concepto: conceptoFinal, observaciones: observaciones||'',
+    fechaEdicion: Utils.nowISO(), usuarioEdicionId: session.usuarioId, usuarioEdicionNombre: session.nombre
+  });
+
+  await registrarMovimientoCaja({
+    tipo:'egreso',
+    concepto: `Gasto ${categoria.tipo.toLowerCase()} — ${categoria.nombre}: ${conceptoFinal}`,
+    monto, medioPago, referencia: refGasto
+  });
+
+  await Audit.log('gasto_editado', `Gasto editado — ${categoria.nombre} (${categoria.tipo}): $${monto.toLocaleString('es-AR')}.`);
+}
+
+async function openGastoModal(gasto=null){
   const categorias = await DB.getAll('categoriasGastos');
-  const categoriasActivas = categorias.filter(c=>c.activo!==false).sort((a,b)=>a.nombre.localeCompare(b.nombre));
+  let categoriasActivas = categorias.filter(c=>c.activo!==false).sort((a,b)=>a.nombre.localeCompare(b.nombre));
+  // Si estamos editando un gasto cuya categoría fue dada de baja, la incluimos
+  // igual en la lista (si no, no se podría guardar la edición sin cambiarla).
+  if(gasto && !categoriasActivas.some(c=>c.id===gasto.categoriaId)){
+    const catDelGasto = categorias.find(c=>c.id===gasto.categoriaId);
+    if(catDelGasto) categoriasActivas = [...categoriasActivas, catDelGasto].sort((a,b)=>a.nombre.localeCompare(b.nombre));
+  }
   if(!categoriasActivas.length){
     Toast.show('error','Sin categorías','Primero creá al menos una categoría de gasto (botón "Categorías").');
     return;
   }
   Modal.open(
-    'Nuevo gasto',
+    gasto ? 'Editar gasto' : 'Nuevo gasto',
     `
     <div class="field"><label>Categoría</label>
       <select class="select-input" id="gf-categoria">
-        <optgroup label="Fijos">${categoriasActivas.filter(c=>c.tipo==='Fijo').map(c=>`<option value="${c.id}">${Utils.escapeHTML(c.nombre)}</option>`).join('')}</optgroup>
-        <optgroup label="Variables">${categoriasActivas.filter(c=>c.tipo==='Variable').map(c=>`<option value="${c.id}">${Utils.escapeHTML(c.nombre)}</option>`).join('')}</optgroup>
+        <optgroup label="Fijos">${categoriasActivas.filter(c=>c.tipo==='Fijo').map(c=>`<option value="${c.id}" ${gasto&&gasto.categoriaId===c.id?'selected':''}>${Utils.escapeHTML(c.nombre)}</option>`).join('')}</optgroup>
+        <optgroup label="Variables">${categoriasActivas.filter(c=>c.tipo==='Variable').map(c=>`<option value="${c.id}" ${gasto&&gasto.categoriaId===c.id?'selected':''}>${Utils.escapeHTML(c.nombre)}</option>`).join('')}</optgroup>
       </select>
     </div>
     <div class="field-row">
-      <div class="field"><label>Fecha</label><input type="date" id="gf-fecha" value="${Utils.hoyLocal()}" max="${Utils.hoyLocal()}"></div>
-      <div class="field"><label>Monto</label><input type="number" min="0.01" step="0.01" id="gf-monto" placeholder="0.00"></div>
+      <div class="field"><label>Fecha</label><input type="date" id="gf-fecha" value="${gasto?gasto.fecha:Utils.hoyLocal()}" max="${Utils.hoyLocal()}"></div>
+      <div class="field"><label>Monto</label><input type="number" min="0.01" step="0.01" id="gf-monto" placeholder="0.00" value="${gasto?gasto.monto:''}"></div>
     </div>
-    <div class="field"><label>Medio de pago</label><select class="select-input" id="gf-medio">${MEDIOS_PAGO.filter(m=>m!=='Cuenta corriente').map(m=>`<option value="${m}">${m}</option>`).join('')}</select></div>
-    <div class="field"><label>Concepto / detalle</label><input type="text" id="gf-concepto" placeholder="Ej: Alquiler agosto, factura de luz..."></div>
-    <div class="field"><label>Observaciones (opcional)</label><textarea class="textarea-input" id="gf-observaciones"></textarea></div>
-    <div class="modal-actions"><button class="btn btn-ghost" id="gf-cancel">Cancelar</button><button class="btn btn-accent" id="gf-save">Registrar gasto</button></div>
+    <div class="field"><label>Medio de pago</label><select class="select-input" id="gf-medio">${MEDIOS_PAGO.filter(m=>m!=='Cuenta corriente').map(m=>`<option value="${m}" ${gasto&&gasto.medioPago===m?'selected':''}>${m}</option>`).join('')}</select></div>
+    <div class="field"><label>Concepto / detalle</label><input type="text" id="gf-concepto" placeholder="Ej: Alquiler agosto, factura de luz..." value="${gasto?Utils.escapeHTML(gasto.concepto):''}"></div>
+    <div class="field"><label>Observaciones (opcional)</label><textarea class="textarea-input" id="gf-observaciones">${gasto?Utils.escapeHTML(gasto.observaciones||''):''}</textarea></div>
+    <div class="modal-actions"><button class="btn btn-ghost" id="gf-cancel">Cancelar</button><button class="btn btn-accent" id="gf-save">${gasto?'Guardar cambios':'Registrar gasto'}</button></div>
     `,
     { width:'440px' }
   );
@@ -12248,8 +12288,13 @@ async function openGastoModal(){
     const observaciones = document.getElementById('gf-observaciones').value.trim();
     if(!fecha){ Toast.show('error','Falta la fecha',''); return; }
     if(!monto || monto<=0){ Toast.show('error','Monto inválido',''); return; }
-    await registrarGasto({ categoriaId, fecha, monto, medioPago, concepto, observaciones });
-    Toast.show('success','Gasto registrado', `$${monto.toLocaleString('es-AR')}`);
+    if(gasto){
+      await editarGasto(gasto.id, { categoriaId, fecha, monto, medioPago, concepto, observaciones });
+      Toast.show('success','Gasto actualizado', `$${monto.toLocaleString('es-AR')}`);
+    } else {
+      await registrarGasto({ categoriaId, fecha, monto, medioPago, concepto, observaciones });
+      Toast.show('success','Gasto registrado', `$${monto.toLocaleString('es-AR')}`);
+    }
     Modal.close();
     router();
   };
@@ -12346,7 +12391,7 @@ async function renderGastosMes(){
             <td>${Utils.escapeHTML(g.concepto)}</td>
             <td>${Utils.escapeHTML(g.medioPago)}</td>
             <td class="font-mono">$${g.monto.toLocaleString('es-AR')}</td>
-            <td style="text-align:right;"><button class="btn btn-danger-ghost btn-sm btn-eliminar-gasto" data-id="${g.id}">Eliminar</button></td>
+            <td style="text-align:right;"><button class="btn btn-ghost btn-sm btn-editar-gasto" data-id="${g.id}">Editar</button> <button class="btn btn-danger-ghost btn-sm btn-eliminar-gasto" data-id="${g.id}">Eliminar</button></td>
           </tr>`).join('') : `<tr><td colspan="7"><div class="empty-state">${svgIcon('gastos')}<h3>Sin gastos cargados este mes</h3></div></td></tr>`}
         </tbody>
       </table>
@@ -12356,6 +12401,13 @@ async function renderGastosMes(){
   document.getElementById('gastos-mes-anterior').onclick = () => { const d=new Date(ay, am-2, 1); gastosMesSeleccionado = d.toISOString().slice(0,7); renderGastosMes(); };
   document.getElementById('gastos-mes-siguiente').onclick = () => { const d=new Date(ay, am, 1); gastosMesSeleccionado = d.toISOString().slice(0,7); renderGastosMes(); };
   document.getElementById('gastos-mes-actual').onclick = () => { gastosMesSeleccionado = Utils.hoyLocal().slice(0,7); renderGastosMes(); };
+  document.querySelectorAll('.btn-editar-gasto').forEach(btn=>{
+    btn.onclick = async () => {
+      const gasto = await DB.get('gastos', Number(btn.dataset.id));
+      if(!gasto) return;
+      await openGastoModal(gasto);
+    };
+  });
   document.querySelectorAll('.btn-eliminar-gasto').forEach(btn=>{
     btn.onclick = async () => {
       if(!confirm('¿Eliminar este gasto? Se genera un movimiento en Caja que revierte el egreso original.')) return;
