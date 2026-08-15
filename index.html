@@ -9709,7 +9709,7 @@ async function posCartViewHTML(){
           <div class="pos-total-row grand"><span>Total</span><span id="pos-total">$0</span></div>
           <div class="pos-total-row" id="pos-recibido-row" style="display:none; align-items:center; margin-top:8px;">
             <span>Recibido</span>
-            <span><input type="number" min="0" step="0.01" id="pos-recibido" placeholder="0" style="width:110px; text-align:right; background:var(--bg-panel-alt); border:1px solid var(--border); border-radius:6px; padding:5px 8px; font-family:'Consolas',monospace; font-size:13px; color:var(--text-primary);"></span>
+            <span><input type="number" min="0" step="0.01" id="pos-recibido" placeholder="Opcional" style="width:110px; text-align:right; background:var(--bg-panel-alt); border:1px solid var(--border); border-radius:6px; padding:5px 8px; font-family:'Consolas',monospace; font-size:13px; color:var(--text-primary);"></span>
           </div>
           <div class="pos-total-row" id="pos-vuelto-row" style="display:none;">
             <span>Vuelto</span><span id="pos-vuelto" style="font-weight:700;">$0</span>
@@ -9719,6 +9719,10 @@ async function posCartViewHTML(){
           <button class="btn btn-ghost btn-pos-lg" id="btn-agregar-articulos">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
             Agregar artículos
+          </button>
+          <button class="btn btn-ghost btn-pos-lg" id="btn-vaciar-carrito" title="Vaciar carrito" style="color:var(--danger); border-color:var(--danger);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z"/></svg>
+            Vaciar carrito
           </button>
           <button class="btn btn-accent btn-pos-lg" id="btn-finalizar-venta">Finalizar venta</button>
         </div>
@@ -9811,6 +9815,14 @@ function actualizarVueltoPOS(total){
   const recibidoInput = document.getElementById('pos-recibido');
   const vueltoEl = document.getElementById('pos-vuelto');
   if(!recibidoInput || !vueltoEl) return;
+  const vueltoRow = document.getElementById('pos-vuelto-row');
+  // Si el campo "recibido" está vacío (monto opcional), no mostramos vuelto
+  // ni "Falta": simplemente ocultamos la fila hasta que se cargue un valor.
+  if(recibidoInput.value === ''){
+    if(vueltoRow) vueltoRow.style.display = 'none';
+    return;
+  }
+  if(vueltoRow) vueltoRow.style.display = '';
   const recibido = Number(recibidoInput.value)||0;
   const vuelto = recibido - total;
   vueltoEl.textContent = '$'+Math.abs(vuelto).toLocaleString('es-AR');
@@ -9840,6 +9852,13 @@ function bindPOSCartViewEvents(){
   actualizarVisibilidadEfectivo();
   document.getElementById('btn-agregar-articulos').onclick = irAPickerPOS;
   document.getElementById('btn-finalizar-venta').onclick = finalizarVenta;
+  const btnVaciar = document.getElementById('btn-vaciar-carrito');
+  if(btnVaciar) btnVaciar.onclick = () => {
+    if(!posCart.length) return;
+    if(!confirm('¿Vaciar el carrito? Se van a quitar todos los artículos agregados.')) return;
+    posCart = [];
+    renderPOSCart();
+  };
 }
 
 /* ---------- Vista SELECCIONAR ARTÍCULOS (overlay a pantalla completa) ---------- */
@@ -10241,13 +10260,18 @@ async function finalizarVenta(){
     const subtotalPrev = posCart.reduce((acc,i)=>acc+i.precioUnitario*i.cantidad,0);
     const descPctPrev = Number(document.getElementById('pos-descuento').value)||0;
     const totalPrev = subtotalPrev - subtotalPrev*(descPctPrev/100);
-    montoRecibido = Number(document.getElementById('pos-recibido').value)||0;
-    if(montoRecibido < totalPrev - 0.004){
-      SoundFX.error();
-      Toast.show('error','Falta dinero recibido', `El monto recibido ($${montoRecibido.toLocaleString('es-AR')}) es menor al total ($${totalPrev.toLocaleString('es-AR')}).`);
-      return;
+    const recibidoRaw = document.getElementById('pos-recibido').value;
+    // El monto recibido ahora es opcional: si el campo quedó vacío, no se
+    // guarda ni se calcula vuelto, y no bloquea la venta.
+    if(recibidoRaw !== ''){
+      montoRecibido = Number(recibidoRaw)||0;
+      if(montoRecibido < totalPrev - 0.004){
+        SoundFX.error();
+        Toast.show('error','Falta dinero recibido', `El monto recibido ($${montoRecibido.toLocaleString('es-AR')}) es menor al total ($${totalPrev.toLocaleString('es-AR')}).`);
+        return;
+      }
+      vuelto = montoRecibido - totalPrev;
     }
-    vuelto = montoRecibido - totalPrev;
   }
 
   // Chequeo final de stock (por si cambió desde que se armó el carrito). No bloquea la venta:
