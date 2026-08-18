@@ -10968,11 +10968,20 @@ async function viewProveedoresList(){
   const proveedores = (await DB.getAll('proveedores')).sort((a,b)=>a.nombre.localeCompare(b.nombre));
   const deudaPorProveedor = {};
   for(const p of proveedores){ deudaPorProveedor[p.id] = await saldoPendienteProveedor(p.id); }
+  const deudaTotal = Object.values(deudaPorProveedor).reduce((acc,s)=> acc + Math.max(0, s), 0);
+  const proveedoresConDeuda = Object.values(deudaPorProveedor).filter(s=>s>0.009).length;
   const esAdministrador = Session.get().rol==='Administrador';
   return `
     <div class="page-header">
       <div><h1>Proveedores</h1><p>${proveedores.filter(p=>p.activo!==false).length} proveedores activos de ${proveedores.length} registrados</p></div>
       <button class="btn btn-accent" id="btn-nuevo-proveedor">${svgIcon('proveedores')} Nuevo proveedor</button>
+    </div>
+    <div class="grid-kpi" style="margin-bottom:16px;">
+      <div class="kpi-card" style="--kpi-color:var(--danger)">
+        <div class="kpi-label">Deuda total con proveedores</div>
+        <div class="kpi-value">$${Math.round(deudaTotal).toLocaleString('es-AR')}</div>
+        <div class="kpi-sub">${proveedoresConDeuda} proveedor${proveedoresConDeuda===1?'':'es'} con saldo pendiente</div>
+      </div>
     </div>
     <div class="toolbar-filters">
       <div class="toolbar-search">
@@ -13046,11 +13055,11 @@ function drawBarChart(canvas, labels, values, color, formatValue, seriesLabel){
 ----------------------------------------------------------------------- */
 
 async function calcularSituacionPatrimonial(){
-  const [porMedio, clientes, productos, compras] = await Promise.all([
+  const [porMedio, clientes, productos, proveedores] = await Promise.all([
     cajaSaldoPorMedio(),
     DB.getAll('clientes'),
     DB.getAll('productos'),
-    DB.getAll('compras')
+    DB.getAll('proveedores')
   ]);
 
   const cajaYBancos = Object.values(porMedio).reduce((acc,v)=>acc+v, 0);
@@ -13068,9 +13077,11 @@ async function calcularSituacionPatrimonial(){
     .filter(p=>p.activo!==false)
     .reduce((acc,p)=> acc + (p.stockActual||0) * (p.precioCosto||0), 0);
 
-  // Cuentas por pagar: lo que falta pagarles a proveedores por compras
-  // que no están 100% saldadas.
-  const cuentasPorPagar = compras.reduce((acc,c)=> acc + Math.max(0, (c.total||0) - (c.montoPagado||0)), 0);
+  // Cuentas por pagar: deuda total con cada proveedor (compras pendientes
+  // de pago + ajuste manual de saldo), usando la misma función que usa el
+  // módulo de Proveedores para que ambos siempre coincidan.
+  const saldosProveedores = await Promise.all(proveedores.map(p=>saldoPendienteProveedor(p.id)));
+  const cuentasPorPagar = saldosProveedores.reduce((acc,s)=> acc + Math.max(0, s), 0);
 
   const totalActivo = cajaYBancos + cuentasPorCobrar + bienesDeCambio;
   const totalPasivo = cuentasPorPagar + saldosAFavorClientes;
