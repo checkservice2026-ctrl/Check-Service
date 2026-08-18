@@ -4141,7 +4141,7 @@ async function reautorizarCarpetaBackupAutomatico(){
 async function registrarSnapshotAlmacenamientoSiCorresponde(){
   if(!navigator.storage || !navigator.storage.estimate) return;
   try{
-    const hoy = new Date().toISOString().slice(0,10);
+    const hoy = Utils.hoyLocal();
     const existente = await DB.getByIndex('almacenamientoSnapshots','fecha', hoy);
     if(existente) return;
     const est = await navigator.storage.estimate();
@@ -7524,16 +7524,16 @@ async function openRegistrarPagoHistorialModal(h){
 /* -----------------------------------------------------------------------
    20-G. FORMULARIO Y MODALES DE HISTORIAL DE SERVICIOS (Fase 4)
 ----------------------------------------------------------------------- */
-function historialFormHTML(h, vehiculo, usuariosActivos, verCosto){
-  const items = h && h.items ? h.items : {};
+function historialFormHTML(h, vehiculo, usuariosActivos, verCosto, prefill){
+  const items = h && h.items ? h.items : (prefill && prefill.trabajos ? prefill.trabajos : {});
   return `
     <div class="card" style="margin-bottom:16px; padding:12px 14px;">
       <div style="font-size:12.5px; color:var(--text-muted);">Vehículo</div>
       <div style="font-weight:700;">${Utils.escapeHTML(vehiculo.dominio)} — ${Utils.escapeHTML(vehiculo.marca)} ${Utils.escapeHTML(vehiculo.modelo)}</div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Fecha</label><input type="date" id="hf-fecha" value="${h?h.fecha:new Date().toISOString().slice(0,10)}"></div>
-      <div class="field"><label>Kilometraje</label><input type="number" min="0" id="hf-kilometraje" value="${h?h.kilometraje:(vehiculo.kilometraje||'')}"></div>
+      <div class="field"><label>Fecha</label><input type="date" id="hf-fecha" value="${h?h.fecha:(prefill&&prefill.fecha?prefill.fecha:Utils.hoyLocal())}"></div>
+      <div class="field"><label>Kilometraje</label><input type="number" min="0" id="hf-kilometraje" value="${h?h.kilometraje:(prefill&&prefill.kilometraje?prefill.kilometraje:(vehiculo.kilometraje||''))}"></div>
     </div>
     <div class="field-row">
       <div class="field"><label>Marca de aceite</label><input type="text" id="hf-aceiteMarca" value="${h?Utils.escapeHTML(h.aceiteMarca||''):''}"></div>
@@ -7569,7 +7569,7 @@ function historialFormHTML(h, vehiculo, usuariosActivos, verCosto){
       </div>
     </div>
 
-    <div class="field"><label>Observaciones</label><textarea class="textarea-input" id="hf-observaciones">${h?Utils.escapeHTML(h.observaciones||''):''}</textarea></div>
+    <div class="field"><label>Observaciones</label><textarea class="textarea-input" id="hf-observaciones">${h?Utils.escapeHTML(h.observaciones||''):(prefill&&prefill.observaciones?Utils.escapeHTML(prefill.observaciones):'')}</textarea></div>
 
     <div class="field">
       <label>Fotos</label>
@@ -7643,15 +7643,15 @@ function renderHistorialPhotoGrid(fotosState){
   });
 }
 
-async function openHistorialModal(historial, vehiculo){
+async function openHistorialModal(historial, vehiculo, prefill){
   const usuariosActivos = (await DB.getAll('usuarios')).filter(u=>u.activo);
   const productos = await DB.getAll('productos');
   const session = Session.get();
   const verCosto = canSeeCosto(session.rol);
 
   Modal.open(
-    historial ? 'Editar service' : 'Nuevo service',
-    historialFormHTML(historial, vehiculo, usuariosActivos, verCosto) + `<div class="modal-actions"><button class="btn btn-ghost" id="hf-cancel">Cancelar</button><button class="btn btn-accent" id="hf-save">Guardar</button></div>`,
+    historial ? 'Editar service' : (prefill ? `Nuevo service — desde cotización #${prefill.origenCotizacionNumero}` : 'Nuevo service'),
+    historialFormHTML(historial, vehiculo, usuariosActivos, verCosto, prefill) + `<div class="modal-actions"><button class="btn btn-ghost" id="hf-cancel">Cancelar</button><button class="btn btn-accent" id="hf-save">Guardar</button></div>`,
     { width:'600px' }
   );
 
@@ -7686,7 +7686,9 @@ async function openHistorialModal(historial, vehiculo){
   // manual a un único ítem editable para no perder información.
   const itemsState = (historial && historial.itemsVendidos && historial.itemsVendidos.length)
     ? historial.itemsVendidos.map(it=>({...it}))
-    : (historial ? [{ productoId:null, descripcion:'Mano de obra / service', cantidad:1, precioUnitario:historial.precio||0, costoUnitario:historial.costo||0 }] : []);
+    : (historial
+        ? [{ productoId:null, descripcion:'Mano de obra / service', cantidad:1, precioUnitario:historial.precio||0, costoUnitario:historial.costo||0 }]
+        : (prefill && prefill.itemsVendidos && prefill.itemsVendidos.length ? prefill.itemsVendidos.map(it=>({...it})) : []));
   renderHistorialItemsList(itemsState, verCosto);
 
   document.getElementById('hf-add-manual-item').onclick = () => {
@@ -7782,9 +7784,19 @@ async function openHistorialModal(historial, vehiculo){
       payload.estadoEntrega = 'En taller';
       payload.estadoPago = 'Pendiente';
       payload.montoPagado = 0;
-      await DB.add('historialServicios', payload);
+      const nuevoHistorialId = await DB.add('historialServicios', payload);
       await Audit.log('historial_creado', `Service cargado para ${vehiculo.dominio} (${fecha}).`);
       Toast.show('success','Service cargado', vehiculo.dominio);
+
+      // Si este service vino de "Convertir a service" de una cotización, la
+      // marca como Aprobada y guarda la referencia cruzada.
+      if(prefill && prefill.origenCotizacionId){
+        const cotOrig = await DB.get('cotizaciones', prefill.origenCotizacionId);
+        if(cotOrig){
+          await DB.put('cotizaciones', { ...cotOrig, estado:'Aprobada', servicioGeneradoId: nuevoHistorialId });
+          await Audit.log('cotizacion_convertida_service', `Cotización #${cotOrig.numero} convertida en service (vehículo ${vehiculo.dominio}).`);
+        }
+      }
     }
 
     // Si el kilometraje informado es mayor al registrado, actualiza el odómetro del vehículo.
@@ -8070,6 +8082,11 @@ function stockBadgeHTML(p){
   return `<span class="badge stock-badge-ok">${p.stockActual}</span>`;
 }
 
+// Se mantiene fuera de viewProductosList/bindProductosListEvents para que sobreviva
+// a los re-render de router() (ej: al guardar la edición de un producto) y así
+// el buscador y los filtros no se pierdan.
+let productosFiltroState = { q:'', categoria:'', estado:'activos', critico:false };
+
 async function viewProductosList(){
   const productos = (await DB.getAll('productos')).sort((a,b)=>a.nombre.localeCompare(b.nombre));
   const marcasMapa = await getMarcasMapa();
@@ -8087,18 +8104,18 @@ async function viewProductosList(){
     <div class="toolbar-filters">
       <div class="toolbar-search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        <input type="text" id="prod-search" placeholder="Buscar por código, nombre o marca...">
+        <input type="text" id="prod-search" placeholder="Buscar por código, nombre o marca..." value="${Utils.escapeHTML(productosFiltroState.q)}">
       </div>
       <select class="toolbar-select" id="prod-filtro-categoria">
-        <option value="">Todas las categorías</option>
-        ${CATEGORIAS_PRODUCTO.map(c=>`<option value="${c}">${c}</option>`).join('')}
+        <option value="" ${!productosFiltroState.categoria?'selected':''}>Todas las categorías</option>
+        ${CATEGORIAS_PRODUCTO.map(c=>`<option value="${c}" ${productosFiltroState.categoria===c?'selected':''}>${c}</option>`).join('')}
       </select>
       <select class="toolbar-select" id="prod-filtro-estado">
-        <option value="activos" selected>Activos</option>
-        <option value="todos">Todos</option>
-        <option value="inactivos">Dados de baja</option>
+        <option value="activos" ${productosFiltroState.estado==='activos'?'selected':''}>Activos</option>
+        <option value="todos" ${productosFiltroState.estado==='todos'?'selected':''}>Todos</option>
+        <option value="inactivos" ${productosFiltroState.estado==='inactivos'?'selected':''}>Dados de baja</option>
       </select>
-      <label class="checkbox-inline"><input type="checkbox" id="prod-filtro-critico"> Solo stock crítico</label>
+      <label class="checkbox-inline"><input type="checkbox" id="prod-filtro-critico" ${productosFiltroState.critico?'checked':''}> Solo stock crítico</label>
     </div>
     <div class="card" style="padding:0; overflow-x:auto;">
       <table class="data-table" id="productos-table">
@@ -8172,6 +8189,7 @@ function bindProductosListEvents(){
     const cat = document.getElementById('prod-filtro-categoria').value;
     const estado = document.getElementById('prod-filtro-estado').value;
     const soloCritico = document.getElementById('prod-filtro-critico').checked;
+    productosFiltroState = { q, categoria:cat, estado, critico:soloCritico };
     document.querySelectorAll('#productos-table tbody tr[data-id]').forEach(tr=>{
       const matchQ = !q || tr.dataset.search.includes(q);
       const matchCat = !cat || tr.dataset.categoria === cat;
@@ -8184,6 +8202,10 @@ function bindProductosListEvents(){
   document.getElementById('prod-filtro-categoria').addEventListener('change', applyFilters);
   document.getElementById('prod-filtro-estado').addEventListener('change', applyFilters);
   document.getElementById('prod-filtro-critico').addEventListener('change', applyFilters);
+  // Reaplica el filtro guardado apenas se renderiza la lista (después de guardar
+  // una edición, dar de baja, marcar favorito, etc. el buscador ya viene precargado
+  // en el input, pero hay que re-ejecutar el filtrado para ocultar las filas).
+  applyFilters();
 }
 
 async function siguienteCodigoSugerido(){
@@ -8327,7 +8349,7 @@ async function exportarProductosExcel(){
     (p.precioCosto||0).toFixed(2), (p.precioVenta||0).toFixed(2), p.stockActual, p.stockMinimo,
     p.activo!==false?'Activo':'Baja'
   ]);
-  exportExcel(`productos_${new Date().toISOString().slice(0,10)}.xls`, headers, rows);
+  exportExcel(`productos_${Utils.hoyLocal()}.xls`, headers, rows);
   await Audit.log('productos_exportados', `Exportación de ${productos.length} producto(s) a Excel.`);
   Toast.show('success','Exportado', `${productos.length} producto(s) exportado(s).`);
 }
@@ -8358,7 +8380,7 @@ async function exportarPreciosProductosCSV(){
   if(!productos.length){ Toast.show('error','Nada para exportar','No hay productos activos.'); return; }
   const headers = ['Código','Código de barras','Nombre','Precio costo','Precio venta'];
   const rows = productos.map(p=>[p.codigo, p.codigoBarras||'', p.nombre, (p.precioCosto||0).toFixed(2), (p.precioVenta||0).toFixed(2)]);
-  exportCSV(`precios_productos_${new Date().toISOString().slice(0,10)}.csv`, headers, rows);
+  exportCSV(`precios_productos_${Utils.hoyLocal()}.csv`, headers, rows);
   await Audit.log('precios_productos_exportados', `Exportación de precios de ${productos.length} producto(s) a CSV.`);
   Toast.show('success','Exportado', `${productos.length} producto(s) exportado(s). Editá "Precio costo" y "Precio venta" en Excel sin tocar las columnas Código/Código de barras, guardá como CSV y subilo con "Actualizar precios".`);
 }
@@ -8498,7 +8520,7 @@ async function exportarStockProductosCSV(){
   if(!productos.length){ Toast.show('error','Nada para exportar','No hay productos activos.'); return; }
   const headers = ['Código','Código de barras','Nombre','Unidad','Stock actual'];
   const rows = productos.map(p=>[p.codigo, p.codigoBarras||'', p.nombre, p.unidad||'', p.stockActual||0]);
-  exportCSV(`stock_productos_${new Date().toISOString().slice(0,10)}.csv`, headers, rows);
+  exportCSV(`stock_productos_${Utils.hoyLocal()}.csv`, headers, rows);
   await Audit.log('stock_productos_exportado', `Exportación de stock de ${productos.length} producto(s) a CSV.`);
   Toast.show('success','Exportado', `${productos.length} producto(s) exportado(s). Completá la columna "Stock actual" en Excel sin tocar las columnas Código/Código de barras, guardá como CSV y subilo con "Cargar stock masivo".`);
 }
@@ -9630,6 +9652,8 @@ let posMode = 'cart'; // 'cart' | 'picker'
 let posClienteId = '';
 let posDescuentoPct = 0;
 let posMedioPago = 'Efectivo';
+let posCotizacionOrigen = null; // { id, numero } — si el carrito actual vino de "Convertir a venta" de una cotización
+let posPendingImport = null; // datos a inyectar en el próximo bindPOSEvents (viene de convertirCotizacionAVenta)
 
 /* Pantalla completa (Fullscreen API con fallbacks) y apertura en pestaña nueva */
 function toggleFullscreen(){
@@ -9680,6 +9704,7 @@ async function posCartViewHTML(){
   const clientes = (await DB.getAll('clientes')).filter(c=>c.activo!==false);
   return `
     <div class="pos-cartfull">
+      ${posCotizacionOrigen ? `<div class="pos-total-row" style="background:var(--bg-panel-alt); border:1px solid var(--border); border-radius:9px; padding:10px 12px; margin-bottom:12px; font-size:12.5px; color:var(--text-secondary);"><span>📋 Carrito cargado desde la cotización <b>#${Utils.escapeHTML(posCotizacionOrigen.numero)}</b></span></div>` : ''}
       <div class="pos-cartfull-toolbar">
         <div class="pcf-field" style="flex:2; min-width:200px;">
           <label>Cliente</label>
@@ -10117,6 +10142,17 @@ async function bindPOSEvents(){
   posCart = []; // cada visita al POS empieza con un carrito limpio
   posMode = 'cart';
   posClienteId = ''; posDescuentoPct = 0; posMedioPago = 'Efectivo';
+  posCotizacionOrigen = null;
+
+  // Si venimos de "Convertir a venta" desde una cotización, inyecta esos
+  // datos ahora (después del reseteo de arriba, para que no se pisen).
+  if(posPendingImport){
+    posCart = posPendingImport.items;
+    posClienteId = posPendingImport.clienteId || '';
+    posDescuentoPct = posPendingImport.descuentoPct || 0;
+    posCotizacionOrigen = posPendingImport.cotizacionOrigen || null;
+    posPendingImport = null;
+  }
 
   actualizarIconoFullscreen();
   document.getElementById('btn-pos-fullscreen').onclick = toggleFullscreen;
@@ -10310,6 +10346,8 @@ async function finalizarVenta(){
     items: posCart.map(i=>({ productoId:i.productoId, nombre:i.nombre, cantidad:i.cantidad, precioUnitario:i.precioUnitario, subtotal:i.precioUnitario*i.cantidad })),
     subtotal, descuentoPct:descPct, descuentoTotal, total, medioPago, estado:'completada',
     montoRecibido, vuelto,
+    cotizacionOrigenId: posCotizacionOrigen ? posCotizacionOrigen.id : null,
+    cotizacionOrigenNumero: posCotizacionOrigen ? posCotizacionOrigen.numero : null,
     usuarioId: session.usuarioId, usuarioNombre: session.nombre
   };
   const ventaId = await DB.add('ventas', venta);
@@ -10329,9 +10367,20 @@ async function finalizarVenta(){
   await Audit.log('venta_creada', `Venta #${numero} por $${total.toLocaleString('es-AR')} (${medioPago}).`);
   SoundFX.cierreCaja();
 
+  // Si esta venta vino de "Convertir a venta" de una cotización, la marca
+  // como Aprobada y guarda la referencia cruzada para no perder el rastro.
+  if(posCotizacionOrigen){
+    const cotOrig = await DB.get('cotizaciones', posCotizacionOrigen.id);
+    if(cotOrig){
+      await DB.put('cotizaciones', { ...cotOrig, estado:'Aprobada', ventaGeneradaId: ventaId, ventaGeneradaNumero: numero });
+      await Audit.log('cotizacion_convertida_venta', `Cotización #${cotOrig.numero} convertida en venta #${numero}.`);
+    }
+  }
+
   mostrarTicketModal(venta, cfg, cliente);
   posCart = [];
   posClienteId = ''; posDescuentoPct = 0; posMedioPago = 'Efectivo';
+  posCotizacionOrigen = null;
   const elCliente = document.getElementById('pos-cliente'); if(elCliente) elCliente.value = '';
   const elDesc = document.getElementById('pos-descuento'); if(elDesc) elDesc.value = 0;
   const elMedio = document.getElementById('pos-medio-pago'); if(elMedio) elMedio.value = 'Efectivo';
@@ -11285,7 +11334,7 @@ async function openCompraModal(estadoPrevio=null){
       <select class="select-input" id="cf-proveedorId">${proveedores.map(p=>`<option value="${p.id}" ${estadoPrevio&&estadoPrevio.proveedorId===p.id?'selected':''}>${Utils.escapeHTML(p.nombre)}</option>`).join('')}</select>
     </div>
     <div class="field-row">
-      <div class="field"><label>Fecha</label><input type="date" id="cf-fecha" value="${estadoPrevio?estadoPrevio.fecha:new Date().toISOString().slice(0,10)}"></div>
+      <div class="field"><label>Fecha</label><input type="date" id="cf-fecha" value="${estadoPrevio?estadoPrevio.fecha:Utils.hoyLocal()}"></div>
       <div class="field"><label>Nº de factura</label><input type="text" id="cf-numeroFactura" value="${estadoPrevio?Utils.escapeHTML(estadoPrevio.numeroFactura):''}"></div>
     </div>
     <div class="field">
@@ -12216,7 +12265,8 @@ async function registrarGasto({ categoriaId, fecha, monto, medioPago, concepto, 
   await registrarMovimientoCaja({
     tipo:'egreso',
     concepto: `Gasto ${categoria.tipo.toLowerCase()} — ${categoria.nombre}: ${conceptoFinal}`,
-    monto, medioPago, referencia:`gasto:${gastoId}`
+    monto, medioPago, referencia:`gasto:${gastoId}`,
+    fecha: combinarFechaConHoraActual(fecha)
   });
   await Audit.log('gasto_registrado', `Gasto registrado — ${categoria.nombre} (${categoria.tipo}): $${monto.toLocaleString('es-AR')}.`);
   return gastoId;
@@ -12263,7 +12313,8 @@ async function editarGasto(gastoId, { categoriaId, fecha, monto, medioPago, conc
   await registrarMovimientoCaja({
     tipo:'egreso',
     concepto: `Gasto ${categoria.tipo.toLowerCase()} — ${categoria.nombre}: ${conceptoFinal}`,
-    monto, medioPago, referencia: refGasto
+    monto, medioPago, referencia: refGasto,
+    fecha: combinarFechaConHoraActual(fecha)
   });
 
   await Audit.log('gasto_editado', `Gasto editado — ${categoria.nombre} (${categoria.tipo}): $${monto.toLocaleString('es-AR')}.`);
@@ -13196,9 +13247,9 @@ async function viewReportes(tipoParam){
     </div>
     <div class="reportes-toolbar">
       ${def.usaFechas?`
-        <input type="date" class="toolbar-select" id="rep-desde" value="${hace30.toISOString().slice(0,10)}">
+        <input type="date" class="toolbar-select" id="rep-desde" value="${Utils.fechaLocalYMD(hace30)}">
         <span style="color:var(--text-muted); font-size:12px;">a</span>
-        <input type="date" class="toolbar-select" id="rep-hasta" value="${hoy.toISOString().slice(0,10)}">
+        <input type="date" class="toolbar-select" id="rep-hasta" value="${Utils.fechaLocalYMD(hoy)}">
         <button class="btn btn-ghost btn-sm" id="rep-aplicar-fechas">Aplicar</button>
       `:''}
       <div style="flex:1;"></div>
@@ -13369,6 +13420,87 @@ async function bindReportesEvents(tipoParam){
 function cotEstadoBadge(estado){
   const map = { Pendiente:'badge-cot-pendiente', Aprobada:'badge-cot-aprobada', Rechazada:'badge-cot-rechazada' };
   return `<span class="badge ${map[estado]||'badge-neutral'}">${estado}</span>`;
+}
+
+/* Convierte una cotización en una venta del POS: pasa sus ítems al carrito
+   (con productoId cuando corresponde, así descuenta stock real; sin él,
+   entran como ítems libres, igual que un ítem manual del POS) y navega al
+   POS. La cotización queda vinculada a la venta recién se confirma el pago
+   (ver finalizarVenta), no antes — así si el usuario cancela en el POS, la
+   cotización sigue como estaba. */
+async function convertirCotizacionAVenta(cotizacion){
+  if(!cotizacion.items || !cotizacion.items.length){
+    Toast.show('error','Sin ítems','Esta cotización no tiene ítems para pasar al carrito.');
+    return;
+  }
+  if(cotizacion.ventaGeneradaId){
+    const continuar = confirm(`Esta cotización ya se convirtió antes en la venta #${cotizacion.ventaGeneradaNumero}.\n\n¿Querés cargar los ítems al carrito de todas formas?`);
+    if(!continuar) return;
+  }
+  const items = [];
+  for(const it of cotizacion.items){
+    let stockDisponible = null;
+    if(it.productoId){
+      const producto = await DB.get('productos', it.productoId);
+      if(producto) stockDisponible = producto.stockActual;
+    }
+    items.push({
+      itemId: (it.productoId?'p'+it.productoId:'libre')+'-'+Date.now()+Math.random().toString(16).slice(2),
+      productoId: it.productoId || null,
+      nombre: it.descripcion,
+      precioUnitario: it.precioUnitario,
+      cantidad: it.cantidad,
+      stockDisponible
+    });
+  }
+  posPendingImport = {
+    items,
+    clienteId: cotizacion.clienteId || '',
+    descuentoPct: cotizacion.descuentoPct || 0,
+    cotizacionOrigen: { id: cotizacion.id, numero: cotizacion.numero }
+  };
+  Modal.close();
+  Toast.show('success','Cotización cargada al carrito', `Revisá los ítems de la #${cotizacion.numero} antes de cobrar.`);
+  window.location.hash = '#/pos';
+}
+
+/* Convierte una cotización en un service (Historial). Requiere que la
+   cotización tenga un vehículo real vinculado (elegido de la lista del
+   cliente, no cargado a mano) porque el Historial de Servicios necesita
+   un vehiculoId existente en la base. */
+async function convertirCotizacionAService(cotizacion){
+  if(!cotizacion.vehiculoId){
+    Toast.show('error','Falta vincular el vehículo', 'Esta cotización no tiene un vehículo real seleccionado (fue cargado a mano). Editá la cotización, elegí el cliente y su vehículo de las listas, y volvé a intentar.');
+    return;
+  }
+  const vehiculo = await DB.get('vehiculos', cotizacion.vehiculoId);
+  if(!vehiculo){
+    Toast.show('error','Vehículo no encontrado', 'El vehículo vinculado a esta cotización ya no existe.');
+    return;
+  }
+  if(cotizacion.servicioGeneradoId){
+    const continuar = confirm('Esta cotización ya se convirtió antes en un service.\n\n¿Querés generar otro service igual con estos ítems?');
+    if(!continuar) return;
+  }
+  const itemsVendidos = [];
+  for(const it of cotizacion.items){
+    let costoUnitario = 0;
+    if(it.productoId){
+      const producto = await DB.get('productos', it.productoId);
+      if(producto) costoUnitario = producto.precioCosto||0;
+    }
+    itemsVendidos.push({ productoId: it.productoId||null, descripcion: it.descripcion, cantidad: it.cantidad, precioUnitario: it.precioUnitario, costoUnitario });
+  }
+  Modal.close();
+  await openHistorialModal(null, vehiculo, {
+    fecha: Utils.hoyLocal(),
+    kilometraje: cotizacion.vehiculoKilometraje || vehiculo.kilometraje || null,
+    trabajos: cotizacion.trabajos || {},
+    observaciones: cotizacion.observaciones || '',
+    itemsVendidos,
+    origenCotizacionId: cotizacion.id,
+    origenCotizacionNumero: cotizacion.numero
+  });
 }
 
 async function viewCotizacionesList(){
@@ -13568,7 +13700,7 @@ async function openCotizacionModal(cotizacion=null){
     resultsBox.querySelectorAll('.autocomplete-item[data-id]').forEach(item=>{
       item.onclick = () => {
         const producto = productos.find(p=>p.id===Number(item.dataset.id));
-        cotItems.push({ descripcion:producto.nombre, cantidad:1, precioUnitario:producto.precioVenta||0 });
+        cotItems.push({ descripcion:producto.nombre, cantidad:1, precioUnitario:producto.precioVenta||0, productoId:producto.id });
         renderItemsList();
         searchInput.value=''; resultsBox.classList.add('hidden');
       };
@@ -13842,15 +13974,23 @@ async function openCotizacionTicketModal(c){
     </div>
     <div id="print-ticket-area">${cotizacionTicketHTML(c, cfg, mostrarItems)}</div>
     ${!whatsappDestino?`<p style="font-size:11px; color:var(--text-muted); text-align:center; margin-top:8px;">Este cliente no tiene WhatsApp cargado — el botón de envío queda deshabilitado.</p>`:''}
-    <div class="modal-actions">
+    ${c.ventaGeneradaNumero?`<p style="font-size:11px; color:var(--teal); text-align:center; margin-top:8px;">✓ Ya se convirtió en la venta #${c.ventaGeneradaNumero}</p>`:''}
+    <div class="modal-actions" style="flex-wrap:wrap;">
       <button class="btn btn-ghost" id="cot-cerrar">Cerrar</button>
       <button class="btn btn-ghost" id="cot-whatsapp" ${!whatsappDestino?'disabled':''}>Enviar por WhatsApp</button>
       <button class="btn btn-ghost" id="cot-pdf-a4">Exportar PDF (A4)</button>
       <button class="btn btn-accent" id="cot-imprimir">Imprimir (térmica 80mm)</button>
     </div>
+    <div class="modal-actions" style="flex-wrap:wrap; margin-top:0;">
+      <button class="btn btn-ghost" id="cot-a-service">🔧 Convertir a service</button>
+      <button class="btn btn-accent" id="cot-a-venta">🛒 Convertir a venta (POS)</button>
+    </div>
     `,
     { width:'380px', persistent:true }
   );
+
+  document.getElementById('cot-a-venta').onclick = () => convertirCotizacionAVenta(c);
+  document.getElementById('cot-a-service').onclick = () => convertirCotizacionAService(c);
 
   document.getElementById('cot-toggle-items').onchange = (e) => {
     mostrarItems = e.target.checked;
@@ -14459,7 +14599,7 @@ async function openTurnoModal(turno=null, fechaPrefill=null){
     turno ? 'Editar turno' : 'Nuevo turno',
     `
     <div class="field-row">
-      <div class="field"><label>Fecha</label><input type="date" id="tf-fecha" value="${turno?turno.fecha:(fechaPrefill||new Date().toISOString().slice(0,10))}"></div>
+      <div class="field"><label>Fecha</label><input type="date" id="tf-fecha" value="${turno?turno.fecha:(fechaPrefill||Utils.hoyLocal())}"></div>
       <div class="field"><label>Hora</label><input type="time" id="tf-hora" value="${turno?turno.horaInicio:'09:00'}"></div>
     </div>
     <div class="field">
@@ -14830,8 +14970,8 @@ function bindLavaderoEstadisticasEvents(){
 let graficosTab = 'semana';
 let graficosSemanaSeleccionada = null; // se inicializa en bindGraficosEvents
 let graficosSemanasCount = 12;
-let graficosObjetivoMes = new Date().toISOString().slice(0,7);
-let graficosProyeccionMes = new Date().toISOString().slice(0,7);
+let graficosObjetivoMes = Utils.hoyLocal().slice(0,7);
+let graficosProyeccionMes = Utils.hoyLocal().slice(0,7);
 let graficosChartData = {};
 
 function inicioDeSemana(fechaISO){
