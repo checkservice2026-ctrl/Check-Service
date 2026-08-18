@@ -2836,6 +2836,10 @@ async function router(){
       break;
     case 'stock':
       if(param==='rotacion'){ outlet.innerHTML = await viewStockRotacion(); bindStockRotacionEvents(); }
+      else if(param==='ajuste-masivo'){
+        if(!canAjustarStock(Session.get().rol)){ outlet.innerHTML = viewNoPermiso(); return; }
+        outlet.innerHTML = await viewAjusteMasivoStock(); bindAjusteMasivoStockEvents();
+      }
       else{ outlet.innerHTML = await viewStockList(); bindStockListEvents(); }
       break;
     case 'pos':
@@ -8098,6 +8102,8 @@ async function viewProductosList(){
       <div><h1>Productos</h1><p>${productos.filter(p=>p.activo!==false).length} productos activos de ${productos.length} registrados</p></div>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <button class="btn btn-ghost" id="btn-exportar-productos">${svgIcon('reportes')} Exportar Excel</button>
+        <button class="btn btn-ghost" id="btn-control-stock-fisico">${svgIcon('stock')} Control de stock físico</button>
+        ${canAjustarStock(session.rol)?`<a href="#/stock/ajuste-masivo" class="btn btn-ghost">${svgIcon('stock')} Ajuste masivo de stock</a>`:''}
         ${puedeGestionar?`<button class="btn btn-ghost" id="btn-exportar-precios">${svgIcon('reportes')} Exportar precios (CSV)</button><button class="btn btn-ghost" id="btn-importar-precios">${svgIcon('backups')} Actualizar precios (CSV)</button><button class="btn btn-ghost" id="btn-exportar-stock">${svgIcon('reportes')} Exportar stock (CSV)</button><button class="btn btn-ghost" id="btn-importar-stock">${svgIcon('backups')} Cargar stock masivo (CSV)</button><button class="btn btn-ghost" id="btn-gestionar-marcas">${svgIcon('productos')} Marcas</button><button class="btn btn-ghost" id="btn-ajuste-precios">${svgIcon('caja')} Ajustar precios por marca</button><button class="btn btn-ghost" id="btn-importar-productos">${svgIcon('backups')} Importar productos</button><button class="btn btn-accent" id="btn-nuevo-producto">${svgIcon('productos')} Nuevo producto</button>`:''}
       </div>
     </div>
@@ -8150,6 +8156,7 @@ function bindProductosListEvents(){
   const btnImportar = document.getElementById('btn-importar-productos');
   if(btnImportar) btnImportar.onclick = () => openImportarProductosModal();
   document.getElementById('btn-exportar-productos').onclick = exportarProductosExcel;
+  document.getElementById('btn-control-stock-fisico').onclick = () => abrirControlStockFisicoModal();
   const btnExportarPrecios = document.getElementById('btn-exportar-precios');
   if(btnExportarPrecios) btnExportarPrecios.onclick = exportarPreciosProductosCSV;
   const btnImportarPrecios = document.getElementById('btn-importar-precios');
@@ -8879,6 +8886,130 @@ function marcaCeldaHTML(marca, grande){
   return `<span>${Utils.escapeHTML(marca.nombre)}</span>`;
 }
 
+/* Ticket imprimible (80mm) para control de stock físico: lista cada
+   producto con su stock del sistema y un espacio en blanco para anotar
+   a mano el conteo real, agrupado por categoría para facilitar el
+   recorrido por góndola/estantería. */
+function stockFisicoTicketHTML(productos, marcasMapa, filtroLabel, cfg){
+  const porCategoria = {};
+  productos.forEach(p=>{
+    const cat = p.categoria || 'Otros';
+    (porCategoria[cat] = porCategoria[cat] || []).push(p);
+  });
+  const categorias = Object.keys(porCategoria).sort((a,b)=>a.localeCompare(b));
+  const filaProducto = p => `
+      <div style="margin:9px 0 3px;">
+        <div style="font-weight:700; font-size:11px;">${Utils.escapeHTML(p.codigo)} — ${Utils.escapeHTML(p.nombre)}${marcasMapa[p.marcaId]?' <span style="font-weight:400; color:#555;">('+Utils.escapeHTML(marcasMapa[p.marcaId].nombre)+')</span>':''}</div>
+        <div class="tp-row" style="margin-top:3px; align-items:center;">
+          <span>Sistema: <b>${p.stockActual}</b> ${Utils.escapeHTML(p.unidad||'')}</span>
+          <span>Físico: <span style="display:inline-block; width:52px; border-bottom:1px solid #333;">&nbsp;</span></span>
+        </div>
+      </div>`;
+  return `
+    <div class="ticket-preview cot-ticket" id="cf-ticket-content">
+      ${cfg.logo?`<div class="tp-logo"><img src="${cfg.logo}"></div>`:''}
+      <div style="text-align:center; font-weight:700;">${Utils.escapeHTML(cfg.nombreEmpresa)}</div>
+      <hr>
+      <div class="tp-title">CONTROL DE STOCK FÍSICO</div>
+      <div class="tp-row"><span>Filtro:</span><span>${Utils.escapeHTML(filtroLabel)}</span></div>
+      <div class="tp-row"><span>Fecha:</span><span>${new Date().toLocaleDateString('es-AR')}</span></div>
+      <div class="tp-row"><span>Productos:</span><span>${productos.length}</span></div>
+      ${categorias.map(cat=>`
+      <hr>
+      <div class="tp-row" style="font-weight:700;"><span>${Utils.escapeHTML(cat.toUpperCase())}</span><span></span></div>
+      ${porCategoria[cat].map(filaProducto).join('')}`).join('')}
+      <hr>
+      <div class="tp-firma">
+        <div class="tp-firma-linea"></div>
+        <div style="text-align:center; font-size:10px; margin-top:4px;">Responsable del conteo</div>
+      </div>
+      <div style="text-align:center; margin-top:10px; font-weight:700;">${Utils.escapeHTML(cfg.nombreEmpresa)}</div>
+    </div>
+  `;
+}
+
+async function abrirControlStockFisicoModal(){
+  const [marcasTodas, cfg] = await Promise.all([
+    DB.getAll('marcas'),
+    Config.load()
+  ]);
+  const marcasActivas = marcasTodas.filter(m=>m.activo!==false).sort((a,b)=>a.nombre.localeCompare(b.nombre));
+
+  const render = () => `
+    <div class="field">
+      <label>Filtrar por</label>
+      <select class="select-input" id="csf-tipo">
+        <option value="todos">Todos los productos</option>
+        <option value="categoria">Una categoría</option>
+        <option value="marca">Una marca</option>
+      </select>
+    </div>
+    <div class="field" id="csf-campo-categoria" style="display:none;">
+      <label>Categoría</label>
+      <select class="select-input" id="csf-categoria">
+        ${CATEGORIAS_PRODUCTO.map(c=>`<option value="${c}">${c}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field" id="csf-campo-marca" style="display:none;">
+      <label>Marca</label>
+      ${marcasActivas.length ? `<select class="select-input" id="csf-marca">${marcasActivas.map(m=>`<option value="${m.id}">${Utils.escapeHTML(m.nombre)}</option>`).join('')}</select>` : `<p style="font-size:12px; color:var(--text-muted);">No hay marcas cargadas todavía.</p>`}
+    </div>
+    <label class="checkbox-inline" style="margin-top:4px;"><input type="checkbox" id="csf-solo-con-stock"> Omitir productos sin stock (0)</label>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="csf-cancelar">Cancelar</button>
+      <button class="btn btn-accent" id="csf-generar">Generar ticket</button>
+    </div>
+  `;
+
+  Modal.open('Control de stock físico', render(), { width:'380px' });
+
+  const tipoSelect = document.getElementById('csf-tipo');
+  const campoCategoria = document.getElementById('csf-campo-categoria');
+  const campoMarca = document.getElementById('csf-campo-marca');
+  tipoSelect.onchange = () => {
+    campoCategoria.style.display = tipoSelect.value==='categoria' ? '' : 'none';
+    campoMarca.style.display = tipoSelect.value==='marca' ? '' : 'none';
+  };
+  document.getElementById('csf-cancelar').onclick = () => Modal.close();
+  document.getElementById('csf-generar').onclick = async () => {
+    const tipo = tipoSelect.value;
+    const soloConStock = document.getElementById('csf-solo-con-stock').checked;
+    let productos = (await DB.getAll('productos')).filter(p=>p.activo!==false);
+    let filtroLabel = 'Todos los productos';
+
+    if(tipo==='categoria'){
+      const cat = document.getElementById('csf-categoria').value;
+      productos = productos.filter(p=>p.categoria===cat);
+      filtroLabel = 'Categoría: ' + cat;
+    } else if(tipo==='marca'){
+      const marcaSelect = document.getElementById('csf-marca');
+      if(!marcaSelect){ Toast.show('error','Sin marcas','No hay marcas cargadas para filtrar.'); return; }
+      const marcaId = Number(marcaSelect.value);
+      productos = productos.filter(p=>p.marcaId===marcaId);
+      filtroLabel = 'Marca: ' + (marcasActivas.find(m=>m.id===marcaId)||{}).nombre;
+    }
+    if(soloConStock) productos = productos.filter(p=>(p.stockActual||0) > 0);
+    productos.sort((a,b)=> (a.categoria||'').localeCompare(b.categoria||'') || a.nombre.localeCompare(b.nombre));
+
+    if(!productos.length){ Toast.show('error','Sin productos','No hay productos que coincidan con ese filtro.'); return; }
+
+    const marcasMapa = await getMarcasMapa();
+    Modal.open(
+      'Control de stock físico',
+      `
+      <div id="print-ticket-area">${stockFisicoTicketHTML(productos, marcasMapa, filtroLabel, cfg)}</div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="csf-ticket-cerrar">Cerrar</button>
+        <button class="btn btn-accent" id="csf-ticket-imprimir">Imprimir / Guardar PDF</button>
+      </div>
+      `,
+      { width:'380px', persistent:true }
+    );
+    document.getElementById('csf-ticket-imprimir').onclick = () => window.print();
+    document.getElementById('csf-ticket-cerrar').onclick = () => { Modal.close(); router(); };
+  };
+}
+
 async function abrirGestionMarcasModal(){
   const marcas = (await DB.getAll('marcas')).sort((a,b)=>a.nombre.localeCompare(b.nombre));
   Modal.open(
@@ -9313,7 +9444,7 @@ async function viewStockList(){
   const valorInventario = productos.reduce((acc,p)=> acc + (p.precioCosto||0)*(p.stockActual||0), 0);
 
   return `
-    <div class="page-header"><div><h1>Stock</h1><p>Control de inventario en tiempo real</p></div><div><a href="#/stock/rotacion" class="btn btn-ghost">${svgIcon('reportes')} Rotación</a></div></div>
+    <div class="page-header"><div><h1>Stock</h1><p>Control de inventario en tiempo real</p></div><div style="display:flex; gap:8px; flex-wrap:wrap;">${puedeAjustar?`<a href="#/stock/ajuste-masivo" class="btn btn-accent">${svgIcon('stock')} Ajuste masivo</a>`:''}<a href="#/stock/rotacion" class="btn btn-ghost">${svgIcon('reportes')} Rotación</a></div></div>
     <div class="grid-kpi">
       <div class="kpi-card" style="--kpi-color:var(--accent)"><div class="kpi-label">Productos activos</div><div class="kpi-value">${productos.length}</div></div>
       <div class="kpi-card" style="--kpi-color:var(--danger)"><div class="kpi-label">Stock crítico</div><div class="kpi-value">${criticos}</div><div class="kpi-sub">en o por debajo del mínimo</div></div>
@@ -9597,6 +9728,147 @@ function openAjusteStockModal(producto){
     await Audit.log('stock_ajustado', `Stock de ${producto.codigo} (${tipo}): ${stockAnterior} → ${stockResultante}. Motivo: ${motivo}`);
     Toast.show('success','Stock actualizado', `${producto.nombre}: ${stockResultante} ${producto.unidad}`);
     Modal.close();
+    router();
+  };
+}
+
+/* Vista de ajuste masivo de stock: permite cargar el conteo físico de varios
+   productos a la vez (filtrando por búsqueda o categoría) y aplicar todos los
+   ajustes juntos con un único motivo, en vez de tener que entrar producto por
+   producto. Cada input viene precargado con el stock del sistema, así que solo
+   hace falta tocar los que dieron diferente en el conteo. */
+async function viewAjusteMasivoStock(){
+  const productos = (await DB.getAll('productos')).filter(p=>p.activo!==false)
+    .sort((a,b)=> (a.categoria||'').localeCompare(b.categoria||'') || a.nombre.localeCompare(b.nombre));
+  const marcasMapa = await getMarcasMapa();
+
+  return `
+    <a href="#/stock" class="back-link">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Volver a Stock
+    </a>
+    <div class="page-header">
+      <div><h1>Ajuste masivo de stock</h1><p>Cargá el conteo físico de varios productos y aplicá todos los ajustes juntos.</p></div>
+    </div>
+    <div class="toolbar-filters">
+      <div class="toolbar-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input type="text" id="ams-search" placeholder="Buscar por código o nombre...">
+      </div>
+      <select class="toolbar-select" id="ams-filtro-categoria">
+        <option value="">Todas las categorías</option>
+        ${CATEGORIAS_PRODUCTO.map(c=>`<option value="${c}">${c}</option>`).join('')}
+      </select>
+    </div>
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table class="data-table" id="ams-table">
+        <thead><tr><th>Código</th><th>Nombre</th><th>Categoría</th><th>Marca</th><th>Sistema</th><th>Conteo físico</th><th>Diferencia</th></tr></thead>
+        <tbody>
+          ${productos.length ? productos.map(p => `<tr data-id="${p.id}" data-categoria="${p.categoria}" data-search="${Utils.escapeHTML((p.codigo+' '+p.nombre).toLowerCase())}">
+              <td class="font-mono" style="font-size:12px;">${Utils.escapeHTML(p.codigo)}</td>
+              <td style="font-weight:700;">${Utils.escapeHTML(p.nombre)}</td>
+              <td><span class="tag-chip">${Utils.escapeHTML(p.categoria)}</span></td>
+              <td>${marcaCeldaHTML(marcasMapa[p.marcaId])}</td>
+              <td class="font-mono">${p.stockActual}</td>
+              <td><input type="number" class="ams-input" data-id="${p.id}" data-sistema="${p.stockActual}" value="${p.stockActual}" min="0" step="1" style="width:90px;"></td>
+              <td class="ams-diff" data-id="${p.id}" style="font-weight:700;">—</td>
+            </tr>`).join('') : `<tr><td colspan="7"><div class="empty-state">${svgIcon('productos')}<h3>No hay productos activos</h3></div></td></tr>`}
+        </tbody>
+      </table>
+    </div>
+    <div class="card" style="padding:14px 16px; margin-top:14px;">
+      <div class="field"><label>Motivo del ajuste (se aplica a todos los productos con diferencia)</label><input type="text" id="ams-motivo" placeholder="Ej: Conteo físico mensual - Depósito"></div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; flex-wrap:wrap; gap:10px;">
+        <div id="ams-resumen" style="font-size:13px; color:var(--text-muted);">Sin diferencias cargadas todavía</div>
+        <button class="btn btn-accent" id="ams-aplicar">Aplicar ajustes</button>
+      </div>
+    </div>
+  `;
+}
+
+function bindAjusteMasivoStockEvents(){
+  function leerValor(input){
+    const sistema = Number(input.dataset.sistema);
+    return input.value===''? sistema : Number(input.value);
+  }
+  function actualizarDiff(input){
+    const diffCell = document.querySelector(`.ams-diff[data-id="${input.dataset.id}"]`);
+    const sistema = Number(input.dataset.sistema);
+    const val = leerValor(input);
+    if(!isNaN(val) && (val < 0 || !Number.isInteger(val))){
+      diffCell.textContent = 'Inválido';
+      diffCell.style.color = 'var(--danger)';
+      return;
+    }
+    const diff = val - sistema;
+    diffCell.textContent = (diff===0 || isNaN(diff)) ? '—' : (diff>0?'+':'') + diff;
+    diffCell.style.color = (diff===0 || isNaN(diff)) ? '' : (diff>0 ? 'var(--ok, #2ecc71)' : 'var(--danger)');
+  }
+  function actualizarResumen(){
+    let count=0;
+    document.querySelectorAll('.ams-input').forEach(inp=>{
+      const val = leerValor(inp);
+      if(!isNaN(val) && val !== Number(inp.dataset.sistema)) count++;
+    });
+    document.getElementById('ams-resumen').textContent = count===0 ? 'Sin diferencias cargadas todavía' : `${count} producto${count===1?'':'s'} con diferencia respecto al sistema`;
+  }
+  document.querySelectorAll('.ams-input').forEach(inp=>{
+    inp.addEventListener('input', () => { actualizarDiff(inp); actualizarResumen(); });
+  });
+
+  function applyFilters(){
+    const q = document.getElementById('ams-search').value.trim().toLowerCase();
+    const cat = document.getElementById('ams-filtro-categoria').value;
+    document.querySelectorAll('#ams-table tbody tr[data-id]').forEach(tr=>{
+      const matchQ = !q || tr.dataset.search.includes(q);
+      const matchCat = !cat || tr.dataset.categoria === cat;
+      tr.style.display = (matchQ && matchCat) ? '' : 'none';
+    });
+  }
+  document.getElementById('ams-search').addEventListener('input', applyFilters);
+  document.getElementById('ams-filtro-categoria').addEventListener('change', applyFilters);
+
+  document.getElementById('ams-aplicar').onclick = async () => {
+    const motivo = document.getElementById('ams-motivo').value.trim() || 'Ajuste masivo por conteo físico';
+    const idsConCambio = [];
+    let invalidos = 0;
+    document.querySelectorAll('.ams-input').forEach(inp=>{
+      const val = leerValor(inp);
+      const sistema = Number(inp.dataset.sistema);
+      if(val === sistema) return;
+      if(isNaN(val) || val < 0 || !Number.isInteger(val)){ invalidos++; return; }
+      idsConCambio.push({ id:Number(inp.dataset.id), nuevoStock: val });
+    });
+    if(invalidos > 0){
+      Toast.show('error','Hay valores inválidos', `${invalidos} producto(s) tienen un conteo negativo o con decimales y no se van a ajustar. Corregilos antes de aplicar.`);
+      return;
+    }
+    if(!idsConCambio.length){ Toast.show('error','Sin cambios','No cargaste ninguna diferencia respecto al stock del sistema.'); return; }
+    if(!confirm(`Se van a ajustar ${idsConCambio.length} producto(s) con motivo "${motivo}". ¿Confirmar?`)) return;
+
+    const session = Session.get();
+    let aplicados = 0;
+    for(const cambio of idsConCambio){
+      const producto = await DB.get('productos', cambio.id);
+      if(!producto) continue;
+      const stockAnterior = producto.stockActual;
+      const stockResultante = cambio.nuevoStock;
+      if(stockResultante === stockAnterior) continue;
+      await DB.add('movimientosStock', {
+        productoId: cambio.id, fecha: Utils.nowISO(), tipo:'ajuste', cantidad: stockResultante-stockAnterior,
+        stockAnterior, stockResultante, motivo,
+        usuarioId: session.usuarioId, usuarioNombre: session.nombre
+      });
+      await DB.put('productos', { ...producto, stockActual: stockResultante });
+      aplicados++;
+    }
+    if(aplicados === 0){
+      Toast.show('error','Nada para aplicar','El stock de esos productos ya estaba actualizado (puede que alguien más lo haya ajustado mientras tanto).');
+      return;
+    }
+    await Audit.log('stock_ajuste_masivo', `Ajuste masivo de stock aplicado a ${aplicados} producto(s). Motivo: ${motivo}`);
+    Toast.show('success','Stock actualizado', `${aplicados} producto(s) ajustados.`);
+    window.location.hash = '#/stock';
     router();
   };
 }
