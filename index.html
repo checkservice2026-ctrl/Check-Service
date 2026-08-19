@@ -8100,11 +8100,30 @@ async function viewProductosList(){
   return `
     <div class="page-header">
       <div><h1>Productos</h1><p>${productos.filter(p=>p.activo!==false).length} productos activos de ${productos.length} registrados</p></div>
-      <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <button class="btn btn-ghost" id="btn-exportar-productos">${svgIcon('reportes')} Exportar Excel</button>
-        <button class="btn btn-ghost" id="btn-control-stock-fisico">${svgIcon('stock')} Control de stock físico</button>
-        ${canAjustarStock(session.rol)?`<a href="#/stock/ajuste-masivo" class="btn btn-ghost">${svgIcon('stock')} Ajuste masivo de stock</a>`:''}
-        ${puedeGestionar?`<button class="btn btn-ghost" id="btn-exportar-precios">${svgIcon('reportes')} Exportar precios (CSV)</button><button class="btn btn-ghost" id="btn-importar-precios">${svgIcon('backups')} Actualizar precios (CSV)</button><button class="btn btn-ghost" id="btn-exportar-stock">${svgIcon('reportes')} Exportar stock (CSV)</button><button class="btn btn-ghost" id="btn-importar-stock">${svgIcon('backups')} Cargar stock masivo (CSV)</button><button class="btn btn-ghost" id="btn-gestionar-marcas">${svgIcon('productos')} Marcas</button><button class="btn btn-ghost" id="btn-ajuste-precios">${svgIcon('caja')} Ajustar precios por marca</button><button class="btn btn-ghost" id="btn-importar-productos">${svgIcon('backups')} Importar productos</button><button class="btn btn-accent" id="btn-nuevo-producto">${svgIcon('productos')} Nuevo producto</button>`:''}
+      <div style="display:flex; gap:8px; flex-wrap:wrap; position:relative;">
+        <div style="position:relative;">
+          <button class="btn btn-ghost" id="btn-prod-mas-acciones">${svgIcon('reportes')} Más acciones
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px; height:13px; margin-left:2px;"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="dropdown-menu" id="prod-dropdown-menu" style="right:auto; left:0; width:250px;">
+            <button class="dropdown-item" id="btn-exportar-productos">${svgIcon('reportes')} Exportar catálogo (Excel)</button>
+            <button class="dropdown-item" id="btn-control-stock-fisico">${svgIcon('stock')} Control de stock físico</button>
+            ${canAjustarStock(session.rol)?`<a href="#/stock/ajuste-masivo" class="dropdown-item">${svgIcon('stock')} Ajuste masivo de stock</a>`:''}
+            ${puedeGestionar?`
+            <div class="dropdown-sep"></div>
+            <button class="dropdown-item" id="btn-exportar-precios">${svgIcon('reportes')} Exportar precios (CSV)</button>
+            <button class="dropdown-item" id="btn-importar-precios">${svgIcon('backups')} Actualizar precios (CSV)</button>
+            <button class="dropdown-item" id="btn-ajuste-precios">${svgIcon('caja')} Ajustar precios por marca</button>
+            <div class="dropdown-sep"></div>
+            <button class="dropdown-item" id="btn-exportar-stock">${svgIcon('reportes')} Exportar stock (CSV)</button>
+            <button class="dropdown-item" id="btn-importar-stock">${svgIcon('backups')} Cargar stock masivo (CSV)</button>
+            <div class="dropdown-sep"></div>
+            <button class="dropdown-item" id="btn-importar-productos">${svgIcon('backups')} Importar productos</button>
+            <button class="dropdown-item" id="btn-gestionar-marcas">${svgIcon('productos')} Marcas</button>
+            ` : ''}
+          </div>
+        </div>
+        ${puedeGestionar?`<button class="btn btn-accent" id="btn-nuevo-producto">${svgIcon('productos')} Nuevo producto</button>`:''}
       </div>
     </div>
     <div class="toolbar-filters">
@@ -8149,6 +8168,12 @@ async function viewProductosList(){
 }
 
 function bindProductosListEvents(){
+  const btnMasAcciones = document.getElementById('btn-prod-mas-acciones');
+  const prodDropdown = document.getElementById('prod-dropdown-menu');
+  if(btnMasAcciones && prodDropdown){
+    btnMasAcciones.onclick = (e) => { e.stopPropagation(); prodDropdown.classList.toggle('open'); };
+    document.addEventListener('click', () => prodDropdown.classList.remove('open'));
+  }
   const btnNuevo = document.getElementById('btn-nuevo-producto');
   if(btnNuevo) btnNuevo.onclick = () => openProductoModal();
   const btnMarcas = document.getElementById('btn-gestionar-marcas');
@@ -13916,7 +13941,11 @@ async function openCotizacionModal(cotizacion=null){
       <div class="field"><label>Descuento (%)</label><input type="number" min="0" max="100" id="cf-descuentoPct" value="${cotizacion?cotizacion.descuentoPct:0}"></div>
       <div class="field"><label>Validez (días)</label><input type="number" min="1" id="cf-validezDias" value="${cotizacion?cotizacion.validezDias:7}"></div>
     </div>
-    <div style="text-align:right; font-size:14px; font-weight:700; margin:6px 0 14px;">Total: <span id="cf-total">$0</span></div>
+    <div class="field"><label>Recargo por pago con Tarjeta de Crédito (%)</label><input type="number" min="0" step="0.01" id="cf-recargoTarjetaPct" placeholder="Ej: 10" value="${cotizacion&&cotizacion.recargoTarjetaPct?cotizacion.recargoTarjetaPct:''}"></div>
+    <div style="text-align:right; margin:6px 0 14px;">
+      <div style="font-size:12.5px; color:var(--text-secondary);">Total Efectivo / Transferencia: <span id="cf-total-efectivo" style="font-weight:700; color:var(--text-primary);">$0</span></div>
+      <div style="font-size:14px; font-weight:700; margin-top:4px;">Total Tarjeta de Crédito: <span id="cf-total-tarjeta">$0</span></div>
+    </div>
     <div class="field"><label>Estado</label>
       <select class="select-input" id="cf-estado">
         <option value="Pendiente" ${!cotizacion||cotizacion.estado==='Pendiente'?'selected':''}>Pendiente</option>
@@ -13958,8 +13987,11 @@ async function openCotizacionModal(cotizacion=null){
   function updateTotal(){
     const subtotal = cotItems.reduce((acc,it)=>acc+it.cantidad*it.precioUnitario,0);
     const desc = Number(document.getElementById('cf-descuentoPct').value)||0;
-    const total = Math.max(0, subtotal - subtotal*(desc/100));
-    document.getElementById('cf-total').textContent = '$'+total.toLocaleString('es-AR');
+    const totalEfectivo = Math.max(0, subtotal - subtotal*(desc/100));
+    const recargoTarjeta = Number(document.getElementById('cf-recargoTarjetaPct').value)||0;
+    const totalTarjeta = totalEfectivo + totalEfectivo*(recargoTarjeta/100);
+    document.getElementById('cf-total-efectivo').textContent = '$'+totalEfectivo.toLocaleString('es-AR');
+    document.getElementById('cf-total-tarjeta').textContent = '$'+totalTarjeta.toLocaleString('es-AR');
   }
   renderItemsList();
 
@@ -13971,6 +14003,7 @@ async function openCotizacionModal(cotizacion=null){
     chk.onchange = () => chk.closest('.checklist-item').classList.toggle('checked', chk.checked);
   });
   document.getElementById('cf-descuentoPct').addEventListener('input', updateTotal);
+  document.getElementById('cf-recargoTarjetaPct').addEventListener('input', updateTotal);
 
   const searchInput = document.getElementById('cf-producto-search');
   const resultsBox = document.getElementById('cf-autocomplete-results');
@@ -14033,6 +14066,8 @@ async function openCotizacionModal(cotizacion=null){
     const descuentoPct = Number(document.getElementById('cf-descuentoPct').value)||0;
     const descuentoMonto = subtotal*(descuentoPct/100);
     const total = Math.max(0, subtotal-descuentoMonto);
+    const recargoTarjetaPct = Number(document.getElementById('cf-recargoTarjetaPct').value)||0;
+    const totalTarjeta = total + total*(recargoTarjetaPct/100);
     const session = Session.get();
 
     const trabajos = {};
@@ -14048,6 +14083,7 @@ async function openCotizacionModal(cotizacion=null){
       vehiculoKilometraje: Number(document.getElementById('cf-vehiculoKilometraje').value)||null,
       trabajos,
       items: cotItems, subtotal, descuentoPct, descuentoMonto, total,
+      recargoTarjetaPct, totalTarjeta,
       validezDias: Number(document.getElementById('cf-validezDias').value)||7,
       estado: document.getElementById('cf-estado').value,
       observaciones: document.getElementById('cf-observaciones').value.trim()
@@ -14088,7 +14124,13 @@ function cotizacionWhatsappTexto(c, mostrarItems, cfg){
     c.items.forEach(it=> lineas.push(`${it.cantidad}x ${it.descripcion} — $${(it.cantidad*it.precioUnitario).toLocaleString('es-AR')}`));
     lineas.push('');
   }
-  lineas.push(`*Total: $${c.total.toLocaleString('es-AR')}*`);
+  if(c.recargoTarjetaPct){
+    lineas.push(`Precio de lista: $${(c.totalTarjeta||c.total).toLocaleString('es-AR')}`);
+    lineas.push(`Descuento efectivo/transferencia: -$${((c.totalTarjeta||c.total)-c.total).toLocaleString('es-AR')}`);
+    lineas.push(`*Total: $${c.total.toLocaleString('es-AR')}*`);
+  }else{
+    lineas.push(`*Total: $${c.total.toLocaleString('es-AR')}*`);
+  }
   lineas.push(`Validez: ${c.validezDias} días. Los precios pueden variar sin previo aviso.`);
   lineas.push('');
   lineas.push('¡Gracias por elegirnos! 🙌');
@@ -14121,6 +14163,10 @@ function cotizacionTicketHTML(c, cfg, mostrarItems){
         <div class="tp-row"><span>SUBTOTAL</span><span>$${c.subtotal.toLocaleString('es-AR')}</span></div>
         ${c.descuentoMonto?`<div class="tp-row"><span>DESCUENTO (${c.descuentoPct}%)</span><span>-$${c.descuentoMonto.toLocaleString('es-AR')}</span></div>`:''}
       ` : '<hr>'}
+      ${c.recargoTarjetaPct?`
+      <div class="tp-row"><span>PRECIO DE LISTA</span><span>$${(c.totalTarjeta||c.total).toLocaleString('es-AR')}</span></div>
+      <div class="tp-row"><span>DESCUENTO EFECTIVO/TRANSF.</span><span>-$${((c.totalTarjeta||c.total)-c.total).toLocaleString('es-AR')}</span></div>
+      ` : ``}
       <div class="tp-row" style="font-weight:700; font-size:14px;"><span>TOTAL</span><span>$${c.total.toLocaleString('es-AR')}</span></div>
       <hr>
       <div style="text-align:center;">VALIDEZ DE LA COTIZACION: ${c.validezDias} DIAS</div>
@@ -14214,6 +14260,10 @@ function cotizacionA4HTML(c, cfg, mostrarItems){
         ${mostrarItems?`
         <div style="display:flex; justify-content:space-between; padding:5px 4px; font-size:12.5px; color:#555;"><span>Subtotal</span><span>$${c.subtotal.toLocaleString('es-AR')}</span></div>
         ${c.descuentoMonto?`<div style="display:flex; justify-content:space-between; padding:5px 4px; font-size:12.5px; color:#c0392b;"><span>Descuento (${c.descuentoPct}%)</span><span>-$${c.descuentoMonto.toLocaleString('es-AR')}</span></div>`:''}
+        `:''}
+        ${c.recargoTarjetaPct?`
+        <div style="display:flex; justify-content:space-between; padding:5px 4px; font-size:12.5px; color:#555;"><span>Precio de lista</span><span>$${(c.totalTarjeta||c.total).toLocaleString('es-AR')}</span></div>
+        <div style="display:flex; justify-content:space-between; padding:5px 4px; font-size:12.5px; color:#c0392b;"><span>Descuento efectivo/transferencia</span><span>-$${((c.totalTarjeta||c.total)-c.total).toLocaleString('es-AR')}</span></div>
         `:''}
         <div style="display:flex; justify-content:space-between; align-items:center; background:${accent}; color:#fff; padding:12px 16px; border-radius:10px; margin-top:6px;">
           <span style="font-size:13px; font-weight:700; letter-spacing:.5px;">TOTAL</span>
