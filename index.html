@@ -14752,6 +14752,7 @@ function lavaderoTurnoRowHTML(t, mostrarFecha, extraAttrs){
     <td>${lavaderoEstadoBadge(t.estado)}</td>
     <td style="text-align:right; white-space:nowrap;">
       ${t.estado==='Reservado' && puede?`<button class="btn btn-ghost btn-sm btn-marcar-listo-turno" data-id="${t.id}">Marcar listo</button><button class="btn btn-accent btn-sm btn-cobrar-turno" data-id="${t.id}">Cobrar</button><button class="btn btn-ghost btn-sm btn-editar-turno" data-id="${t.id}">Editar</button><button class="btn btn-danger-ghost btn-sm btn-cancelar-turno" data-id="${t.id}">Cancelar</button>`:''}
+      ${t.estado==='Reservado' && t.clienteTelefono?`<button class="btn btn-ghost btn-sm btn-recordar-turno" data-id="${t.id}" title="Recordarle el turno por WhatsApp">📅 Recordar</button>`:''}
       ${t.estado==='Listo'?`${t.clienteTelefono?`<button class="btn btn-accent btn-sm btn-avisar-turno" data-id="${t.id}" title="Avisar por WhatsApp que está listo">💬 Avisar</button>`:''}${puede?`<button class="btn btn-accent btn-sm btn-cobrar-turno" data-id="${t.id}">Cobrar</button><button class="btn btn-ghost btn-sm btn-volver-reservado-turno" data-id="${t.id}">Volver a reservado</button><button class="btn btn-danger-ghost btn-sm btn-cancelar-turno" data-id="${t.id}">Cancelar</button>`:''}`:''}
       ${t.estado==='Completado'?`${t.clienteTelefono?`<button class="btn btn-ghost btn-sm btn-avisar-turno" data-id="${t.id}" title="Avisar por WhatsApp que está listo">💬 Avisar</button>`:''}<button class="btn btn-ghost btn-sm btn-ver-turno" data-id="${t.id}">Ver</button>${puede?`<button class="btn btn-danger-ghost btn-sm btn-anular-turno" data-id="${t.id}">Anular</button>`:''}`:''}
       ${t.estado==='Cancelado' && puede?`<button class="btn btn-ghost btn-sm btn-reactivar-turno" data-id="${t.id}">Reactivar</button><button class="btn btn-danger-ghost btn-sm btn-eliminar-turno" data-id="${t.id}">Eliminar</button>`:''}
@@ -14813,6 +14814,14 @@ function bindLavaderoTurnoRowActions(){
     const telefono = (t.clienteTelefono||'').replace(/\D/g,'');
     if(!telefono){ Toast.show('error','Sin teléfono','Este turno no tiene un teléfono cargado.'); return; }
     const mensaje = `Hola ${t.clienteNombre}! Te escribimos de ${Config.cache.nombreEmpresa} para avisarte que tu ${t.vehiculoDescripcion||'vehículo'} ya está listo para retirar. ¡Te esperamos!`;
+    abrirWhatsApp(telefono, mensaje);
+  });
+  document.querySelectorAll('.btn-recordar-turno').forEach(btn=>btn.onclick=async()=>{
+    const t = await DB.get('lavaderoTurnos', Number(btn.dataset.id));
+    const telefono = (t.clienteTelefono||'').replace(/\D/g,'');
+    if(!telefono){ Toast.show('error','Sin teléfono','Este turno no tiene un teléfono cargado.'); return; }
+    const fechaTexto = new Date(t.fecha+'T00:00:00').toLocaleDateString('es-AR', { weekday:'long', day:'numeric', month:'long' });
+    const mensaje = `Hola ${t.clienteNombre}! Te escribimos de ${Config.cache.nombreEmpresa} para recordarte tu turno de ${t.servicioNombre} el ${fechaTexto} a las ${t.horaInicio} hs${t.vehiculoDescripcion?` para tu ${t.vehiculoDescripcion}`:''}. ¡Te esperamos!`;
     abrirWhatsApp(telefono, mensaje);
   });
   document.querySelectorAll('.btn-ver-turno').forEach(btn=>btn.onclick=async()=>{
