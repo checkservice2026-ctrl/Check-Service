@@ -1111,6 +1111,12 @@ textarea.textarea-input{ resize:vertical; min-height:70px; }
 }
 .lock-card{ max-width:92vw; }
 </style>
+<!-- ApexCharts (CDN) — usado como prueba piloto para modernizar el gráfico
+     de Margen del Dashboard. Requiere internet: si falla la carga (por
+     ejemplo, sin conexión), window.ApexCharts queda undefined y el propio
+     código de la app cae automáticamente al gráfico de Chart.js (offline)
+     como respaldo, sin romper nada. -->
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@3"></script>
 </head>
 <body>
 
@@ -3246,7 +3252,10 @@ async function viewDashboard(){
           <option value="anio">Por año</option>
         </select>
       </div>
-      <div class="chart-canvas-box" style="height:260px;"><canvas id="dash-margen-chart"></canvas></div>
+      <div class="chart-canvas-box" style="height:260px;">
+        <div id="dash-margen-apex" style="height:100%;"></div>
+        <canvas id="dash-margen-chart" style="display:none;"></canvas>
+      </div>
     </div>
     ` : ''}
 
@@ -3413,11 +3422,98 @@ async function calcularMargenPorPeriodo(periodo){
   return { labels, valores };
 }
 
+/* Media Móvil Exponencial (EMA) — da más peso a los valores recientes que
+   una media simple, por eso reacciona más rápido a cambios de tendencia.
+   El período se adapta a la cantidad de puntos disponibles: con pocos
+   puntos (ej. "por año") usa una EMA más corta para que no quede plana. */
+function calcularEMA(valores, periodo){
+  if(!valores.length) return [];
+  const p = Math.max(2, Math.min(periodo, valores.length));
+  const k = 2/(p+1);
+  const resultado = [valores[0]];
+  for(let i=1;i<valores.length;i++){
+    resultado.push(valores[i]*k + resultado[i-1]*(1-k));
+  }
+  return resultado;
+}
+
+let dashMargenApexInstance = null;
 async function drawDashboardMargenChart(periodo){
+  const apexDiv = document.getElementById('dash-margen-apex');
   const canvas = document.getElementById('dash-margen-chart');
-  if(!canvas) return;
+  if(!apexDiv && !canvas) return;
   const { labels, valores } = await calcularMargenPorPeriodo(periodo);
-  drawBarChart(canvas, labels, valores, '#FF8C1A', (v)=>'$'+v.toLocaleString('es-AR'), 'Margen');
+  const emaValores = calcularEMA(valores, 5).map(v=>Math.round(v));
+
+  // Si ApexCharts cargó bien (hay internet), se usa el gráfico moderno.
+  // Si no (sin conexión, CDN bloqueado, etc.), se cae automáticamente
+  // al gráfico de Chart.js de siempre, que funciona 100% offline.
+  if(typeof ApexCharts !== 'undefined' && apexDiv){
+    canvas.style.display = 'none';
+    apexDiv.style.display = 'block';
+    if(dashMargenApexInstance){ dashMargenApexInstance.destroy(); dashMargenApexInstance = null; }
+    const cs = getComputedStyle(document.documentElement);
+    const accent = (cs.getPropertyValue('--accent')||'').trim() || '#FF8C1A';
+    const teal = (cs.getPropertyValue('--teal')||'').trim() || '#0E9A8A';
+    const textMuted = (cs.getPropertyValue('--text-secondary')||'').trim() || '#9AA3AF';
+    const gridColor = (cs.getPropertyValue('--border')||'').trim() || 'rgba(154,163,175,.18)';
+    const panelColor = (cs.getPropertyValue('--bg-panel-raised')||'').trim() || '#282D34';
+    const textColor = (cs.getPropertyValue('--text-primary')||'').trim() || '#ECEEF1';
+
+    dashMargenApexInstance = new ApexCharts(apexDiv, {
+      chart: {
+        type: 'line',
+        height: '100%',
+        toolbar: { show: false },
+        animations: { easing: 'easeinout', speed: 650 },
+        fontFamily: 'inherit',
+        background: 'transparent'
+      },
+      series: [
+        { name: 'Margen', type: 'bar', data: valores },
+        { name: 'Tendencia (EMA)', type: 'line', data: emaValores }
+      ],
+      xaxis: {
+        categories: labels,
+        labels: { style: { colors: textMuted, fontSize: '10.5px' } },
+        axisBorder: { show: false },
+        axisTicks: { show: false }
+      },
+      yaxis: {
+        labels: { style: { colors: textMuted, fontSize: '10.5px' }, formatter: (v) => '$'+Math.round(v).toLocaleString('es-AR') }
+      },
+      grid: { borderColor: gridColor, strokeDashArray: 3, yaxis: { lines: { show: true } }, xaxis: { lines: { show: false } } },
+      plotOptions: { bar: { borderRadius: 7, columnWidth: '55%', distributed: false } },
+      stroke: { width: [0, 3], curve: 'smooth' },
+      markers: { size: [0, 3.5], colors: [teal], strokeColors: panelColor, strokeWidth: 2, hover: { size: 5 } },
+      dataLabels: { enabled: false },
+      colors: [accent, teal],
+      fill: {
+        type: ['gradient', 'solid'],
+        gradient: { shade: 'light', type: 'vertical', shadeIntensity: 0.3, gradientToColors: [hexToRgba(accent, .55)], inverseColors: false, opacityFrom: 1, opacityTo: 0.85, stops: [0, 100] }
+      },
+      legend: {
+        show: true, position: 'top', horizontalAlign: 'right', fontSize: '11.5px',
+        labels: { colors: textMuted }, markers: { radius: 3 }, itemMargin: { horizontal: 10 }
+      },
+      tooltip: {
+        theme: 'dark',
+        style: { fontSize: '12px' },
+        y: { formatter: (v) => '$'+Math.round(v).toLocaleString('es-AR') },
+        marker: { show: true }
+      },
+      states: { hover: { filter: { type: 'lighten', value: 0.06 } } }
+    });
+    dashMargenApexInstance.render();
+    return;
+  }
+
+  // Fallback offline con Chart.js
+  if(canvas){
+    apexDiv.style.display = 'none';
+    canvas.style.display = 'block';
+    drawBarLineChart(canvas, labels, valores, emaValores, '#FF8C1A', getComputedStyle(document.documentElement).getPropertyValue('--teal').trim()||'#0E9A8A', (v)=>'$'+v.toLocaleString('es-AR'), 'Margen', 'Tendencia (EMA)', true);
+  }
 }
 
 /* Convierte el XML crudo de un RSS en una lista simple {title, link,
@@ -5904,8 +6000,159 @@ async function calcularEstadisticasCRM(){
   };
 }
 
+/* -----------------------------------------------------------------------
+   ApexCharts — capa genérica reutilizable (prueba piloto extendida a
+   Reportes, CRM, Rotación de stock, Historial, Gastos, Lavadero, Cuenta
+   corriente y Gráficos). Crea/reutiliza un <div> hermano de cada <canvas>
+   sin tocar el HTML de cada vista, y cae automáticamente al Chart.js
+   vendorizado si no hay ApexCharts (sin internet) — así ningún gráfico
+   de la app se rompe nunca por falta de conexión.
+----------------------------------------------------------------------- */
+function ensureApexContainer(canvas){
+  if(!canvas || !canvas.parentElement) return null;
+  let div = canvas.parentElement.querySelector(`.apex-mount[data-for="${canvas.id}"]`);
+  if(!div){
+    div = document.createElement('div');
+    div.className = 'apex-mount';
+    div.setAttribute('data-for', canvas.id);
+    div.style.height = '100%';
+    canvas.parentElement.insertBefore(div, canvas);
+  }
+  return div;
+}
+function apexThemeColors(){
+  const cs = getComputedStyle(document.documentElement);
+  const v = (name, fallback) => (cs.getPropertyValue(name)||'').trim() || fallback;
+  return {
+    text: v('--text-primary', '#ECEEF1'),
+    muted: v('--text-secondary', '#9AA3AF'),
+    grid: v('--border', 'rgba(154,163,175,.18)'),
+    panel: v('--bg-panel-raised', '#282D34'),
+    accent: v('--accent', '#FF8C1A'),
+    teal: v('--teal', '#0E9A8A'),
+    danger: v('--danger', '#D6393E')
+  };
+}
+function drawApexBar(canvas, labels, valores, opts={}){
+  if(typeof ApexCharts==='undefined' || !canvas || !labels.length) return false;
+  const div = ensureApexContainer(canvas);
+  if(!div) return false;
+  canvas.style.display = 'none'; div.style.display = 'block';
+  if(div._apexInstance){ div._apexInstance.destroy(); div._apexInstance = null; }
+  const theme = apexThemeColors();
+  const color = opts.color || theme.accent;
+  const fmt = (v) => opts.formatMoney ? '$'+Math.round(v).toLocaleString('es-AR') : Math.round(v).toLocaleString('es-AR');
+  const inst = new ApexCharts(div, {
+    chart: { type:'bar', height:'100%', toolbar:{show:false}, animations:{easing:'easeinout', speed:550}, fontFamily:'inherit', background:'transparent' },
+    series: [{ name: opts.seriesLabel||'Valor', data: valores }],
+    xaxis: {
+      categories: labels,
+      labels: { style:{ colors: theme.muted, fontSize:'10px' } },
+      axisBorder: { show:false }, axisTicks: { show:false }
+    },
+    yaxis: { labels: { style:{ colors: theme.muted, fontSize:'10px' }, formatter: fmt } },
+    grid: { borderColor: theme.grid, strokeDashArray:3, xaxis:{ lines:{ show: !!opts.horizontal } }, yaxis:{ lines:{ show: !opts.horizontal } } },
+    plotOptions: { bar: { horizontal: !!opts.horizontal, borderRadius: opts.horizontal?5:6, columnWidth: opts.horizontal?undefined:'55%', barHeight: opts.horizontal?'55%':undefined } },
+    dataLabels: { enabled:false },
+    colors: [color],
+    fill: { type:'gradient', gradient:{ shade:'light', type: opts.horizontal?'horizontal':'vertical', shadeIntensity:.3, gradientToColors:[hexToRgba(color,.5)], opacityFrom:1, opacityTo:.85, stops:[0,100] } },
+    tooltip: { theme:'dark', style:{ fontSize:'12px' }, y:{ formatter: fmt } },
+    states: { hover: { filter: { type:'lighten', value:.06 } } }
+  });
+  inst.render();
+  div._apexInstance = inst;
+  return true;
+}
+function drawApexDonut(canvas, labels, valores, colors){
+  if(typeof ApexCharts==='undefined' || !canvas || !labels.length) return false;
+  const div = ensureApexContainer(canvas);
+  if(!div) return false;
+  canvas.style.display = 'none'; div.style.display = 'block';
+  if(div._apexInstance){ div._apexInstance.destroy(); div._apexInstance = null; }
+  const theme = apexThemeColors();
+  const inst = new ApexCharts(div, {
+    chart: { type:'donut', height:'100%', toolbar:{show:false}, animations:{speed:550}, fontFamily:'inherit', background:'transparent' },
+    series: valores,
+    labels: labels,
+    colors: colors,
+    stroke: { colors:[theme.panel], width:2 },
+    dataLabels: { enabled:true, style:{ fontSize:'10.5px' }, dropShadow:{ enabled:false } },
+    legend: { position:'right', fontSize:'10.5px', labels:{ colors: theme.muted }, markers:{ radius:3 } },
+    tooltip: { theme:'dark' },
+    plotOptions: { pie: { donut: { size:'62%' } } }
+  });
+  inst.render();
+  div._apexInstance = inst;
+  return true;
+}
+function drawApexBarLine(canvas, labels, barValues, lineValues, barColor, lineColor, formatValue, barLabel, lineLabel, lineDashed){
+  if(typeof ApexCharts==='undefined' || !canvas) return false;
+  const div = ensureApexContainer(canvas);
+  if(!div) return false;
+  canvas.style.display = 'none'; div.style.display = 'block';
+  if(div._apexInstance){ div._apexInstance.destroy(); div._apexInstance = null; }
+  const theme = apexThemeColors();
+  const fmt = formatValue || ((v)=>'$'+Math.round(v).toLocaleString('es-AR'));
+  const tieneLinea = !!(lineValues && lineValues.some(v => v!=null));
+  const series = [{ name: barLabel||'Valor', type:'bar', data: barValues }];
+  if(tieneLinea) series.push({ name: lineLabel||'Referencia', type:'line', data: lineValues });
+  const inst = new ApexCharts(div, {
+    chart: { type:'line', height:'100%', toolbar:{show:false}, animations:{easing:'easeinout', speed:550}, fontFamily:'inherit', background:'transparent' },
+    series,
+    xaxis: { categories: labels, labels:{ style:{ colors: theme.muted, fontSize:'10px' } }, axisBorder:{show:false}, axisTicks:{show:false} },
+    yaxis: { labels: { style:{ colors: theme.muted, fontSize:'10px' }, formatter: fmt } },
+    grid: { borderColor: theme.grid, strokeDashArray:3, xaxis:{ lines:{ show:false } } },
+    plotOptions: { bar: { borderRadius:6, columnWidth:'55%' } },
+    stroke: { width: tieneLinea?[0,3]:[0], curve:'smooth', dashArray: tieneLinea?[0, lineDashed?6:0]:[0] },
+    markers: { size: tieneLinea?[0,3.5]:[0], colors:[lineColor], strokeColors: theme.panel, strokeWidth:2, hover:{ size:5 } },
+    dataLabels: { enabled:false },
+    colors: [barColor, lineColor],
+    fill: { type: tieneLinea?['gradient','solid']:'gradient', gradient:{ shade:'light', type:'vertical', shadeIntensity:.3, gradientToColors:[hexToRgba(barColor,.5)], opacityFrom:1, opacityTo:.85, stops:[0,100] } },
+    legend: { show: tieneLinea, position:'top', horizontalAlign:'right', fontSize:'11px', labels:{ colors: theme.muted }, markers:{ radius:3 } },
+    tooltip: { theme:'dark', style:{ fontSize:'12px' }, y:{ formatter: fmt } },
+    states: { hover: { filter: { type:'lighten', value:.06 } } }
+  });
+  inst.render();
+  div._apexInstance = inst;
+  return true;
+}
+function drawApexAreaSaldo(canvas, movimientosAsc){
+  if(typeof ApexCharts==='undefined' || !canvas) return false;
+  const div = ensureApexContainer(canvas);
+  if(!div) return false;
+  canvas.style.display = 'none'; div.style.display = 'block';
+  if(div._apexInstance){ div._apexInstance.destroy(); div._apexInstance = null; }
+  const theme = apexThemeColors();
+  const labels = movimientosAsc.map(m => Utils.fmtFecha(m.fecha).split(' ')[0]);
+  const data = movimientosAsc.map(m => m.saldoResultante);
+  const ultimoPositivo = data.length ? data[data.length-1] > 0 : true;
+  const colorLinea = ultimoPositivo ? theme.danger : theme.teal;
+  const inst = new ApexCharts(div, {
+    chart: { type:'area', height:'100%', toolbar:{show:false}, animations:{easing:'easeinout', speed:600}, fontFamily:'inherit', background:'transparent' },
+    series: [{ name:'Saldo', data }],
+    xaxis: { categories: labels, labels:{ style:{ colors: theme.muted, fontSize:'10px' }, rotate:0 }, tickAmount:6, axisBorder:{show:false}, axisTicks:{show:false} },
+    yaxis: { labels: { style:{ colors: theme.muted, fontSize:'10px' }, formatter:(v)=>'$'+Math.round(v).toLocaleString('es-AR') } },
+    grid: { borderColor: theme.grid, strokeDashArray:3, xaxis:{ lines:{ show:false } } },
+    annotations: { yaxis: [{ y:0, borderColor: theme.grid, strokeDashArray:4 }] },
+    stroke: { width:2.5, curve:'smooth' },
+    markers: { size:0, hover:{ size:5 } },
+    dataLabels: { enabled:false },
+    colors: [colorLinea],
+    fill: { type:'gradient', gradient:{ shade:'light', type:'vertical', shadeIntensity:.35, opacityFrom:.4, opacityTo:.03, stops:[0,100] } },
+    tooltip: {
+      theme:'dark', style:{ fontSize:'12px' },
+      y: { formatter:(v)=>'$'+Math.round(v).toLocaleString('es-AR') },
+      x: { formatter:(v,{dataPointIndex}) => Utils.fmtFecha(movimientosAsc[dataPointIndex].fecha) }
+    }
+  });
+  inst.render();
+  div._apexInstance = inst;
+  return true;
+}
+
 function drawGenericBarChart(canvas, labels, valores, opts={}){
   if(!canvas) return;
+  if(drawApexBar(canvas, labels, valores, opts)) return;
   destroyChartOn(canvas);
   if(!labels.length) return;
   const theme = chartThemeColors();
@@ -5929,6 +6176,7 @@ function drawGenericBarChart(canvas, labels, valores, opts={}){
 
 function drawGenericDonutChart(canvas, labels, valores, colors){
   if(!canvas || !labels.length) return;
+  if(drawApexDonut(canvas, labels, valores, colors)) return;
   destroyChartOn(canvas);
   const theme = chartThemeColors();
   new Chart(canvas.getContext('2d'), {
@@ -6577,6 +6825,7 @@ async function calcularEstadisticasClienteCharts(clienteId){
 
 function drawComprasPorAnioChart(canvas, labels, valores){
   if(!canvas) return;
+  if(drawApexBar(canvas, labels, valores, { formatMoney:true, seriesLabel:'Compras' })) return;
   destroyChartOn(canvas);
   const theme = chartThemeColors();
   const cs = getComputedStyle(document.documentElement);
@@ -6596,9 +6845,10 @@ function drawComprasPorAnioChart(canvas, labels, valores){
 
 function drawGastoPorCategoriaChart(canvas, labels, valores){
   if(!canvas) return;
+  if(!labels.length){ return; }
+  if(drawApexDonut(canvas, labels, valores, labels.map((_,i)=>PALETA_CATEGORIAS[i%PALETA_CATEGORIAS.length]))) return;
   destroyChartOn(canvas);
   const theme = chartThemeColors();
-  if(!labels.length){ return; }
   new Chart(canvas.getContext('2d'), {
     type:'doughnut',
     data:{ labels, datasets:[{ data:valores, backgroundColor: labels.map((_,i)=>PALETA_CATEGORIAS[i%PALETA_CATEGORIAS.length]), borderWidth:2, borderColor: theme.panel }] },
@@ -13287,6 +13537,8 @@ function drawBarChart(canvas, labels, values, color, formatValue, seriesLabel){
   if(!canvas) return;
   formatValue = formatValue || (v => v.toLocaleString('es-AR'));
   seriesLabel = seriesLabel || 'Valor';
+  const esMoneda = String(formatValue(0)).includes('$');
+  if(drawApexBar(canvas, labels, values, { color, seriesLabel, formatMoney: esMoneda })) return;
   destroyChartOn(canvas);
   const theme = chartThemeColors();
   const ctx = canvas.getContext('2d');
@@ -15404,6 +15656,7 @@ function drawBarLineChart(canvas, labels, barValues, lineValues, barColor, lineC
   formatValue = formatValue || (v => '$'+Math.round(v).toLocaleString('es-AR'));
   barLabel = barLabel || 'Valor';
   lineLabel = lineLabel || 'Referencia';
+  if(drawApexBarLine(canvas, labels, barValues, lineValues, barColor, lineColor, formatValue, barLabel, lineLabel, lineDashed)) return;
   destroyChartOn(canvas);
   const theme = chartThemeColors();
   const ctx = canvas.getContext('2d');
@@ -15555,6 +15808,7 @@ function drawProyeccionMensualChart(canvas, labels, real, proyectado, metaLinea)
    en $0 y relleno degradado hacia esa base. */
 function drawSaldoHistorialChart(canvas, movimientosAsc){
   if(!canvas) return;
+  if(drawApexAreaSaldo(canvas, movimientosAsc)) return;
   destroyChartOn(canvas);
   const theme = chartThemeColors();
   const cs = getComputedStyle(document.documentElement);
@@ -15641,6 +15895,7 @@ function drawSaldoHistorialChart(canvas, movimientosAsc){
    un gráfico vertical. */
 function drawHorizontalBarChart(canvas, labels, values, color, seriesLabel){
   if(!canvas) return;
+  if(drawApexBar(canvas, labels, values, { color, seriesLabel, horizontal:true })) return;
   destroyChartOn(canvas);
   const theme = chartThemeColors();
   const ctx = canvas.getContext('2d');
@@ -15687,6 +15942,7 @@ function drawHorizontalBarChart(canvas, labels, values, color, seriesLabel){
    categorías (ej: tipos de filtro). El tooltip muestra cantidad y % junto. */
 function drawDoughnutChart(canvas, labels, values, colors){
   if(!canvas) return;
+  if(drawApexDonut(canvas, labels, values, colors)) return;
   destroyChartOn(canvas);
   const theme = chartThemeColors();
   const total = values.reduce((a,b)=>a+b, 0) || 1;
