@@ -6149,6 +6149,67 @@ function drawApexAreaSaldo(canvas, movimientosAsc){
   div._apexInstance = inst;
   return true;
 }
+function drawApexComparativaFinanciera(canvas, labels, facturacion, gastos, pagos){
+  if(typeof ApexCharts==='undefined' || !canvas) return false;
+  const div = ensureApexContainer(canvas);
+  if(!div) return false;
+  canvas.style.display = 'none'; div.style.display = 'block';
+  if(div._apexInstance){ div._apexInstance.destroy(); div._apexInstance = null; }
+  const theme = apexThemeColors();
+  const fmt = (v) => '$'+Math.round(v).toLocaleString('es-AR');
+  const colorFact = theme.teal, colorGastos = theme.danger, colorPagos = '#F0B429';
+  const inst = new ApexCharts(div, {
+    chart: { type:'bar', height:'100%', toolbar:{show:false}, animations:{easing:'easeinout', speed:600}, fontFamily:'inherit', background:'transparent' },
+    series: [
+      { name:'Facturación', data: facturacion },
+      { name:'Gastos', data: gastos },
+      { name:'Pagos a proveedores', data: pagos }
+    ],
+    xaxis: { categories: labels, labels:{ style:{ colors: theme.muted, fontSize:'10px' } }, axisBorder:{show:false}, axisTicks:{show:false} },
+    yaxis: { labels: { style:{ colors: theme.muted, fontSize:'10px' }, formatter: fmt } },
+    grid: { borderColor: theme.grid, strokeDashArray:3, xaxis:{ lines:{ show:false } } },
+    plotOptions: { bar: { borderRadius:7, borderRadiusApplication:'end', columnWidth:'62%' } },
+    dataLabels: { enabled:false },
+    colors: [colorFact, colorGastos, colorPagos],
+    fill: { type:'gradient', gradient:{ shade:'light', type:'vertical', shadeIntensity:.35,
+      gradientToColors:[hexToRgba(colorFact,.55), hexToRgba(colorGastos,.55), hexToRgba(colorPagos,.55)],
+      inverseColors:false, opacityFrom:1, opacityTo:.85, stops:[0,100] } },
+    stroke: { width:0 },
+    legend: { show:true, position:'top', horizontalAlign:'right', fontSize:'11px', labels:{ colors: theme.muted }, markers:{ radius:3 } },
+    tooltip: { theme:'dark', style:{ fontSize:'12px' }, shared:true, intersect:false, y:{ formatter: fmt } },
+    states: { hover: { filter: { type:'lighten', value:.06 } } }
+  });
+  inst.render();
+  div._apexInstance = inst;
+  return true;
+}
+function drawComparativaFinancieraChart(canvas, labels, facturacion, gastos, pagos){
+  if(!canvas) return;
+  if(drawApexComparativaFinanciera(canvas, labels, facturacion, gastos, pagos)) return;
+  destroyChartOn(canvas);
+  if(!labels.length) return;
+  const theme = chartThemeColors();
+  new Chart(canvas.getContext('2d'), {
+    type:'bar',
+    data:{ labels, datasets:[
+      { label:'Facturación', data:facturacion, backgroundColor: hexToRgba('#0E9A8A',.8), borderRadius:6, maxBarThickness:26 },
+      { label:'Gastos', data:gastos, backgroundColor: hexToRgba('#D6393E',.8), borderRadius:6, maxBarThickness:26 },
+      { label:'Pagos a proveedores', data:pagos, backgroundColor: hexToRgba('#F0B429',.8), borderRadius:6, maxBarThickness:26 }
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false, animation:{ duration:500 },
+      plugins:{
+        legend:{ display:true, position:'top', labels:{ color:theme.muted, boxWidth:11, boxHeight:11, font:{ size:10.5 }, usePointStyle:true, pointStyle:'circle' } },
+        tooltip:{ backgroundColor:theme.panel, titleColor:theme.text, bodyColor:theme.text, borderColor:theme.grid, borderWidth:1, padding:9, cornerRadius:8,
+          callbacks:{ label:(item)=> `${item.dataset.label}: $${Number(item.parsed.y).toLocaleString('es-AR')}` } }
+      },
+      scales:{
+        x:{ grid:{ display:false }, ticks:{ color:theme.muted, font:{ size:10 } } },
+        y:{ beginAtZero:true, grid:{ color:theme.grid }, ticks:{ color:theme.muted, font:{ size:10 } } }
+      }
+    }
+  });
+}
 
 function drawGenericBarChart(canvas, labels, valores, opts={}){
   if(!canvas) return;
@@ -13687,6 +13748,42 @@ async function calcularEstadoResultados(desde, hasta){
   };
 }
 
+// Comparativa mensual (últimos N meses) para el gráfico de Facturación vs
+// Gastos vs Pagos a proveedores. Facturación = igual criterio que el Estado
+// de Resultados (ventas + servicios + lavados, netos de notas de crédito).
+// Gastos = gastos operativos cargados en el módulo Gastos. Pagos a
+// proveedores = egresos de Caja realmente pagados (referencia "compra:..."),
+// no el total facturado por el proveedor — así se ve la plata que salió.
+async function calcularComparativaFinanciera(mesesAtras=6){
+  const [ventas, historial, turnos, notasCredito, gastos, movsCaja] = await Promise.all([
+    DB.getAll('ventas'), DB.getAll('historialServicios'), DB.getAll('lavaderoTurnos'),
+    DB.getAll('notasCredito'), DB.getAll('gastos'), DB.getAll('caja')
+  ]);
+  const hoy = new Date();
+  const meses = [];
+  for(let i=mesesAtras-1;i>=0;i--){
+    const d = new Date(hoy.getFullYear(), hoy.getMonth()-i, 1);
+    meses.push({ label: d.toLocaleDateString('es-AR',{month:'short',year:'2-digit'}), anio:d.getFullYear(), mes:d.getMonth() });
+  }
+  const enMes = (fechaStr, m) => { if(!fechaStr) return false; const d = new Date(fechaStr); return d.getFullYear()===m.anio && d.getMonth()===m.mes; };
+
+  const facturacion = meses.map(m=>{
+    const v = ventas.filter(x=>x.estado!=='anulada' && enMes(x.fecha,m)).reduce((a,x)=>a+(x.total||0),0);
+    const s = historial.filter(h=>enMes(h.fecha,m)).reduce((a,h)=>a+(h.precio||0),0);
+    const l = turnos.filter(t=>t.estado==='Completado' && enMes(t.fechaCompletado||t.fecha,m)).reduce((a,t)=>a+(t.precio||0),0);
+    const nc = notasCredito.filter(n=>enMes(n.fecha,m)).reduce((a,n)=>a+(n.monto||0),0);
+    return Math.max(0, v+s+l-nc);
+  });
+
+  const gastosTotales = meses.map(m=> gastos.filter(g=>enMes(g.fecha,m)).reduce((a,g)=>a+(g.monto||0),0));
+
+  const pagosProveedores = meses.map(m=> movsCaja
+    .filter(x=>x.tipo==='egreso' && x.referencia && x.referencia.startsWith('compra:') && enMes(x.fecha,m))
+    .reduce((a,x)=>a+(x.monto||0),0));
+
+  return { labels: meses.map(m=>m.label), facturacion, gastosTotales, pagosProveedores };
+}
+
 async function viewBalanceGeneral(){
   const hoy = Utils.hoyLocal();
   const desdeDefault = hoy.slice(0,8) + '01'; // primer día del mes en curso
@@ -13767,6 +13864,12 @@ async function bindBalanceGeneralEvents(){
         </div>
         <div style="margin-top:14px; font-size:11.5px; color:var(--text-muted);">El costo de venta se estima con el costo actual cargado en cada producto (las ventas no guardan el costo histórico exacto del momento de la venta).</div>
       </div>
+
+      <div class="card" style="padding:18px; margin-top:20px;">
+        <div class="cfg-section-title">Facturación vs Gastos vs Pagos a proveedores</div>
+        <div class="cfg-section-sub">Últimos 6 meses</div>
+        <div class="chart-canvas-box" style="height:280px; margin-top:10px;"><canvas id="bg-comparativa-chart"></canvas></div>
+      </div>
     `;
 
     document.getElementById('bg-aplicar').onclick = () => {
@@ -13774,6 +13877,9 @@ async function bindBalanceGeneralEvents(){
       hasta = document.getElementById('bg-hasta').value;
       if(desde && hasta) render();
     };
+
+    const comparativa = await calcularComparativaFinanciera(6);
+    drawComparativaFinancieraChart(document.getElementById('bg-comparativa-chart'), comparativa.labels, comparativa.facturacion, comparativa.gastosTotales, comparativa.pagosProveedores);
   }
 
   document.getElementById('bg-imprimir').onclick = () => window.print();
