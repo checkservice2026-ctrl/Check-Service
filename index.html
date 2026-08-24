@@ -6047,10 +6047,21 @@ function drawApexBar(canvas, labels, valores, opts={}){
     series: [{ name: opts.seriesLabel||'Valor', data: valores }],
     xaxis: {
       categories: labels,
-      labels: { style:{ colors: theme.muted, fontSize:'10px' } },
+      // En barras horizontales, ApexCharts invierte qué eje es "categorías" y
+      // cuál es "valores": el formatter de números/dinero tiene que ir en el
+      // eje que en ese modo muestra los montos (x), y el otro (y) tiene que
+      // quedar sin formatter para no intentar redondear el nombre de la
+      // categoría (eso producía "NaN" en vez del nombre — bug corregido).
+      labels: opts.horizontal
+        ? { style:{ colors: theme.muted, fontSize:'10px' }, formatter: fmt }
+        : { style:{ colors: theme.muted, fontSize:'10px' } },
       axisBorder: { show:false }, axisTicks: { show:false }
     },
-    yaxis: { labels: { style:{ colors: theme.muted, fontSize:'10px' }, formatter: fmt } },
+    yaxis: {
+      labels: opts.horizontal
+        ? { style:{ colors: theme.muted, fontSize:'10px' } }
+        : { style:{ colors: theme.muted, fontSize:'10px' }, formatter: fmt }
+    },
     grid: { borderColor: theme.grid, strokeDashArray:3, xaxis:{ lines:{ show: !!opts.horizontal } }, yaxis:{ lines:{ show: !opts.horizontal } } },
     plotOptions: { bar: { horizontal: !!opts.horizontal, borderRadius: opts.horizontal?5:6, columnWidth: opts.horizontal?undefined:'55%', barHeight: opts.horizontal?'55%':undefined } },
     dataLabels: { enabled:false },
@@ -6144,6 +6155,53 @@ function drawApexAreaSaldo(canvas, movimientosAsc){
       y: { formatter:(v)=>'$'+Math.round(v).toLocaleString('es-AR') },
       x: { formatter:(v,{dataPointIndex}) => Utils.fmtFecha(movimientosAsc[dataPointIndex].fecha) }
     }
+  });
+  inst.render();
+  div._apexInstance = inst;
+  return true;
+}
+/* Proyección financiera mensual: acumulado real (área sólida) + línea de
+   proyección punteada hasta fin de mes + línea de referencia fina para la
+   meta del mes (si está definida). Réplica en ApexCharts del gráfico de
+   Chart.js que dibuja drawProyeccionMensualChart, para que este gráfico
+   también use la librería moderna cuando hay internet, igual que el resto. */
+function drawApexProyeccionMensual(canvas, labels, real, proyectado, metaLinea){
+  if(typeof ApexCharts==='undefined' || !canvas) return false;
+  const div = ensureApexContainer(canvas);
+  if(!div) return false;
+  canvas.style.display = 'none'; div.style.display = 'block';
+  if(div._apexInstance){ div._apexInstance.destroy(); div._apexInstance = null; }
+  const theme = apexThemeColors();
+  const fmt = (v) => v==null ? v : '$'+Math.round(v).toLocaleString('es-AR');
+  const colorReal = theme.teal, colorProy = theme.accent;
+  const colorMeta = (getComputedStyle(document.documentElement).getPropertyValue('--info')||'').trim() || '#4C9AFF';
+  const tieneMeta = !!metaLinea;
+
+  const series = [
+    { name:'Facturado acumulado', type:'area', data: real },
+    { name:'Proyección', type:'line', data: proyectado }
+  ];
+  if(tieneMeta) series.push({ name:'Meta del mes', type:'line', data: metaLinea });
+
+  const colors = [colorReal, colorProy]; if(tieneMeta) colors.push(colorMeta);
+  const strokeWidths = [2.5, 2.5]; if(tieneMeta) strokeWidths.push(1.5);
+  const dashArrays = [0, 6]; if(tieneMeta) dashArrays.push(2);
+  const fillTypes = ['gradient','solid']; if(tieneMeta) fillTypes.push('solid');
+
+  const inst = new ApexCharts(div, {
+    chart: { type:'line', height:'100%', toolbar:{show:false}, animations:{easing:'easeinout', speed:600}, fontFamily:'inherit', background:'transparent' },
+    series,
+    xaxis: { categories: labels, labels:{ style:{ colors: theme.muted, fontSize:'10px' }, rotate:0 }, tickAmount: labels.length>15?14:undefined, axisBorder:{show:false}, axisTicks:{show:false} },
+    yaxis: { labels: { style:{ colors: theme.muted, fontSize:'10.5px' }, formatter: fmt } },
+    grid: { borderColor: theme.grid, strokeDashArray:3, xaxis:{ lines:{ show:false } } },
+    stroke: { width: strokeWidths, curve:'smooth', dashArray: dashArrays },
+    markers: { size:0, hover:{ size:4 } },
+    dataLabels: { enabled:false },
+    colors,
+    fill: { type: fillTypes, gradient:{ shade:'light', type:'vertical', shadeIntensity:.3, opacityFrom:.4, opacityTo:.03, stops:[0,100] } },
+    legend: { show:true, position:'top', horizontalAlign:'end', fontSize:'11px', labels:{ colors: theme.muted }, markers:{ radius:3 } },
+    tooltip: { theme:'dark', style:{ fontSize:'12px' }, y:{ formatter: fmt } },
+    states: { hover: { filter: { type:'lighten', value:.06 } } }
   });
   inst.render();
   div._apexInstance = inst;
@@ -15844,6 +15902,7 @@ function drawBarLineChart(canvas, labels, barValues, lineValues, barColor, lineC
    fina para la meta del mes (si está definida). */
 function drawProyeccionMensualChart(canvas, labels, real, proyectado, metaLinea){
   if(!canvas) return;
+  if(drawApexProyeccionMensual(canvas, labels, real, proyectado, metaLinea)) return;
   destroyChartOn(canvas);
   const theme = chartThemeColors();
   const cs = getComputedStyle(document.documentElement);
