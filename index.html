@@ -957,6 +957,9 @@ textarea.textarea-input{ resize:vertical; min-height:70px; }
 .compra-item-row .cir-costo{ width:80px; }
 .compra-item-row .cir-subtotal{ width:80px; text-align:right; font-family:'Consolas',monospace; font-size:12px; }
 .compra-item-row .cir-remove{ color:var(--danger); width:22px; height:22px; display:flex; align-items:center; justify-content:center; }
+.cir-stock-flag{ flex-shrink:0; width:18px; height:18px; display:flex; align-items:center; justify-content:center; cursor:default; }
+.cir-stock-flag.stock-ok{ color:var(--teal); }
+.cir-stock-flag.stock-sin{ color:var(--danger); }
 .autocomplete-wrap{ position:relative; }
 .autocomplete-results{ position:absolute; top:100%; left:0; right:0; background:var(--bg-panel-raised); border:1px solid var(--border); border-radius:9px; margin-top:4px; max-height:200px; overflow-y:auto; z-index:50; box-shadow:var(--shadow-lift); }
 .visc-manage-wrap{ position:relative; }
@@ -14377,8 +14380,18 @@ async function openCotizacionModal(cotizacion=null){
 
   function renderItemsList(){
     const cont = document.getElementById('cf-items-list');
-    cont.innerHTML = cotItems.map((it,idx)=>`
+    cont.innerHTML = cotItems.map((it,idx)=>{
+      const producto = it.productoId ? productos.find(p=>p.id===it.productoId) : null;
+      let stockFlag = '';
+      if(producto){
+        const hayStock = (producto.stockActual||0) > 0;
+        stockFlag = hayStock
+          ? `<span class="cir-stock-flag stock-ok" title="En stock (${producto.stockActual} ${Utils.escapeHTML(producto.unidad||'')} disp.)"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>`
+          : `<span class="cir-stock-flag stock-sin" title="Sin stock disponible"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a1 1 0 00.87 1.5h18.62a1 1 0 00.87-1.5L13.71 3.86a1 1 0 00-1.72 0z"/></svg></span>`;
+      }
+      return `
       <div class="compra-item-row">
+        ${stockFlag}
         <input type="text" class="cir-nombre-input" data-idx="${idx}" data-field="descripcion" value="${Utils.escapeHTML(it.descripcion)}" style="flex:1; background:var(--bg-panel); border:1px solid var(--border); border-radius:6px; padding:5px 7px; font-size:12px; color:var(--text-primary);">
         <input type="number" min="0.01" step="0.01" class="cir-cantidad" data-idx="${idx}" data-field="cantidad" value="${it.cantidad}">
         <input type="number" min="0" step="0.01" class="cir-costo" data-idx="${idx}" data-field="precioUnitario" value="${it.precioUnitario}">
@@ -14386,7 +14399,8 @@ async function openCotizacionModal(cotizacion=null){
         <button type="button" class="cir-remove" data-idx="${idx}">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
         </button>
-      </div>`).join('') || `<p style="font-size:12px; color:var(--text-muted); text-align:center; padding:10px;">Todavía no agregaste ítems.</p>`;
+      </div>`;
+    }).join('') || `<p style="font-size:12px; color:var(--text-muted); text-align:center; padding:10px;">Todavía no agregaste ítems.</p>`;
 
     cont.querySelectorAll('input').forEach(inp=>{
       inp.onchange = () => {
@@ -14427,7 +14441,13 @@ async function openCotizacionModal(cotizacion=null){
     const q = searchInput.value.trim().toLowerCase();
     if(!q){ resultsBox.classList.add('hidden'); return; }
     const matches = productos.filter(p=>p.activo!==false && (p.codigo.toLowerCase().includes(q) || p.nombre.toLowerCase().includes(q))).slice(0,8);
-    resultsBox.innerHTML = matches.map(p=>`<div class="autocomplete-item" data-id="${p.id}">${Utils.escapeHTML(p.codigo)} — ${Utils.escapeHTML(p.nombre)}</div>`).join('') || `<div class="autocomplete-item" style="color:var(--text-muted);">Sin resultados</div>`;
+    resultsBox.innerHTML = matches.map(p=>{
+      const hayStock = (p.stockActual||0) > 0;
+      const flag = hayStock
+        ? `<span class="cir-stock-flag stock-ok" style="display:inline-flex; vertical-align:middle; margin-right:6px;" title="En stock (${p.stockActual} ${Utils.escapeHTML(p.unidad||'')} disp.)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>`
+        : `<span class="cir-stock-flag stock-sin" style="display:inline-flex; vertical-align:middle; margin-right:6px;" title="Sin stock disponible"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a1 1 0 00.87 1.5h18.62a1 1 0 00.87-1.5L13.71 3.86a1 1 0 00-1.72 0z"/></svg></span>`;
+      return `<div class="autocomplete-item" data-id="${p.id}">${flag}${Utils.escapeHTML(p.codigo)} — ${Utils.escapeHTML(p.nombre)}</div>`;
+    }).join('') || `<div class="autocomplete-item" style="color:var(--text-muted);">Sin resultados</div>`;
     resultsBox.classList.remove('hidden');
     resultsBox.querySelectorAll('.autocomplete-item[data-id]').forEach(item=>{
       item.onclick = () => {
