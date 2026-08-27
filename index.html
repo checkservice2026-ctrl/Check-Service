@@ -1386,7 +1386,7 @@ var qrcode=function(){var qrcode=function(t,r){var e=t,n=c[r],o=null,i=0,a=null,
    0. CONSTANTES GLOBALES
 ----------------------------------------------------------------------- */
 const DB_NAME = 'CheckServiceDB';
-const DB_VERSION = 19; // CRM Fase 5: se agrega store 'campanas' (segmentación + mensajes de WhatsApp)
+const DB_VERSION = 20; // Turnero de Servicios: se agrega store 'serviciosTurnos'
 const SESSION_KEY = 'cs_session';
 const REMEMBER_KEY = 'cs_remember_user';
 const THEME_KEY = 'cs_theme';
@@ -1462,6 +1462,7 @@ function canVerVentas(rol){ return ['Administrador','Supervisor','Vendedor','Caj
 function canEditarVentas(rol){ return ['Administrador','Supervisor'].includes(rol); }
 // Permisos del módulo Lavadero.
 const ESTADOS_TURNO = ['Reservado','Listo','Completado','Cancelado','Anulado'];
+const ESTADOS_TURNO_SERVICIO = ['Reservado','Completado','Cancelado'];
 function canUsarLavadero(rol){ return ['Administrador','Supervisor','Vendedor','Caja','Taller'].includes(rol); }
 function canGestionarServiciosLavadero(rol){ return ['Administrador','Supervisor'].includes(rol); }
 // Permisos de Fase 6: compras/proveedores (back-office) y caja (operativo).
@@ -1688,6 +1689,16 @@ const DB = (() => {
           const st = db.createObjectStore('canjesFidelizacion', { keyPath:'id', autoIncrement:true });
           st.createIndex('clienteId', 'clienteId');
           st.createIndex('fecha', 'fecha');
+        }
+        if(!db.objectStoreNames.contains('serviciosTurnos')){
+          // Turnero del módulo Servicios (ex Historial): agenda de turnos para
+          // servicios de taller, con el mismo espíritu que 'lavaderoTurnos'
+          // pero sin catálogo de precios fijo (el precio real se carga recién
+          // al completar el service, en historialServicios).
+          const st = db.createObjectStore('serviciosTurnos', { keyPath:'id', autoIncrement:true });
+          st.createIndex('fecha', 'fecha');
+          st.createIndex('estado', 'estado');
+          st.createIndex('clienteId', 'clienteId');
         }
         if(!db.objectStoreNames.contains('campanas')){
           // CRM Fase 5: campañas de segmentación. Guardan los filtros usados,
@@ -2654,7 +2665,7 @@ const NAV_SECTIONS = [
       { key:'cumpleanos', label:'Cumpleaños', icon:'calendario' },
       { key:'clientesvip', label:'Clientes VIP', icon:'clientes' }
     ]},
-    { key:'historial', label:'Historial', icon:'historial' },
+    { key:'historial', label:'Servicios', icon:'historial' },
     { key:'pos', label:'POS', icon:'pos' },
     { key:'cotizaciones', label:'Cotizaciones', icon:'cotizaciones' },
     { key:'remitos', label:'Remitos', icon:'remitos' },
@@ -2837,6 +2848,7 @@ async function router(){
     case 'historial':
       if(param === 'estadisticas'){ outlet.innerHTML = await viewHistorialEstadisticas(); await bindHistorialEstadisticasEvents(); }
       else if(param === 'planificacion'){ outlet.innerHTML = await viewHistorialPlanificacion(); bindHistorialPlanificacionEvents(); }
+      else if(param === 'turnos'){ outlet.innerHTML = await viewServiciosTurnos(); await bindServiciosTurnosEvents(); }
       else{ outlet.innerHTML = await viewHistorialList(); bindHistorialListEvents(); }
       break;
     case 'productos':
@@ -7593,7 +7605,7 @@ async function viewHistorialPlanificacion(){
   return `
     <a href="#/historial" class="back-link">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-      Volver al Historial
+      Volver a Servicios
     </a>
     <div class="page-header">
       <div><h1>Próximos services programados</h1><p>Reporte de planificación — fecha del reporte: ${hoy.toLocaleDateString('es-AR')}</p></div>
@@ -8229,8 +8241,9 @@ async function viewHistorialList(){
 
   return `
     <div class="page-header">
-      <div><h1>Historial de Servicios</h1><p>${historial.length} servicios registrados en total</p></div>
+      <div><h1>Servicios</h1><p>${historial.length} servicios registrados en total</p></div>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a class="btn btn-ghost" href="#/historial/turnos">${svgIcon('calendario')} Turnos</a>
         <a class="btn btn-ghost" href="#/historial/planificacion">${svgIcon('calendario')} Planificación</a>
         <a class="btn btn-ghost" href="#/historial/estadisticas">${svgIcon('reportes')} Estadísticas</a>
         ${puedeGestionar?`<button class="btn btn-accent" id="btn-nuevo-service-global">${svgIcon('historial')} Nuevo service</button>`:''}
@@ -8307,6 +8320,306 @@ function bindHistorialListEvents(){
 }
 
 /* -----------------------------------------------------------------------
+   20-R-BIS. TURNERO DEL MÓDULO SERVICIOS (ex Historial)
+   Agenda de turnos para servicios de taller — mismo espíritu que el
+   turnero del Lavadero (agenda por día + listado completo con filtros),
+   pero sin catálogo de precios: el precio real se carga recién al
+   completar el service (en historialServicios). Guarda en el store
+   'serviciosTurnos'.
+----------------------------------------------------------------------- */
+let serviciosTurnosTab = 'agenda';
+let serviciosTurnoFechaSeleccionada = Utils.hoyLocal();
+
+function serviciosTurnoEstadoBadge(estado){
+  const map = { Reservado:'badge-warn', Completado:'badge-ok', Cancelado:'badge-neutral' };
+  return `<span class="badge ${map[estado]||'badge-neutral'}">${estado}</span>`;
+}
+
+async function viewServiciosTurnos(){
+  return `
+    <a href="#/historial" class="back-link">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Volver a Servicios
+    </a>
+    <div class="page-header"><div><h1>Turnos de Servicios</h1><p>Agenda de turnos para services de taller</p></div></div>
+    <div class="cfg-tabs" style="flex-direction:row; flex-wrap:wrap; width:auto; margin-bottom:16px;" id="st-tabs">
+      <button class="cfg-tab" data-tab="agenda">${svgIcon('calendario')} Agenda</button>
+      <button class="cfg-tab" data-tab="todos">${svgIcon('logs')} Todos los turnos</button>
+    </div>
+    <div id="st-content"></div>
+  `;
+}
+async function bindServiciosTurnosEvents(){
+  serviciosTurnosTab = 'agenda';
+  document.querySelectorAll('#st-tabs .cfg-tab').forEach(btn=>{
+    btn.onclick = () => { serviciosTurnosTab = btn.dataset.tab; renderServiciosTurnosTab(); };
+  });
+  await renderServiciosTurnosTab();
+}
+async function renderServiciosTurnosTab(){
+  document.querySelectorAll('#st-tabs .cfg-tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===serviciosTurnosTab));
+  const cont = document.getElementById('st-content');
+  if(!cont) return;
+  if(serviciosTurnosTab==='todos'){ cont.innerHTML = await serviciosTurnosTodosHTML(); bindServiciosTurnosTodosEvents(); }
+  else{ cont.innerHTML = await serviciosTurnosAgendaHTML(); bindServiciosTurnosAgendaEvents(); }
+}
+
+function serviciosTurnoRowHTML(t, mostrarFecha, extraAttrs){
+  const puede = canManageHistorial(Session.get().rol);
+  return `<tr data-id="${t.id}" ${extraAttrs||''}>
+    ${mostrarFecha?`<td class="font-mono" style="font-size:12px;">${new Date(t.fecha+'T00:00:00').toLocaleDateString('es-AR')}</td>`:''}
+    <td class="font-mono">${t.horaInicio}</td>
+    <td>${Utils.escapeHTML(t.clienteNombre||'Cliente sin registrar')}</td>
+    <td style="font-size:12px; color:var(--text-secondary);">${Utils.escapeHTML(t.vehiculoDescripcion||'—')}</td>
+    <td style="font-size:12px;">${Utils.escapeHTML(t.descripcion||'—')}</td>
+    <td>${serviciosTurnoEstadoBadge(t.estado)}</td>
+    <td style="text-align:right; white-space:nowrap;">
+      ${t.estado==='Reservado' && puede?`<button class="btn btn-ghost btn-sm btn-completar-turno-servicio" data-id="${t.id}">Completar</button><button class="btn btn-ghost btn-sm btn-cargar-service-turno" data-id="${t.id}">Cargar service</button><button class="btn btn-ghost btn-sm btn-editar-turno-servicio" data-id="${t.id}">Editar</button><button class="btn btn-danger-ghost btn-sm btn-cancelar-turno-servicio" data-id="${t.id}">Cancelar</button>`:''}
+      ${t.estado==='Completado' && puede?`<button class="btn btn-ghost btn-sm btn-reabrir-turno-servicio" data-id="${t.id}">Reabrir</button>`:''}
+      ${t.estado==='Cancelado' && puede?`<button class="btn btn-ghost btn-sm btn-reactivar-turno-servicio" data-id="${t.id}">Reactivar</button><button class="btn btn-danger-ghost btn-sm btn-eliminar-turno-servicio" data-id="${t.id}">Eliminar</button>`:''}
+    </td>
+  </tr>`;
+}
+function bindServiciosTurnoRowActions(){
+  document.querySelectorAll('.btn-editar-turno-servicio').forEach(btn=>btn.onclick=async()=>openTurnoServicioModal(await DB.get('serviciosTurnos', Number(btn.dataset.id))));
+  document.querySelectorAll('.btn-completar-turno-servicio').forEach(btn=>btn.onclick=async()=>{
+    const t = await DB.get('serviciosTurnos', Number(btn.dataset.id));
+    await DB.put('serviciosTurnos', { ...t, estado:'Completado' });
+    await Audit.log('turno_servicio_completado', `Turno de servicio de ${t.clienteNombre} marcado como completado.`);
+    Toast.show('success','Turno completado','');
+    renderServiciosTurnosTab();
+  });
+  document.querySelectorAll('.btn-reabrir-turno-servicio').forEach(btn=>btn.onclick=async()=>{
+    const t = await DB.get('serviciosTurnos', Number(btn.dataset.id));
+    await DB.put('serviciosTurnos', { ...t, estado:'Reservado' });
+    Toast.show('success','Turno reabierto','');
+    renderServiciosTurnosTab();
+  });
+  document.querySelectorAll('.btn-cancelar-turno-servicio').forEach(btn=>btn.onclick=async()=>{
+    const t = await DB.get('serviciosTurnos', Number(btn.dataset.id));
+    if(!confirm(`¿Cancelar el turno de ${t.clienteNombre} (${t.horaInicio})?`)) return;
+    await DB.put('serviciosTurnos', { ...t, estado:'Cancelado' });
+    await Audit.log('turno_servicio_cancelado', `Turno de servicio de ${t.clienteNombre} cancelado.`);
+    Toast.show('success','Turno cancelado','');
+    renderServiciosTurnosTab();
+  });
+  document.querySelectorAll('.btn-reactivar-turno-servicio').forEach(btn=>btn.onclick=async()=>{
+    const t = await DB.get('serviciosTurnos', Number(btn.dataset.id));
+    await DB.put('serviciosTurnos', { ...t, estado:'Reservado' });
+    Toast.show('success','Turno reactivado','');
+    renderServiciosTurnosTab();
+  });
+  document.querySelectorAll('.btn-eliminar-turno-servicio').forEach(btn=>btn.onclick=async()=>{
+    const t = await DB.get('serviciosTurnos', Number(btn.dataset.id));
+    if(!confirm(`¿Eliminar definitivamente el turno de ${t.clienteNombre}? Esta acción no se puede deshacer.`)) return;
+    await DB.del('serviciosTurnos', t.id);
+    await Audit.log('turno_servicio_eliminado', `Turno de servicio de ${t.clienteNombre} eliminado.`);
+    Toast.show('success','Turno eliminado','');
+    renderServiciosTurnosTab();
+  });
+  document.querySelectorAll('.btn-cargar-service-turno').forEach(btn=>btn.onclick=async()=>{
+    const t = await DB.get('serviciosTurnos', Number(btn.dataset.id));
+    const prefill = { fecha:t.fecha, observaciones:t.descripcion||'' };
+    if(t.vehiculoId){
+      const vehiculo = await DB.get('vehiculos', t.vehiculoId);
+      openHistorialModal(null, vehiculo, prefill);
+    }else{
+      Toast.show('info','Elegí el vehículo','Este turno no tiene un vehículo cargado del sistema; elegí uno para continuar.');
+      openVehiculoPickerModal();
+    }
+  });
+}
+
+/* ---------- Tab Agenda (día) ---------- */
+async function serviciosTurnosAgendaHTML(){
+  const fecha = serviciosTurnoFechaSeleccionada;
+  const turnos = (await DB.getAllByIndex('serviciosTurnos','fecha', fecha)).sort((a,b)=>a.horaInicio.localeCompare(b.horaInicio));
+  const completados = turnos.filter(t=>t.estado==='Completado');
+  const reservados = turnos.filter(t=>t.estado==='Reservado');
+  const fechaLabel = new Date(fecha+'T00:00:00').toLocaleDateString('es-AR',{ weekday:'long', day:'numeric', month:'long' });
+
+  return `
+    <div class="toolbar-filters" style="justify-content:space-between;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button class="btn btn-ghost btn-sm" id="st-dia-anterior">‹</button>
+        <input type="date" class="toolbar-select" id="st-fecha-input" value="${fecha}">
+        <button class="btn btn-ghost btn-sm" id="st-dia-siguiente">›</button>
+        <button class="btn btn-ghost btn-sm" id="st-hoy">Hoy</button>
+      </div>
+      ${canManageHistorial(Session.get().rol)?`<button class="btn btn-accent btn-sm" id="btn-nuevo-turno-servicio">${svgIcon('calendario')} Nuevo turno</button>`:''}
+    </div>
+    <p style="text-transform:capitalize; font-weight:700; margin:10px 0 14px;">${fechaLabel}</p>
+    <div class="grid-kpi" style="margin-bottom:18px;">
+      <div class="kpi-card" style="--kpi-color:var(--accent)"><div class="kpi-label">Turnos del día</div><div class="kpi-value">${turnos.length}</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--warning)"><div class="kpi-label">Reservados</div><div class="kpi-value">${reservados.length}</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--teal)"><div class="kpi-label">Completados</div><div class="kpi-value">${completados.length}</div></div>
+    </div>
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table class="data-table">
+        <thead><tr><th>Hora</th><th>Cliente</th><th>Vehículo</th><th>Servicio</th><th>Estado</th><th style="text-align:right;">Acciones</th></tr></thead>
+        <tbody>${turnos.length ? turnos.map(t=>serviciosTurnoRowHTML(t,false)).join('') : `<tr><td colspan="6"><div class="empty-state">${svgIcon('calendario')}<h3>Sin turnos para este día</h3><p>Tocá "Nuevo turno" para agendar uno.</p></div></td></tr>`}</tbody>
+      </table>
+    </div>
+  `;
+}
+function bindServiciosTurnosAgendaEvents(){
+  document.getElementById('st-fecha-input').onchange = (e)=>{ serviciosTurnoFechaSeleccionada = e.target.value; renderServiciosTurnosTab(); };
+  document.getElementById('st-dia-anterior').onclick = ()=>{ const d=new Date(serviciosTurnoFechaSeleccionada+'T00:00:00'); d.setDate(d.getDate()-1); serviciosTurnoFechaSeleccionada=Utils.fechaLocalYMD(d); renderServiciosTurnosTab(); };
+  document.getElementById('st-dia-siguiente').onclick = ()=>{ const d=new Date(serviciosTurnoFechaSeleccionada+'T00:00:00'); d.setDate(d.getDate()+1); serviciosTurnoFechaSeleccionada=Utils.fechaLocalYMD(d); renderServiciosTurnosTab(); };
+  document.getElementById('st-hoy').onclick = ()=>{ serviciosTurnoFechaSeleccionada = Utils.hoyLocal(); renderServiciosTurnosTab(); };
+  const btnNuevo = document.getElementById('btn-nuevo-turno-servicio');
+  if(btnNuevo) btnNuevo.onclick = () => openTurnoServicioModal(null, serviciosTurnoFechaSeleccionada);
+  bindServiciosTurnoRowActions();
+}
+
+/* ---------- Tab Todos los turnos ---------- */
+async function serviciosTurnosTodosHTML(){
+  const turnos = (await DB.getAll('serviciosTurnos')).sort((a,b)=> (b.fecha+b.horaInicio).localeCompare(a.fecha+a.horaInicio));
+  return `
+    <div class="toolbar-filters">
+      <div class="toolbar-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input type="text" id="st-search" placeholder="Buscar por cliente, vehículo o servicio...">
+      </div>
+      <select class="toolbar-select" id="st-filtro-estado"><option value="">Todos los estados</option>${ESTADOS_TURNO_SERVICIO.map(e=>`<option value="${e}">${e}</option>`).join('')}</select>
+      <input type="date" class="toolbar-select" id="st-desde" title="Desde">
+      <input type="date" class="toolbar-select" id="st-hasta" title="Hasta">
+    </div>
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table class="data-table" id="st-table">
+        <thead><tr><th>Fecha</th><th>Hora</th><th>Cliente</th><th>Vehículo</th><th>Servicio</th><th>Estado</th><th style="text-align:right;">Acciones</th></tr></thead>
+        <tbody>
+          ${turnos.length ? turnos.map(t=>serviciosTurnoRowHTML(t, true, `data-estado="${t.estado}" data-fecha="${t.fecha}" data-search="${Utils.escapeHTML((t.clienteNombre+' '+(t.vehiculoDescripcion||'')+' '+(t.descripcion||'')).toLowerCase())}"`)).join('') : `<tr><td colspan="7"><div class="empty-state">${svgIcon('calendario')}<h3>Todavía no hay turnos registrados</h3></div></td></tr>`}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+function bindServiciosTurnosTodosEvents(){
+  bindServiciosTurnoRowActions();
+  function applyFilters(){
+    const q = document.getElementById('st-search').value.trim().toLowerCase();
+    const estado = document.getElementById('st-filtro-estado').value;
+    const desde = document.getElementById('st-desde').value;
+    const hasta = document.getElementById('st-hasta').value;
+    document.querySelectorAll('#st-table tbody tr[data-estado]').forEach(tr=>{
+      const matchQ = !q || tr.dataset.search.includes(q);
+      const matchEstado = !estado || tr.dataset.estado===estado;
+      const matchDesde = !desde || tr.dataset.fecha >= desde;
+      const matchHasta = !hasta || tr.dataset.fecha <= hasta;
+      tr.style.display = (matchQ && matchEstado && matchDesde && matchHasta) ? '' : 'none';
+    });
+  }
+  ['st-search','st-filtro-estado','st-desde','st-hasta'].forEach(id=>{
+    document.getElementById(id).addEventListener('input', applyFilters);
+    document.getElementById(id).addEventListener('change', applyFilters);
+  });
+}
+
+/* ---------- Modal: nuevo/editar turno de servicio ---------- */
+async function openTurnoServicioModal(turno=null, fechaPrefill=null){
+  const clientes = (await DB.getAll('clientes')).filter(c=>c.activo!==false).sort((a,b)=>clienteNombreCompleto(a).localeCompare(clienteNombreCompleto(b),'es',{sensitivity:'base'}));
+
+  Modal.open(
+    turno ? 'Editar turno' : 'Nuevo turno de servicio',
+    `
+    <div class="field-row">
+      <div class="field"><label>Fecha</label><input type="date" id="tsf-fecha" value="${turno?turno.fecha:(fechaPrefill||Utils.hoyLocal())}"></div>
+      <div class="field"><label>Hora</label><input type="time" id="tsf-hora" value="${turno?turno.horaInicio:'09:00'}"></div>
+    </div>
+    <div class="field">
+      <label>Cliente</label>
+      <select class="select-input" id="tsf-clienteId">
+        <option value="">— Cliente sin registrar —</option>
+        ${clientes.map(c=>`<option value="${c.id}" ${turno&&turno.clienteId===c.id?'selected':''}>${Utils.escapeHTML(clienteNombreCompleto(c))}</option>`).join('')}
+      </select>
+    </div>
+    <div id="tsf-nombre-manual-wrap" class="field" style="display:none;">
+      <label>Nombre</label><input type="text" id="tsf-clienteNombreManual" value="${turno&&!turno.clienteId?Utils.escapeHTML(turno.clienteNombre||''):''}">
+    </div>
+    <div class="field"><label>Teléfono (WhatsApp)</label><input type="text" id="tsf-clienteTelefono" placeholder="Ej: 3511234567" value="${turno?Utils.escapeHTML(turno.clienteTelefono||''):''}"></div>
+    <div id="tsf-vehiculo-select-wrap" class="field" style="display:none;">
+      <label>Vehículo del cliente (opcional, autocompleta)</label>
+      <select class="select-input" id="tsf-vehiculoId"><option value="">— Ingresar manualmente —</option></select>
+    </div>
+    <div class="field"><label>Vehículo (descripción)</label><input type="text" id="tsf-vehiculoDescripcion" placeholder="Ej: Ford Fiesta gris, ABC123" value="${turno?Utils.escapeHTML(turno.vehiculoDescripcion||''):''}"></div>
+    <div class="field"><label>Servicio a realizar</label><input type="text" id="tsf-descripcion" placeholder="Ej: Cambio de aceite y filtros" value="${turno?Utils.escapeHTML(turno.descripcion||''):''}"></div>
+    <div class="field"><label>Observaciones</label><textarea class="textarea-input" id="tsf-observaciones">${turno?Utils.escapeHTML(turno.observaciones||''):''}</textarea></div>
+    <div class="modal-actions"><button class="btn btn-ghost" id="tsf-cancel">Cancelar</button><button class="btn btn-accent" id="tsf-save">Guardar turno</button></div>
+    `,
+    { width:'520px' }
+  );
+
+  const clienteSelect = document.getElementById('tsf-clienteId');
+  const nombreManualWrap = document.getElementById('tsf-nombre-manual-wrap');
+  const vehSelectWrap = document.getElementById('tsf-vehiculo-select-wrap');
+  const vehSelect = document.getElementById('tsf-vehiculoId');
+  async function actualizarVisibilidadCliente(){
+    const clienteId = Number(clienteSelect.value)||null;
+    nombreManualWrap.style.display = clienteId?'none':'';
+    if(clienteId){
+      const vehiculos = (await DB.getAllByIndex('vehiculos','clienteId', clienteId)).filter(v=>v.activo!==false);
+      vehSelectWrap.style.display = vehiculos.length?'':'none';
+      vehSelect.innerHTML = '<option value="">— Ingresar manualmente —</option>' + vehiculos.map(v=>`<option value="${v.id}">${Utils.escapeHTML(v.dominio)} — ${Utils.escapeHTML(v.marca)} ${Utils.escapeHTML(v.modelo)}</option>`).join('');
+    }else vehSelectWrap.style.display='none';
+  }
+  clienteSelect.addEventListener('change', async () => {
+    await actualizarVisibilidadCliente();
+    const clienteId = Number(clienteSelect.value)||null;
+    if(clienteId){
+      const clienteSel = clientes.find(c=>c.id===clienteId);
+      document.getElementById('tsf-clienteTelefono').value = clienteSel?.telefono || '';
+    }
+  });
+  vehSelectWrap.addEventListener('change', async (e)=>{
+    if(e.target.id!=='tsf-vehiculoId') return;
+    const vid = Number(e.target.value); if(!vid) return;
+    const v = await DB.get('vehiculos', vid);
+    document.getElementById('tsf-vehiculoDescripcion').value = `${v.marca} ${v.modelo} (${v.dominio})`;
+  });
+  if(turno && turno.clienteId) await actualizarVisibilidadCliente();
+  if(turno && turno.vehiculoId) vehSelect.value = turno.vehiculoId;
+
+  document.getElementById('tsf-cancel').onclick = () => Modal.close();
+  document.getElementById('tsf-save').onclick = async () => {
+    const fecha = document.getElementById('tsf-fecha').value;
+    const horaInicio = document.getElementById('tsf-hora').value;
+    const descripcion = document.getElementById('tsf-descripcion').value.trim();
+    if(!fecha || !horaInicio){ Toast.show('error','Faltan datos','Completá fecha y hora.'); return; }
+    if(!descripcion){ Toast.show('error','Faltan datos','Indicá qué servicio se va a realizar.'); return; }
+
+    const clienteId = Number(clienteSelect.value)||null;
+    const cliente = clienteId ? clientes.find(c=>c.id===clienteId) : null;
+    const clienteNombre = cliente ? clienteNombreCompleto(cliente) : (document.getElementById('tsf-clienteNombreManual').value.trim() || 'Cliente sin registrar');
+
+    const payload = {
+      fecha, horaInicio, descripcion,
+      clienteId, clienteNombre, clienteTelefono: document.getElementById('tsf-clienteTelefono').value.trim(),
+      vehiculoId: Number(vehSelect.value)||null,
+      vehiculoDescripcion: document.getElementById('tsf-vehiculoDescripcion').value.trim(),
+      observaciones: document.getElementById('tsf-observaciones').value.trim()
+    };
+
+    if(turno){
+      await DB.put('serviciosTurnos', { ...turno, ...payload });
+      await Audit.log('turno_servicio_editado', `Turno de servicio del ${fecha} ${horaInicio} editado.`);
+      Toast.show('success','Turno actualizado','');
+    }else{
+      const session = Session.get();
+      payload.estado = 'Reservado';
+      payload.fechaCreacion = Utils.nowISO(); payload.usuarioId = session.usuarioId; payload.usuarioNombre = session.nombre;
+      await DB.add('serviciosTurnos', payload);
+      await Audit.log('turno_servicio_creado', `Turno de servicio agendado para ${fecha} ${horaInicio}.`);
+      Toast.show('success','Turno agendado', `${fecha} ${horaInicio}`);
+    }
+    Modal.close();
+    serviciosTurnoFechaSeleccionada = fecha;
+    serviciosTurnosTab = 'agenda';
+    renderServiciosTurnosTab();
+  };
+}
+
+/* -----------------------------------------------------------------------
    20-S. ESTADÍSTICAS DEL HISTORIAL DE SERVICIOS
    Top de modelos y marcas más atendidos, distribución de tipos de filtro
    cambiados y viscosidades de aceite más usadas en los services.
@@ -8327,7 +8640,7 @@ async function viewHistorialEstadisticas(){
   return `
     <a href="#/historial" class="back-link">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-      Volver al historial
+      Volver a Servicios
     </a>
     <div class="page-header"><div><h1>Estadísticas de Servicios</h1><p>Modelos y marcas más atendidos, filtros y viscosidades de aceite más usados</p></div></div>
     <div id="hest-contenido"></div>
@@ -10370,7 +10683,7 @@ async function viewPOS(){
 
 /* ---------- Vista CARRITO (pantalla completa) ---------- */
 async function posCartViewHTML(){
-  const clientes = (await DB.getAll('clientes')).filter(c=>c.activo!==false);
+  const clientes = (await DB.getAll('clientes')).filter(c=>c.activo!==false).sort((a,b)=>clienteNombreCompleto(a).localeCompare(clienteNombreCompleto(b),'es',{sensitivity:'base'}));
   return `
     <div class="pos-cartfull">
       ${posCotizacionOrigen ? `<div class="pos-total-row" style="background:var(--bg-panel-alt); border:1px solid var(--border); border-radius:9px; padding:10px 12px; margin-bottom:12px; font-size:12.5px; color:var(--text-secondary);"><span>📋 Carrito cargado desde la cotización <b>#${Utils.escapeHTML(posCotizacionOrigen.numero)}</b></span></div>` : ''}
@@ -14304,7 +14617,7 @@ function bindCotizacionesListEvents(){
 }
 
 async function openCotizacionModal(cotizacion=null){
-  const clientes = (await DB.getAll('clientes')).filter(c=>c.activo!==false);
+  const clientes = (await DB.getAll('clientes')).filter(c=>c.activo!==false).sort((a,b)=>clienteNombreCompleto(a).localeCompare(clienteNombreCompleto(b),'es',{sensitivity:'base'}));
   const productos = await DB.getAll('productos');
   let cotItems = cotizacion ? cotizacion.items.map(it=>({...it})) : [];
 
