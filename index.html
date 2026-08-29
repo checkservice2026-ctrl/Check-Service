@@ -6860,6 +6860,7 @@ async function viewClienteDetalle(id){
         ${cliente.observaciones?`<div style="font-size:12px; color:var(--text-muted); margin-top:6px;">Observaciones: ${Utils.escapeHTML(cliente.observaciones)}</div>`:''}
       </div>
       <div class="detail-header-actions">
+        ${(cliente.whatsapp||cliente.telefono)?`<button class="btn btn-ghost" id="btn-whatsapp-cliente-detalle" title="Abrir chat de WhatsApp">${svgIcon('whatsapp')} WhatsApp</button>`:''}
         <button class="btn btn-ghost" id="btn-editar-cliente-detalle">Editar</button>
         <button class="btn ${cliente.activo===false?'btn-ghost':'btn-danger-ghost'}" id="btn-toggle-baja-cliente">${cliente.activo===false?'Dar de alta':'Dar de baja'}</button>
       </div>
@@ -7226,6 +7227,11 @@ function bindClienteDetalleEvents(id){
   bindRecordatoriosClienteEvents(id);
 
   document.getElementById('btn-editar-cliente-detalle').onclick = async () => openClienteModal(await DB.get('clientes', id));
+  const btnWhatsappCliente = document.getElementById('btn-whatsapp-cliente-detalle');
+  if(btnWhatsappCliente) btnWhatsappCliente.onclick = async () => {
+    const c = await DB.get('clientes', id);
+    abrirWhatsApp(c.whatsapp || c.telefono, '');
+  };
   document.getElementById('btn-toggle-baja-cliente').onclick = async () => {
     const c = await DB.get('clientes', id);
     const nuevoEstado = !(c.activo!==false);
