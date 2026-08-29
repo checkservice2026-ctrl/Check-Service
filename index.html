@@ -1501,6 +1501,31 @@ const DEFAULT_CONFIG = {
   // últimos ~20 años (autos + utilitarios livianos), según series históricas
   // de ACARA. Es un punto de partida editable desde Configuración → Listas.
   marcasVehiculo:['Volkswagen','Ford','Chevrolet','Toyota','Fiat','Renault','Peugeot','Citroën','Nissan','Honda','Jeep','RAM','Chery','Suzuki','Hyundai'],
+  // Modelos habilitados para el campo "Modelo" al cargar un vehículo, agrupados
+  // por marca (para que el select de Modelo se arme según la marca elegida).
+  // Se precargan los modelos más comunes en Argentina de cada marca de arriba;
+  // como "Marca", queda totalmente editable desde Configuración → Listas.
+  // Que el modelo salga de una lista fija (y no de texto libre) es clave para
+  // que los reportes de "Top modelos" no se distorsionen por variantes de
+  // tipeo (ej: "Fiesta" / "fiesta" / "Ford Fiesta" contando como 3 modelos
+  // distintos en vez de uno solo).
+  modelosPorMarca:{
+    'Volkswagen':['Gol','Polo','Virtus','Voyage','Suran','Amarok','Vento','T-Cross','Taos','Saveiro','Up!'],
+    'Ford':['Fiesta','Focus','Ka','EcoSport','Ranger','Territory','Fiesta Kinetic','Escort','F-100'],
+    'Chevrolet':['Corsa','Onix','Prisma','Cruze','S10','Tracker','Spin','Celta','Agile'],
+    'Toyota':['Corolla','Hilux','Etios','Yaris','SW4','Corolla Cross','Hiace'],
+    'Fiat':['Palio','Siena','Uno','Cronos','Toro','Strada','Argo','Mobi','Fiorino'],
+    'Renault':['Clio','Sandero','Logan','Duster','Kangoo','Fluence','Megane','Captur','Stepway'],
+    'Peugeot':['206','207','208','307','308','2008','Partner','3008'],
+    'Citroën':['C3','C4','Berlingo','C4 Cactus','Xsara'],
+    'Nissan':['Versa','Sentra','Frontier','Kicks','March','Note'],
+    'Honda':['Civic','Fit','HR-V','City','CR-V'],
+    'Jeep':['Renegade','Compass','Commander'],
+    'RAM':['1500','700','2500'],
+    'Chery':['Tiggo','QQ','Arauca'],
+    'Suzuki':['Fun','Ertiga','Vitara'],
+    'Hyundai':['HB20','Creta','Tucson','i10']
+  },
   // CRM Fase 5: credenciales de la API oficial de WhatsApp Business (Meta
   // Cloud API). Quedan guardadas para cuando se habilite el envío real; por
   // ahora el módulo de Campañas NO envía nada, solo arma la audiencia y el
@@ -4483,6 +4508,20 @@ async function viewConfiguracion(){
             <button type="button" class="btn btn-accent btn-sm" id="cfg-marca-add">+ Agregar</button>
           </div>
 
+          <div class="cfg-section-title" style="margin-top:30px;">Modelos de vehículos</div>
+          <div class="cfg-section-sub">Opciones disponibles en el campo "Modelo" al cargar un vehículo, según la marca elegida. Que el modelo se elija de una lista (y no se tipee libremente) evita que el mismo modelo quede cargado de formas distintas (ej: "Fiesta" / "fiesta" / "Ford Fiesta") y así los reportes de "Top modelos" no se distorsionen.</div>
+          <div class="field" style="max-width:340px; margin-top:10px;">
+            <label>Marca a editar</label>
+            <select class="select-input" id="cfg-modelo-marca-select">
+              ${(Config.cache.marcasVehiculo||[]).map(m=>`<option value="${Utils.escapeHTML(m)}">${Utils.escapeHTML(m)}</option>`).join('') || '<option value="">Cargá primero una marca arriba</option>'}
+            </select>
+          </div>
+          <div id="cfg-modelo-list" class="cfg-lista-editable" style="margin-top:10px;"></div>
+          <div style="display:flex; gap:8px; margin-top:10px; max-width:340px;">
+            <input type="text" id="cfg-modelo-nuevo" placeholder="Ej: Fiesta" style="flex:1; min-width:0;">
+            <button type="button" class="btn btn-accent btn-sm" id="cfg-modelo-add">+ Agregar</button>
+          </div>
+
           <div class="cfg-section-title" style="margin-top:30px;">Viscosidades de aceite</div>
           <div class="cfg-section-sub">Opciones disponibles en el campo "Tipo / Viscosidad" al cargar un service.</div>
           <div id="cfg-visc-list" class="cfg-lista-editable"></div>
@@ -4709,6 +4748,7 @@ function bindConfiguracionEvents(tabInicial){
         const nuevaLista = (Config.cache.marcasVehiculo||[]).filter(x=>x!==btn.dataset.m);
         await Config.save({ marcasVehiculo:nuevaLista });
         renderCfgMarcas();
+        sincronizarCfgModeloMarcaSelect();
       };
     });
   }
@@ -4722,8 +4762,53 @@ function bindConfiguracionEvents(tabInicial){
     await Config.save({ marcasVehiculo:[...lista, valor].sort() });
     input.value = '';
     renderCfgMarcas();
+    sincronizarCfgModeloMarcaSelect();
   };
   document.getElementById('cfg-marca-nueva').addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); document.getElementById('cfg-marca-add').click(); } });
+
+  // Listas y catálogos: modelos de vehículos (por marca)
+  const modeloMarcaSelect = document.getElementById('cfg-modelo-marca-select');
+  function sincronizarCfgModeloMarcaSelect(){
+    if(!modeloMarcaSelect) return;
+    const valorPrevio = modeloMarcaSelect.value;
+    const lista = Config.cache.marcasVehiculo || [];
+    modeloMarcaSelect.innerHTML = lista.length ? lista.map(m=>`<option value="${Utils.escapeHTML(m)}">${Utils.escapeHTML(m)}</option>`).join('') : '<option value="">Cargá primero una marca arriba</option>';
+    if(lista.includes(valorPrevio)) modeloMarcaSelect.value = valorPrevio;
+    renderCfgModelos();
+  }
+  function renderCfgModelos(){
+    const marca = modeloMarcaSelect.value;
+    const lista = (Config.cache.modelosPorMarca||{})[marca] || [];
+    document.getElementById('cfg-modelo-list').innerHTML = lista.length ? lista.map(m=>`
+      <div class="cfg-lista-editable-row" data-m="${Utils.escapeHTML(m)}">
+        <span class="cfg-lista-editable-label">${Utils.escapeHTML(m)}</span>
+        <button type="button" class="btn btn-danger-ghost btn-sm cfg-modelo-del" data-m="${Utils.escapeHTML(m)}">Quitar</button>
+      </div>`).join('') : `<div class="cfg-lista-editable-empty">Sin modelos cargados para ${Utils.escapeHTML(marca||'esta marca')}.</div>`;
+    document.querySelectorAll('.cfg-modelo-del').forEach(btn=>{
+      btn.onclick = async () => {
+        const nuevaLista = ((Config.cache.modelosPorMarca||{})[marca]||[]).filter(x=>x!==btn.dataset.m);
+        await Config.save({ modelosPorMarca:{ ...(Config.cache.modelosPorMarca||{}), [marca]:nuevaLista } });
+        renderCfgModelos();
+      };
+    });
+  }
+  if(modeloMarcaSelect){
+    renderCfgModelos();
+    modeloMarcaSelect.onchange = renderCfgModelos;
+    document.getElementById('cfg-modelo-add').onclick = async () => {
+      const marca = modeloMarcaSelect.value;
+      if(!marca){ Toast.show('info','Elegí una marca','Primero cargá al menos una marca en la lista de arriba.'); return; }
+      const input = document.getElementById('cfg-modelo-nuevo');
+      const valor = input.value.trim();
+      if(!valor) return;
+      const lista = (Config.cache.modelosPorMarca||{})[marca] || [];
+      if(lista.some(x=>x.toLowerCase()===valor.toLowerCase())){ Toast.show('info','Ya existe','Ese modelo ya está en la lista de esta marca.'); return; }
+      await Config.save({ modelosPorMarca:{ ...(Config.cache.modelosPorMarca||{}), [marca]:[...lista, valor].sort() } });
+      input.value = '';
+      renderCfgModelos();
+    };
+    document.getElementById('cfg-modelo-nuevo').addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); document.getElementById('cfg-modelo-add').click(); } });
+  }
 
   // Listas y catálogos: viscosidades de aceite
   function renderCfgViscosidades(){
@@ -7299,7 +7384,13 @@ function vehiculoFormHTML(v, clientes, clienteIdFijo){
         </select>
         <input type="text" id="vf-marca" placeholder="Nombre de la marca" style="margin-top:6px; display:none;" value="${v?Utils.escapeHTML(v.marca):''}">
       </div>
-      <div class="field"><label>Modelo</label><input type="text" id="vf-modelo" value="${v?Utils.escapeHTML(v.modelo):''}"></div>
+      <div class="field"><label>Modelo</label>
+        <select class="select-input" id="vf-modelo-select">
+          <option value="">Seleccioná...</option>
+          <option value="__otro__">Otro (especificar)...</option>
+        </select>
+        <input type="text" id="vf-modelo" placeholder="Nombre del modelo" style="margin-top:6px; display:none;" value="${v?Utils.escapeHTML(v.modelo):''}">
+      </div>
     </div>
     <div class="field-row">
       <div class="field"><label>Motor</label><input type="text" id="vf-motor" value="${v?Utils.escapeHTML(v.motor||''):''}"></div>
@@ -7367,6 +7458,37 @@ async function openVehiculoModal(vehiculo=null, clienteIdFijo=null){
   } else {
     marcaInput.style.display = 'none';
   }
+
+  // Modelo: select dependiente de la marca elegida (catálogo de Configuración
+  // → Listas y catálogos → Modelos de vehículos), con la misma lógica de
+  // "Otro (especificar)..." que ya usa Marca. Así se evita texto libre que
+  // termine distorsionando el reporte de "Top modelos" en Estadísticas.
+  const modeloSelect = document.getElementById('vf-modelo-select');
+  const modeloInput = document.getElementById('vf-modelo');
+  function marcaEfectivaActual(){
+    return marcaSelect.value === '__otra__' ? marcaInput.value.trim() : marcaSelect.value;
+  }
+  function poblarModeloSelect(modeloPreseleccionado){
+    const marca = marcaEfectivaActual();
+    const lista = (Config.cache.modelosPorMarca||{})[marca] || [];
+    const listaCompleta = modeloPreseleccionado && !lista.includes(modeloPreseleccionado) ? [...lista, modeloPreseleccionado].sort() : lista;
+    modeloSelect.innerHTML = `<option value="">Seleccioná...</option>${listaCompleta.map(m=>`<option value="${Utils.escapeHTML(m)}" ${modeloPreseleccionado===m?'selected':''}>${Utils.escapeHTML(m)}</option>`).join('')}<option value="__otro__">Otro (especificar)...</option>`;
+    if(!marca){
+      modeloSelect.disabled = true;
+      modeloSelect.innerHTML = `<option value="">Elegí primero una marca...</option>`;
+    }else{
+      modeloSelect.disabled = false;
+    }
+  }
+  function actualizarVisibilidadModeloInput(){
+    modeloInput.style.display = modeloSelect.value==='__otro__' ? '' : 'none';
+  }
+  poblarModeloSelect(v?v.modelo:'');
+  if(v && v.modelo && !(Config.cache.modelosPorMarca||{})[marcaEfectivaActual()]?.includes(v.modelo)){
+    modeloSelect.value = '__otro__';
+  }
+  actualizarVisibilidadModeloInput();
+
   marcaSelect.onchange = () => {
     if(marcaSelect.value === '__otra__'){
       marcaInput.style.display = '';
@@ -7375,6 +7497,20 @@ async function openVehiculoModal(vehiculo=null, clienteIdFijo=null){
     } else {
       marcaInput.style.display = 'none';
       marcaInput.value = marcaSelect.value;
+    }
+    poblarModeloSelect('');
+    modeloInput.value = '';
+    actualizarVisibilidadModeloInput();
+  };
+  marcaInput.addEventListener('input', () => { poblarModeloSelect(''); modeloInput.value=''; actualizarVisibilidadModeloInput(); });
+  modeloSelect.onchange = () => {
+    if(modeloSelect.value === '__otro__'){
+      modeloInput.style.display = '';
+      modeloInput.value = '';
+      modeloInput.focus();
+    } else {
+      modeloInput.style.display = 'none';
+      modeloInput.value = modeloSelect.value;
     }
   };
 
@@ -7490,6 +7626,8 @@ function esServicioProximo(h, vehiculo){
    tiempo mostrando cuánto falta (o cuánto se pasó) para esa fecha.
 ----------------------------------------------------------------------- */
 const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const MESES_ES_ABR = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const PLANIF_PX_POR_DIA = 6.2; // ancho fijo por día en el Gantt de planificación, así la escala nunca se "aplasta" al proyectar lejos
 const PLANIF_ESTADO_COLOR = { ok:'var(--teal)', proximo:'var(--warning)', urgente:'var(--urgente)', vencido:'var(--danger)' };
 const PLANIF_ESTADO_LABEL = { ok:'Más de 30 días', proximo:'Entre 15 y 30 días', urgente:'Menos de 15 días', vencido:'Service vencido' };
 
@@ -7548,7 +7686,10 @@ function generarEscalaTimelinePlanificacion(rangeStart, rangeEnd){
     const inicioMesSiguiente = new Date(cursor.getFullYear(), cursor.getMonth()+1, 1);
     const finSegmento = inicioMesSiguiente < rangeEnd ? inicioMesSiguiente : rangeEnd;
     const diasEnRango = Math.max(0, diasEntreFechas(inicioSegmento, finSegmento));
-    meses.push({ label: `${MESES_ES[cursor.getMonth()]} ${cursor.getFullYear()}`, pctWidth: diasEnRango/totalDias*100 });
+    // Si el mes queda "cortado" al principio o al final del rango (menos de ~20 días
+    // visibles), usamos el nombre abreviado para que no se corte feo el texto.
+    const nombreMes = diasEnRango < 20 ? MESES_ES_ABR[cursor.getMonth()] : MESES_ES[cursor.getMonth()];
+    meses.push({ label: `${nombreMes} ${cursor.getFullYear()}`, pctWidth: diasEnRango/totalDias*100 });
     cursor = inicioMesSiguiente;
   }
 
@@ -7594,13 +7735,22 @@ async function viewHistorialPlanificacion(){
   const hoy = parsearFechaSegura(Utils.hoyLocal());
   let rangeStart = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()-30);
   let rangeEnd = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()+120);
+  // Tope de 2 años: evita que una fecha de "próximo service" muy lejana (o mal
+  // cargada) estire el gráfico al infinito y termine aplastando los meses.
+  const rangeEndMax = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()+730);
   filas.forEach(f=>{
     const target = parsearFechaSegura(f.proximoServiceFecha);
     const conBuffer = new Date(target.getFullYear(), target.getMonth(), target.getDate()+15);
     if(conBuffer > rangeEnd) rangeEnd = conBuffer;
   });
+  if(rangeEnd > rangeEndMax) rangeEnd = rangeEndMax;
   const { meses, ticks, totalDias } = generarEscalaTimelinePlanificacion(rangeStart, rangeEnd);
   const pctHoyGlobal = Math.min(100, Math.max(0, diasEntreFechas(rangeStart, hoy)/totalDias*100));
+  // Ancho fijo por día (no porcentual sobre un contenedor de ancho fijo): así, cuanto
+  // más lejos proyecta el reporte, más ancho (y scrolleable) se vuelve el Gantt, en vez
+  // de comprimir todos los meses dentro del mismo espacio y que se pisen entre sí.
+  const timelineWidthPx = Math.round(totalDias * PLANIF_PX_POR_DIA);
+  const plancGridInnerWidthPx = 660 + timelineWidthPx;
 
   return `
     <a href="#/historial" class="back-link">
@@ -7627,7 +7777,7 @@ async function viewHistorialPlanificacion(){
 
     ${!filas.length ? `<div class="empty-state">${svgIcon('historial')}<h3>No hay services con próxima fecha programada</h3><p>Cargá la "fecha de próximo service" al registrar un service para que aparezca acá.</p></div>` : `
     <div class="plan-scroll-wrap">
-      <div class="plan-grid-inner">
+      <div class="plan-grid-inner" style="width:${plancGridInnerWidthPx}px;">
         <div class="plan-hoy-linea" style="left:calc(660px + (100% - 660px) * ${(pctHoyGlobal/100).toFixed(4)});">
           <div class="plan-hoy-label">Hoy</div>
         </div>
@@ -7987,7 +8137,7 @@ function historialFormHTML(h, vehiculo, usuariosActivos, verCosto, prefill){
       <div class="field"><label>Garantía (días)</label><input type="number" min="0" id="hf-garantiaDias" value="${h?h.garantiaDias||'':'90'}"></div>
       <div class="field"><label>Próximo service (km)</label><input type="number" min="0" id="hf-proximoServiceKm" value="${h?h.proximoServiceKm||'':''}"></div>
     </div>
-    <div class="field" style="max-width:calc(50% - 6px);"><label>Próximo service (fecha)</label><input type="date" id="hf-proximoServiceFecha" value="${h?h.proximoServiceFecha||'':''}"></div>
+    <div class="field" style="max-width:calc(50% - 6px);"><label>Próximo service (fecha)</label><input type="date" id="hf-proximoServiceFecha" value="${h?h.proximoServiceFecha||'':''}"><p id="hf-proximo-fecha-hint" style="font-size:11px; color:var(--text-muted); margin-top:5px;"></p></div>
   `;
 }
 
@@ -8058,6 +8208,47 @@ async function openHistorialModal(historial, vehiculo, prefill){
   autocompletarProximoServiceKm();
   inputKm.addEventListener('input', autocompletarProximoServiceKm);
   inputProximoKm.addEventListener('input', () => { proximoKmEditadoManualmente = true; });
+
+  // Próximo service (fecha): en vez de asumir siempre "un año fijo" para
+  // todos los clientes, se calcula el intervalo PROPIO de este vehículo:
+  // el promedio de días transcurridos entre sus últimos services reales.
+  // Con al menos 2 services previos ya hay un intervalo propio para usar; si
+  // todavía no hay historial suficiente (vehículo nuevo o con un solo
+  // service), se usa 365 días como punto de partida razonable hasta que se
+  // acumule más información. Se recalcula si se cambia la fecha del service,
+  // y deja de autocompletarse en cuanto el usuario toca el campo a mano.
+  const inputFecha = document.getElementById('hf-fecha');
+  const inputProximoFecha = document.getElementById('hf-proximoServiceFecha');
+  const hintProximoFecha = document.getElementById('hf-proximo-fecha-hint');
+  let proximoFechaEditadaManualmente = !!inputProximoFecha.value;
+  const historialVehiculoPrevio = (await DB.getAllByIndex('historialServicios','vehiculoId', vehiculo.id))
+    .filter(x => !historial || x.id !== historial.id)
+    .sort((a,b)=> parsearFechaSegura(a.fecha) - parsearFechaSegura(b.fecha));
+  const intervalosDiasVehiculo = [];
+  for(let i=1;i<historialVehiculoPrevio.length;i++){
+    const dias = Math.round((parsearFechaSegura(historialVehiculoPrevio[i].fecha) - parsearFechaSegura(historialVehiculoPrevio[i-1].fecha)) / 86400000);
+    if(dias > 0) intervalosDiasVehiculo.push(dias);
+  }
+  const tieneIntervaloPropio = intervalosDiasVehiculo.length > 0;
+  const promedioIntervaloDias = tieneIntervaloPropio
+    ? Math.round(intervalosDiasVehiculo.reduce((a,b)=>a+b,0) / intervalosDiasVehiculo.length)
+    : 365;
+  if(hintProximoFecha){
+    hintProximoFecha.textContent = tieneIntervaloPropio
+      ? `Sugerido según el promedio real de este vehículo: cada ${promedioIntervaloDias} días (${intervalosDiasVehiculo.length} intervalo${intervalosDiasVehiculo.length===1?'':'s'} registrado${intervalosDiasVehiculo.length===1?'':'s'}).`
+      : `Todavía no hay suficiente historial de este vehículo para calcular su intervalo propio — se sugiere 1 año (365 días) como punto de partida.`;
+  }
+  function autocompletarProximoServiceFecha(){
+    if(proximoFechaEditadaManualmente) return;
+    const fechaBase = inputFecha.value;
+    if(!fechaBase){ inputProximoFecha.value=''; return; }
+    const d = parsearFechaSegura(fechaBase);
+    d.setDate(d.getDate() + promedioIntervaloDias);
+    inputProximoFecha.value = Utils.fechaLocalYMD(d);
+  }
+  autocompletarProximoServiceFecha();
+  inputFecha.addEventListener('input', autocompletarProximoServiceFecha);
+  inputProximoFecha.addEventListener('input', () => { proximoFechaEditadaManualmente = true; });
 
   const fotosState = historial && historial.fotos ? [...historial.fotos] : [];
   renderHistorialPhotoGrid(fotosState);
@@ -8636,13 +8827,185 @@ function extraerViscosidadAceite(texto){
   return `${m[1]}W${m[2]}`;
 }
 
+/* -----------------------------------------------------------------------
+   20-S-BIS. Cantidad de services por período (Semana / Últimas semanas /
+   Mensual / Anual) — mismo patrón de tabs y gráfico barra+línea que usa el
+   módulo "Gráficos" del dashboard, pero contando cantidad de services
+   (por fecha del service) en lugar de montos de facturación.
+----------------------------------------------------------------------- */
+let histEstPeriodoTab = 'semana';
+let histEstSemanaSeleccionada = null;
+let histEstSemanasCount = 8;
+let histEstPeriodoHistorial = [];
+let histEstPeriodoChartData = {};
+
+function contarServiciosPorDia(historial, desde, hasta){
+  const porDia = {};
+  historial.forEach(h=>{
+    const f = Utils.fechaLocalYMD(h.fecha);
+    if(f < desde || f > hasta) return;
+    porDia[f] = (porDia[f]||0)+1;
+  });
+  return porDia;
+}
+
+function renderHistEstPeriodoTab(){
+  document.querySelectorAll('#hest-periodo-tabs .cfg-tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===histEstPeriodoTab));
+  const cont = document.getElementById('hest-periodo-content');
+  if(!cont) return;
+  if(histEstPeriodoTab==='semanas'){ cont.innerHTML = histEstSemanasHTML(); bindHistEstSemanasEvents(); drawHistEstSemanasChart(); }
+  else if(histEstPeriodoTab==='mensual'){ cont.innerHTML = histEstMensualHTML(); drawHistEstMensualChart(); }
+  else if(histEstPeriodoTab==='anual'){ cont.innerHTML = histEstAnualHTML(); drawHistEstAnualChart(); }
+  else{ cont.innerHTML = histEstSemanaHTML(); bindHistEstSemanaEvents(); drawHistEstSemanaChart(); }
+}
+
+/* ---------- Tab: Semana (por día) ---------- */
+function histEstSemanaHTML(){
+  const inicio = histEstSemanaSeleccionada;
+  const dias = []; for(let i=0;i<7;i++) dias.push(sumarDias(inicio,i));
+  const fin = dias[6];
+  const porDia = contarServiciosPorDia(histEstPeriodoHistorial, inicio, fin);
+  const valores = dias.map(d=>porDia[d]||0);
+  const labels = dias.map(d=> new Date(d+'T00:00:00').toLocaleDateString('es-AR',{ weekday:'short', day:'numeric' }));
+  const total = valores.reduce((a,b)=>a+b,0);
+  histEstPeriodoChartData.semana = { labels, valores };
+
+  return `
+    <div class="toolbar-filters" style="justify-content:space-between;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button class="btn btn-ghost btn-sm" id="hest-semana-anterior">‹</button>
+        <span style="font-weight:700; font-size:13px;">${new Date(inicio+'T00:00:00').toLocaleDateString('es-AR')} — ${new Date(fin+'T00:00:00').toLocaleDateString('es-AR')}</span>
+        <button class="btn btn-ghost btn-sm" id="hest-semana-siguiente">›</button>
+        <button class="btn btn-ghost btn-sm" id="hest-semana-actual">Esta semana</button>
+      </div>
+      <input type="date" class="toolbar-select" id="hest-semana-fecha" value="${inicio}" title="Elegir una fecha de esa semana">
+    </div>
+    <div class="grid-kpi" style="margin:16px 0;">
+      <div class="kpi-card" style="--kpi-color:var(--teal)"><div class="kpi-label">Services en la semana</div><div class="kpi-value">${total}</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--accent)"><div class="kpi-label">Promedio diario</div><div class="kpi-value">${(total/7).toLocaleString('es-AR',{maximumFractionDigits:1})}</div></div>
+    </div>
+    <div class="chart-canvas-box" style="height:260px;"><canvas id="hest-chart-semana"></canvas></div>
+  `;
+}
+function bindHistEstSemanaEvents(){
+  document.getElementById('hest-semana-anterior').onclick = ()=>{ histEstSemanaSeleccionada = sumarDias(histEstSemanaSeleccionada,-7); renderHistEstPeriodoTab(); };
+  document.getElementById('hest-semana-siguiente').onclick = ()=>{ histEstSemanaSeleccionada = sumarDias(histEstSemanaSeleccionada,7); renderHistEstPeriodoTab(); };
+  document.getElementById('hest-semana-actual').onclick = ()=>{ histEstSemanaSeleccionada = inicioDeSemana(Utils.hoyLocal()); renderHistEstPeriodoTab(); };
+  document.getElementById('hest-semana-fecha').onchange = (e)=>{ histEstSemanaSeleccionada = inicioDeSemana(e.target.value); renderHistEstPeriodoTab(); };
+}
+function drawHistEstSemanaChart(){
+  const d = histEstPeriodoChartData.semana;
+  if(d) drawBarLineChart(document.getElementById('hest-chart-semana'), d.labels, d.valores, null, (Config.cache||{}).colorTeal||'#17B8A6', '#FF8C1A', v=>Math.round(v), 'Services');
+}
+
+/* ---------- Tab: Últimas semanas (8/12) con media móvil ---------- */
+function histEstSemanasHTML(){
+  const n = histEstSemanasCount;
+  const inicioActual = inicioDeSemana(Utils.hoyLocal());
+  const iniciosSemanas = []; for(let i=n-1;i>=0;i--) iniciosSemanas.push(sumarDias(inicioActual, -7*i));
+  const desde = iniciosSemanas[0], hasta = sumarDias(iniciosSemanas[iniciosSemanas.length-1], 6);
+  const porDia = contarServiciosPorDia(histEstPeriodoHistorial, desde, hasta);
+  const valores = iniciosSemanas.map(ini=>{
+    const fin = sumarDias(ini,6);
+    let suma = 0; for(let i=0;i<7;i++) suma += porDia[sumarDias(ini,i)]||0;
+    return suma;
+  });
+  const labels = iniciosSemanas.map(ini=> new Date(ini+'T00:00:00').toLocaleDateString('es-AR',{ day:'2-digit', month:'2-digit' }));
+  const ma = calcularMediaMovil(valores, 3);
+  const total = valores.reduce((a,b)=>a+b,0);
+  histEstPeriodoChartData.semanas = { labels, valores, ma };
+
+  return `
+    <div class="toolbar-filters">
+      <button class="btn ${n===8?'btn-accent':'btn-ghost'} btn-sm" id="hest-8semanas">8 semanas</button>
+      <button class="btn ${n===12?'btn-accent':'btn-ghost'} btn-sm" id="hest-12semanas">12 semanas</button>
+    </div>
+    <div class="grid-kpi" style="margin:16px 0;">
+      <div class="kpi-card" style="--kpi-color:var(--teal)"><div class="kpi-label">Total del período</div><div class="kpi-value">${total}</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--accent)"><div class="kpi-label">Promedio semanal</div><div class="kpi-value">${(total/n).toLocaleString('es-AR',{maximumFractionDigits:1})}</div></div>
+    </div>
+    <div class="chart-canvas-box" style="height:280px;"><canvas id="hest-chart-semanas"></canvas></div>
+    <p style="font-size:11px; color:var(--text-muted); margin-top:8px;">Línea: media móvil de 3 semanas.</p>
+  `;
+}
+function bindHistEstSemanasEvents(){
+  document.getElementById('hest-8semanas').onclick = ()=>{ histEstSemanasCount=8; renderHistEstPeriodoTab(); };
+  document.getElementById('hest-12semanas').onclick = ()=>{ histEstSemanasCount=12; renderHistEstPeriodoTab(); };
+}
+function drawHistEstSemanasChart(){
+  const d = histEstPeriodoChartData.semanas;
+  if(d) drawBarLineChart(document.getElementById('hest-chart-semanas'), d.labels, d.valores, d.ma, (Config.cache||{}).colorTeal||'#17B8A6', '#FF8C1A', v=>Math.round(v), 'Services', 'Media móvil');
+}
+
+/* ---------- Tab: Mensual (últimos 12 meses) con media móvil ---------- */
+function histEstMensualHTML(){
+  const meses = [];
+  for(let i=11;i>=0;i--){ const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()-i); meses.push(d.toISOString().slice(0,7)); }
+  const desde = meses[0]+'-01';
+  const [ay,am] = meses[meses.length-1].split('-').map(Number);
+  const hasta = new Date(ay, am, 0).toISOString().slice(0,10);
+  const porDia = contarServiciosPorDia(histEstPeriodoHistorial, desde, hasta);
+  const porMes = {};
+  Object.entries(porDia).forEach(([f,c])=>{ const m=f.slice(0,7); porMes[m]=(porMes[m]||0)+c; });
+  const valores = meses.map(m=> porMes[m]||0);
+  const labels = meses.map(m=> new Date(m+'-01T00:00:00').toLocaleDateString('es-AR',{ month:'short', year:'2-digit' }));
+  const ma = calcularMediaMovil(valores, 3);
+  const total = valores.reduce((a,b)=>a+b,0);
+  histEstPeriodoChartData.mensual = { labels, valores, ma };
+
+  return `
+    <div class="grid-kpi" style="margin-bottom:16px;">
+      <div class="kpi-card" style="--kpi-color:var(--teal)"><div class="kpi-label">Total últimos 12 meses</div><div class="kpi-value">${total}</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--accent)"><div class="kpi-label">Promedio mensual</div><div class="kpi-value">${(total/12).toLocaleString('es-AR',{maximumFractionDigits:1})}</div></div>
+    </div>
+    <div class="chart-canvas-box" style="height:280px;"><canvas id="hest-chart-mensual"></canvas></div>
+    <p style="font-size:11px; color:var(--text-muted); margin-top:8px;">Línea: media móvil de 3 meses.</p>
+  `;
+}
+function drawHistEstMensualChart(){
+  const d = histEstPeriodoChartData.mensual;
+  if(d) drawBarLineChart(document.getElementById('hest-chart-mensual'), d.labels, d.valores, d.ma, (Config.cache||{}).colorTeal||'#17B8A6', '#FF8C1A', v=>Math.round(v), 'Services', 'Media móvil');
+}
+
+/* ---------- Tab: Anual ---------- */
+function histEstAnualHTML(){
+  const anios = [...new Set(histEstPeriodoHistorial.map(h=>Utils.fechaLocalYMD(h.fecha).slice(0,4)))].sort();
+  const anioActual = new Date().getFullYear();
+  const listaAnios = anios.length ? anios : [String(anioActual)];
+  const valores = listaAnios.map(a=> histEstPeriodoHistorial.filter(h=>Utils.fechaLocalYMD(h.fecha).slice(0,4)===a).length);
+  const total = valores.reduce((a,b)=>a+b,0);
+  histEstPeriodoChartData.anual = { labels:listaAnios, valores };
+
+  return `
+    <div class="grid-kpi" style="margin-bottom:16px;">
+      <div class="kpi-card" style="--kpi-color:var(--teal)"><div class="kpi-label">Total histórico</div><div class="kpi-value">${total}</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--accent)"><div class="kpi-label">Años con datos</div><div class="kpi-value">${listaAnios.length}</div></div>
+    </div>
+    <div class="chart-canvas-box" style="height:280px;"><canvas id="hest-chart-anual"></canvas></div>
+  `;
+}
+function drawHistEstAnualChart(){
+  const d = histEstPeriodoChartData.anual;
+  if(d) drawBarLineChart(document.getElementById('hest-chart-anual'), d.labels, d.valores, null, (Config.cache||{}).colorTeal||'#17B8A6', '#FF8C1A', v=>Math.round(v), 'Services');
+}
+
 async function viewHistorialEstadisticas(){
   return `
     <a href="#/historial" class="back-link">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       Volver a Servicios
     </a>
-    <div class="page-header"><div><h1>Estadísticas de Servicios</h1><p>Modelos y marcas más atendidos, filtros y viscosidades de aceite más usados</p></div></div>
+    <div class="page-header"><div><h1>Estadísticas de Servicios</h1><p>Cantidad de services por período, modelos y marcas más atendidos, filtros y viscosidades de aceite más usados</p></div></div>
+    <div class="report-chart-wrap">
+      <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">Cantidad de services realizados por período</div>
+      <div class="cfg-tabs" style="flex-direction:row; flex-wrap:wrap; width:auto; margin-bottom:16px;" id="hest-periodo-tabs">
+        <button class="cfg-tab" data-tab="semana">Semana</button>
+        <button class="cfg-tab" data-tab="semanas">Últimas semanas</button>
+        <button class="cfg-tab" data-tab="mensual">Mensual</button>
+        <button class="cfg-tab" data-tab="anual">Anual</button>
+      </div>
+      <div id="hest-periodo-content"></div>
+    </div>
     <div id="hest-contenido"></div>
   `;
 }
@@ -8654,8 +9017,19 @@ async function bindHistorialEstadisticasEvents(){
 
   if(!historial.length){
     cont.innerHTML = `<div class="empty-state" style="padding:40px;">${svgIcon('historial')}<h3>Todavía no hay servicios registrados</h3><p>Las estadísticas van a aparecer acá apenas se cargue el primer service.</p></div>`;
+    const periodoCont = document.getElementById('hest-periodo-content');
+    if(periodoCont) periodoCont.innerHTML = '';
     return;
   }
+
+  // ---- Cantidad de services por período (Semana / Últimas semanas / Mensual / Anual) ----
+  histEstPeriodoHistorial = historial;
+  histEstPeriodoTab = 'semana';
+  histEstSemanaSeleccionada = inicioDeSemana(Utils.hoyLocal());
+  document.querySelectorAll('#hest-periodo-tabs .cfg-tab').forEach(btn=>{
+    btn.onclick = () => { histEstPeriodoTab = btn.dataset.tab; renderHistEstPeriodoTab(); };
+  });
+  renderHistEstPeriodoTab();
 
   cont.innerHTML = `
     <div class="report-chart-wrap">
