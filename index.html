@@ -7489,8 +7489,8 @@ async function openVehiculoModal(vehiculo=null, clienteIdFijo=null){
   function actualizarVisibilidadModeloInput(){
     modeloInput.style.display = modeloSelect.value==='__otro__' ? '' : 'none';
   }
-  poblarModeloSelect(v?v.modelo:'');
-  if(v && v.modelo && !(Config.cache.modelosPorMarca||{})[marcaEfectivaActual()]?.includes(v.modelo)){
+  poblarModeloSelect(vehiculo?vehiculo.modelo:'');
+  if(vehiculo && vehiculo.modelo && !(Config.cache.modelosPorMarca||{})[marcaEfectivaActual()]?.includes(vehiculo.modelo)){
     modeloSelect.value = '__otro__';
   }
   actualizarVisibilidadModeloInput();
