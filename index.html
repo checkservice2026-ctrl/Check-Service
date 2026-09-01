@@ -3147,7 +3147,7 @@ async function viewDashboard(){
 
   // KPIs de negocio ahora reales gracias a Compras/Caja/Cuentas Corrientes (Fase 6)
   const verFinanzas = canSeeCosto(session.rol);
-  let gananciaMes = 0, rentabilidadPct = 0, saldoCajaActual = 0;
+  let gananciaMes = 0, rentabilidadPct = 0, saldoCajaActual = 0, facturasCompraPorVencer = [];
   if(verFinanzas){
     const productosById = {}; productos.forEach(p=>productosById[p.id]=p);
     const gananciaVentasMes = ventasMes.reduce((acc,v)=> acc + v.items.reduce((a2,it)=>{
@@ -3167,6 +3167,8 @@ async function viewDashboard(){
     const costoTotalMes = facturadoMes - gananciaMes;
     rentabilidadPct = costoTotalMes>0 ? (gananciaMes/costoTotalMes*100) : 0;
     saldoCajaActual = await cajaSaldoActual();
+    facturasCompraPorVencer = await obtenerFacturasCompraPorVencer();
+    var proveedoresById = {}; (await DB.getAll('proveedores')).forEach(p=>proveedoresById[p.id]=p);
   }
 
   // Estado de apertura en base a los horarios configurados
@@ -3313,6 +3315,11 @@ async function viewDashboard(){
         <div class="kpi-value">$${saldoCajaActual.toLocaleString('es-AR')}</div>
         <div class="kpi-sub">saldo actual acumulado</div>
       </div>
+      <a href="#/compras" class="kpi-card" style="--kpi-color:${facturasCompraPorVencer.some(f=>f.dias<0)?'var(--danger)':facturasCompraPorVencer.length?'var(--warning)':'var(--teal)'}; text-decoration:none; color:inherit; display:block;">
+        <div class="kpi-label">Facturas por vencer</div>
+        <div class="kpi-value">${facturasCompraPorVencer.length}</div>
+        <div class="kpi-sub">${facturasCompraPorVencer.some(f=>f.dias<0)?'hay facturas vencidas sin pagar':'vencidas o dentro de '+DIAS_ALERTA_VENCIMIENTO_COMPRA+' días'}</div>
+      </a>
     </div>
     <div class="report-chart-wrap" style="margin-top:16px;">
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
@@ -3327,6 +3334,22 @@ async function viewDashboard(){
       <div class="chart-canvas-box" style="height:260px;">
         <div id="dash-margen-apex" style="height:100%;"></div>
         <canvas id="dash-margen-chart" style="display:none;"></canvas>
+      </div>
+    </div>
+    ` : ''}
+
+    ${(verFinanzas && facturasCompraPorVencer.length) ? `
+    <div class="card" style="margin-top:22px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+        <h3 style="font-size:14px;">Facturas de compra por vencer</h3>
+        <a href="#/compras" class="btn btn-ghost btn-sm">Ver todas las compras</a>
+      </div>
+      <div class="crm-alerts-card">
+        ${facturasCompraPorVencer.slice(0,6).map(({compra:c, dias}) => {
+          const prov = proveedoresById[c.proveedorId];
+          const texto = dias<0 ? `venció hace ${Math.abs(dias)} día${Math.abs(dias)===1?'':'s'}` : dias===0 ? 'vence hoy' : `vence en ${dias} día${dias===1?'':'s'}`;
+          return `<a href="#/compras" class="crm-alerts-item"><span class="crm-alerts-dot" style="background:${dias<0?'var(--danger)':'var(--warning)'};"></span><span class="txt">Factura <b>${Utils.escapeHTML(c.numeroFactura||'s/n')}</b> de ${prov?Utils.escapeHTML(prov.nombre):'(proveedor eliminado)'} — $${c.total.toLocaleString('es-AR')} · ${texto}</span></a>`;
+        }).join('')}
       </div>
     </div>
     ` : ''}
@@ -12832,6 +12855,38 @@ function estadoPagoBadge(estado){
   return `<span class="badge ${map[estado]||'badge-neutral'}">${estado}</span>`;
 }
 
+/* -----------------------------------------------------------------------
+   Notificación de vencimiento de facturas de compra: una compra con
+   "Fecha de vencimiento" cargada y que todavía no esté totalmente Pagada
+   se considera "por vencer" dentro de los 7 días previos, y "vencida" una
+   vez pasada la fecha. Se usa tanto para el badge en el listado de Compras
+   como para las alertas del Dashboard.
+----------------------------------------------------------------------- */
+const DIAS_ALERTA_VENCIMIENTO_COMPRA = 7;
+function diasHastaVencimientoCompra(compra){
+  if(!compra.fechaVencimiento || compra.estadoPago==='Pagada') return null;
+  const hoy = parsearFechaSegura(Utils.hoyLocal());
+  const vto = parsearFechaSegura(compra.fechaVencimiento);
+  return Math.round((vto - hoy) / 86400000);
+}
+async function obtenerFacturasCompraPorVencer(){
+  const compras = await DB.getAll('compras');
+  return compras
+    .map(c => ({ compra:c, dias: diasHastaVencimientoCompra(c) }))
+    .filter(x => x.dias !== null && x.dias <= DIAS_ALERTA_VENCIMIENTO_COMPRA)
+    .sort((a,b)=> a.dias - b.dias);
+}
+function compraVencimientoBadge(compra){
+  const dias = diasHastaVencimientoCompra(compra);
+  const fechaFmt = compra.fechaVencimiento ? parsearFechaSegura(compra.fechaVencimiento).toLocaleDateString('es-AR') : null;
+  if(!compra.fechaVencimiento) return `<span style="color:var(--text-muted); font-size:12px;">—</span>`;
+  if(compra.estadoPago==='Pagada') return `<span style="color:var(--text-muted); font-size:12px;">${fechaFmt}</span>`;
+  if(dias < 0) return `<span class="badge badge-pago-pendiente" title="Venció el ${fechaFmt}">Vencida hace ${Math.abs(dias)} día${Math.abs(dias)===1?'':'s'}</span>`;
+  if(dias === 0) return `<span class="badge badge-pago-parcial" title="${fechaFmt}">Vence hoy</span>`;
+  if(dias <= DIAS_ALERTA_VENCIMIENTO_COMPRA) return `<span class="badge badge-pago-parcial" title="${fechaFmt}">Vence en ${dias} día${dias===1?'':'s'}</span>`;
+  return `<span style="color:var(--text-secondary); font-size:12px;">${fechaFmt}</span>`;
+}
+
 async function viewComprasList(){
   const compras = (await DB.getAll('compras')).sort((a,b)=> new Date(b.fecha)-new Date(a.fecha));
   const proveedores = await DB.getAll('proveedores');
@@ -12854,7 +12909,7 @@ async function viewComprasList(){
     </div>
     <div class="card" style="padding:0; overflow-x:auto;">
       <table class="data-table" id="compras-table">
-        <thead><tr><th>Fecha</th><th>Proveedor</th><th>Factura</th><th>Total</th><th>Estado</th><th style="text-align:right;">Acciones</th></tr></thead>
+        <thead><tr><th>Fecha</th><th>Proveedor</th><th>Factura</th><th>Total</th><th>Estado</th><th>Vencimiento</th><th style="text-align:right;">Acciones</th></tr></thead>
         <tbody>
           ${compras.length ? compras.map(c => {
             const prov = provById[c.proveedorId];
@@ -12864,11 +12919,12 @@ async function viewComprasList(){
               <td class="font-mono">${Utils.escapeHTML(c.numeroFactura||'—')}</td>
               <td class="font-mono">$${c.total.toLocaleString('es-AR')}</td>
               <td>${estadoPagoBadge(c.estadoPago)}</td>
+              <td>${compraVencimientoBadge(c)}</td>
               <td style="text-align:right; white-space:nowrap;">
                 <button class="btn btn-ghost btn-sm btn-ver-compra" data-id="${c.id}">Ver</button>
               </td>
             </tr>`;
-          }).join('') : `<tr><td colspan="6"><div class="empty-state">${svgIcon('compras')}<h3>Todavía no hay compras registradas</h3></div></td></tr>`}
+          }).join('') : `<tr><td colspan="7"><div class="empty-state">${svgIcon('compras')}<h3>Todavía no hay compras registradas</h3></div></td></tr>`}
         </tbody>
       </table>
     </div>
@@ -13149,6 +13205,7 @@ async function openCompraDetalleModal(compra){
     ${compra.descuento?`<div class="pos-total-row"><span>Descuento</span><span>-$${compra.descuento.toLocaleString('es-AR')}</span></div>`:''}
     <div class="pos-total-row grand"><span>Total</span><span>$${compra.total.toLocaleString('es-AR')}</span></div>
     <div style="margin-top:10px;">${estadoPagoBadge(compra.estadoPago)} <span style="font-size:12px; color:var(--text-muted);">Pagado: $${compra.montoPagado.toLocaleString('es-AR')} · Pendiente: $${saldoPendiente.toLocaleString('es-AR')}</span></div>
+    ${compra.fechaVencimiento?`<div style="margin-top:8px;">${compraVencimientoBadge(compra)}</div>`:''}
     ${compra.observaciones?`<p style="font-size:12.5px; color:var(--text-secondary); margin-top:10px;">${Utils.escapeHTML(compra.observaciones)}</p>`:''}
     <div class="modal-actions">
       <button class="btn btn-ghost" id="cd-cerrar">Cerrar</button>
