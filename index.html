@@ -1386,7 +1386,7 @@ var qrcode=function(){var qrcode=function(t,r){var e=t,n=c[r],o=null,i=0,a=null,
    0. CONSTANTES GLOBALES
 ----------------------------------------------------------------------- */
 const DB_NAME = 'CheckServiceDB';
-const DB_VERSION = 20; // Turnero de Servicios: se agrega store 'serviciosTurnos'
+const DB_VERSION = 21; // Se agrega store 'historialPrecios' (historial de cambios de precio de costo/venta por producto)
 const SESSION_KEY = 'cs_session';
 const REMEMBER_KEY = 'cs_remember_user';
 const THEME_KEY = 'cs_theme';
@@ -1724,6 +1724,15 @@ const DB = (() => {
           st.createIndex('fecha', 'fecha');
           st.createIndex('estado', 'estado');
           st.createIndex('clienteId', 'clienteId');
+        }
+        if(!db.objectStoreNames.contains('historialPrecios')){
+          // Historial de cambios de precio (costo y venta) de cada producto.
+          // Se completa automáticamente cada vez que cambia un precio, sea
+          // por edición manual, ajuste masivo por %, importación CSV o al
+          // recibir una compra (que actualiza el costo).
+          const hp = db.createObjectStore('historialPrecios', { keyPath:'id', autoIncrement:true });
+          hp.createIndex('productoId', 'productoId');
+          hp.createIndex('fecha', 'fecha');
         }
         if(!db.objectStoreNames.contains('campanas')){
           // CRM Fase 5: campañas de segmentación. Guardan los filtros usados,
@@ -9593,6 +9602,7 @@ async function openActualizarPreciosModal(){
       const patch = {};
       if(c.costoValido) patch.precioCosto = c.costoNuevo;
       if(c.ventaValido) patch.precioVenta = c.ventaNuevo;
+      await registrarCambioPrecioSiCorresponde(c.producto, c.costoValido?c.costoNuevo:null, c.ventaValido?c.ventaNuevo:null);
       await DB.put('productos', { ...c.producto, ...patch });
       actualizados++;
     }
@@ -10274,6 +10284,7 @@ async function openAjustePreciosMasivoModal(){
     const nombreMarca = (marcasMapa[marcaId]||{}).nombre || '—';
     const pct = Number(document.getElementById('am-porcentaje').value)||0;
     for(const a of afectados){
+      await registrarCambioPrecioSiCorresponde(a.producto, a.precioCostoNuevo, a.precioVentaNuevo);
       await DB.put('productos', { ...a.producto, precioVenta:a.precioVentaNuevo, precioCosto:a.precioCostoNuevo });
     }
     await Audit.log('precios_ajuste_masivo', `Ajuste de ${pct}% aplicado a ${afectados.length} producto(s) de la marca "${nombreMarca}" (venta:${document.getElementById('am-aplica-venta').checked?'sí':'no'}, costo:${document.getElementById('am-aplica-costo').checked?'sí':'no'}).`);
@@ -10303,6 +10314,28 @@ async function sincronizarEquivalentes(productoId, nuevosIds, idsAnteriores){
     const lista = otro.equivalentes||[];
     if(lista.includes(productoId)) await DB.put('productos', { ...otro, equivalentes: lista.filter(x=>x!==productoId) });
   }
+}
+
+/* -----------------------------------------------------------------------
+   Historial de precios de productos: registra cada cambio de precio de
+   costo y/o venta (edición manual, ajuste masivo por %, importación CSV o
+   recepción de compra) para poder graficar la evolución y calcular el %
+   de aumento en el Kardex de cada producto.
+----------------------------------------------------------------------- */
+async function registrarCambioPrecioSiCorresponde(productoAnterior, precioCostoNuevo, precioVentaNuevo){
+  const costoAnterior = productoAnterior.precioCosto || 0;
+  const ventaAnterior = productoAnterior.precioVenta || 0;
+  const costoFinal = precioCostoNuevo != null ? precioCostoNuevo : costoAnterior;
+  const ventaFinal = precioVentaNuevo != null ? precioVentaNuevo : ventaAnterior;
+  if(costoFinal === costoAnterior && ventaFinal === ventaAnterior) return;
+  const session = Session.get();
+  await DB.add('historialPrecios', {
+    productoId: productoAnterior.id,
+    fecha: Utils.nowISO(),
+    precioCostoAnterior: costoAnterior, precioCostoNuevo: costoFinal,
+    precioVentaAnterior: ventaAnterior, precioVentaNuevo: ventaFinal,
+    usuarioId: session.usuarioId, usuarioNombre: session.nombre
+  });
 }
 
 async function openProductoModal(producto=null, onCreated=null){
@@ -10468,6 +10501,7 @@ async function openProductoModal(producto=null, onCreated=null){
     try{
       let productoId;
       if(producto){
+        await registrarCambioPrecioSiCorresponde(producto, payload.precioCosto, payload.precioVenta);
         await DB.put('productos', { ...producto, ...payload });
         productoId = producto.id;
         await Audit.log('producto_editado', `Producto ${codigo} editado.`);
@@ -10986,6 +11020,32 @@ async function viewKardexProducto(id){
         </div>
       </div>
     </div>
+    <div class="cfg-tabs" style="flex-direction:row; flex-wrap:wrap; width:auto; margin-bottom:16px;" id="kardex-tabs">
+      <button class="cfg-tab" data-tab="movimientos">${svgIcon('stock')} Movimientos de stock</button>
+      <button class="cfg-tab" data-tab="precios">${svgIcon('caja')} Historial de precios</button>
+    </div>
+    <div id="kardex-tab-content">
+      <div class="cfg-section-title">Kardex de movimientos <span class="badge badge-neutral">${movimientos.length}</span></div>
+      <div class="card" style="padding:0; overflow-x:auto; margin-top:12px;">
+        <table class="data-table">
+          <thead><tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Stock resultante</th><th>Motivo</th><th>Usuario</th></tr></thead>
+          <tbody>
+            ${movimientos.length ? movimientos.map(m => `<tr>
+              <td class="font-mono" style="font-size:12px;">${Utils.fmtFecha(m.fecha)}</td>
+              <td><span class="badge ${m.tipo==='ingreso'?'badge-ok':m.tipo==='egreso'?'badge-danger':'badge-neutral'}">${m.tipo}</span></td>
+              <td>${m.tipo==='egreso'?'-':'+'}${Math.abs(m.cantidad)}</td>
+              <td style="font-weight:700;">${m.stockResultante}</td>
+              <td>${Utils.escapeHTML(m.motivo)}</td>
+              <td>${Utils.escapeHTML(m.usuarioNombre||'—')}</td>
+            </tr>`).join('') : `<tr><td colspan="6"><div class="empty-state">${svgIcon('stock')}<h3>Sin movimientos registrados</h3></div></td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+function movimientosTabHTML(movimientos){
+  return `
     <div class="cfg-section-title">Kardex de movimientos <span class="badge badge-neutral">${movimientos.length}</span></div>
     <div class="card" style="padding:0; overflow-x:auto; margin-top:12px;">
       <table class="data-table">
@@ -11004,7 +11064,126 @@ async function viewKardexProducto(id){
     </div>
   `;
 }
-function bindKardexEvents(id){ /* vista de solo lectura, sin acciones adicionales por ahora */ }
+function pctAumento(anterior, actual){
+  if(!anterior) return null;
+  return ((actual - anterior) / anterior) * 100;
+}
+function pctBadgeHTML(pct){
+  if(pct===null || isNaN(pct)) return `<span style="color:var(--text-muted);">—</span>`;
+  const color = pct>0 ? 'var(--danger)' : pct<0 ? 'var(--teal)' : 'var(--text-muted)';
+  const signo = pct>0 ? '+' : '';
+  return `<span style="color:${color}; font-weight:700;">${signo}${pct.toLocaleString('es-AR',{maximumFractionDigits:1})}%</span>`;
+}
+async function historialPreciosTabHTML(producto){
+  const historial = (await DB.getAllByIndex('historialPrecios','productoId', producto.id)).sort((a,b)=> new Date(a.fecha)-new Date(b.fecha));
+
+  if(!historial.length){
+    return `
+      <div class="cfg-section-title">Historial de precios</div>
+      <div class="empty-state" style="padding:40px; margin-top:12px;">${svgIcon('caja')}<h3>Todavía no hay cambios de precio registrados</h3><p>En cuanto se edite el precio de costo o de venta de este producto (a mano, por ajuste masivo, importación o al recibir una compra), va a empezar a verse acá su evolución.</p></div>
+    `;
+  }
+
+  // Precio "de partida" = el anterior al primer cambio registrado (el precio con el que arrancó el producto).
+  const costoInicial = historial[0].precioCostoAnterior;
+  const ventaInicial = historial[0].precioVentaAnterior;
+  const costoActual = producto.precioCosto || 0;
+  const ventaActual = producto.precioVenta || 0;
+  const pctCosto = pctAumento(costoInicial, costoActual);
+  const pctVenta = pctAumento(ventaInicial, ventaActual);
+  const ultimoCambio = historial[historial.length-1];
+
+  const labels = historial.map(h => Utils.fmtFechaSolo ? Utils.fmtFechaSolo(h.fecha) : new Date(h.fecha).toLocaleDateString('es-AR'));
+  const costos = historial.map(h => h.precioCostoNuevo);
+  const ventas = historial.map(h => h.precioVentaNuevo);
+  // El último punto de la serie es siempre el precio ACTUAL del producto (por si
+  // se editó el nombre/stock después sin tocar el precio, igual queda reflejado).
+  labels.push('Actual'); costos.push(costoActual); ventas.push(ventaActual);
+
+  window._kardexPreciosChartData = { labels, costos, ventas };
+
+  return `
+    <div class="cfg-section-title">Historial de precios</div>
+    <div class="grid-kpi" style="margin:14px 0 18px;">
+      <div class="kpi-card" style="--kpi-color:var(--danger)">
+        <div class="kpi-label">Aumento de costo (histórico)</div>
+        <div class="kpi-value">${pctBadgeHTML(pctCosto)}</div>
+        <div class="kpi-sub">$${costoInicial.toLocaleString('es-AR')} → $${costoActual.toLocaleString('es-AR')}</div>
+      </div>
+      <div class="kpi-card" style="--kpi-color:var(--accent)">
+        <div class="kpi-label">Aumento de venta (histórico)</div>
+        <div class="kpi-value">${pctBadgeHTML(pctVenta)}</div>
+        <div class="kpi-sub">$${ventaInicial.toLocaleString('es-AR')} → $${ventaActual.toLocaleString('es-AR')}</div>
+      </div>
+      <div class="kpi-card" style="--kpi-color:var(--teal)">
+        <div class="kpi-label">Cambios registrados</div>
+        <div class="kpi-value">${historial.length}</div>
+        <div class="kpi-sub">Último: ${Utils.fmtFecha(ultimoCambio.fecha)}</div>
+      </div>
+    </div>
+    <div class="chart-canvas-box" style="height:280px;"><canvas id="kardex-precios-chart"></canvas></div>
+    <div class="cfg-section-title" style="margin-top:24px;">Detalle de cambios</div>
+    <div class="card" style="padding:0; overflow-x:auto; margin-top:12px;">
+      <table class="data-table">
+        <thead><tr><th>Fecha</th><th>Costo</th><th>Venta</th><th>Usuario</th></tr></thead>
+        <tbody>
+          ${[...historial].reverse().map(h => `<tr>
+            <td class="font-mono" style="font-size:12px;">${Utils.fmtFecha(h.fecha)}</td>
+            <td class="font-mono">${h.precioCostoAnterior===h.precioCostoNuevo?`<span style="color:var(--text-muted);">$${h.precioCostoNuevo.toLocaleString('es-AR')} (sin cambios)</span>`:`$${h.precioCostoAnterior.toLocaleString('es-AR')} → <b>$${h.precioCostoNuevo.toLocaleString('es-AR')}</b> ${pctBadgeHTML(pctAumento(h.precioCostoAnterior,h.precioCostoNuevo))}`}</td>
+            <td class="font-mono">${h.precioVentaAnterior===h.precioVentaNuevo?`<span style="color:var(--text-muted);">$${h.precioVentaNuevo.toLocaleString('es-AR')} (sin cambios)</span>`:`$${h.precioVentaAnterior.toLocaleString('es-AR')} → <b>$${h.precioVentaNuevo.toLocaleString('es-AR')}</b> ${pctBadgeHTML(pctAumento(h.precioVentaAnterior,h.precioVentaNuevo))}`}</td>
+            <td>${Utils.escapeHTML(h.usuarioNombre||'—')}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+function drawKardexPreciosChart(){
+  const d = window._kardexPreciosChartData;
+  const canvas = document.getElementById('kardex-precios-chart');
+  if(!d || !canvas) return;
+  destroyChartOn(canvas);
+  const theme = chartThemeColors();
+  new Chart(canvas.getContext('2d'), {
+    type:'line',
+    data:{ labels:d.labels, datasets:[
+      { label:'Costo', data:d.costos, borderColor:'#D6393E', backgroundColor:hexToRgba('#D6393E',.12), tension:.25, fill:true, pointRadius:3 },
+      { label:'Venta', data:d.ventas, borderColor:'#17B8A6', backgroundColor:hexToRgba('#17B8A6',.12), tension:.25, fill:true, pointRadius:3 }
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false, animation:{ duration:400 },
+      plugins:{
+        legend:{ display:true, position:'top', labels:{ color:theme.muted, boxWidth:11, boxHeight:11, font:{ size:10.5 }, usePointStyle:true, pointStyle:'circle' } },
+        tooltip:{ backgroundColor:theme.panel, titleColor:theme.text, bodyColor:theme.text, borderColor:theme.grid, borderWidth:1, padding:9, cornerRadius:8,
+          callbacks:{ label:(item)=> `${item.dataset.label}: $${Number(item.parsed.y).toLocaleString('es-AR')}` } }
+      },
+      scales:{
+        x:{ grid:{ display:false }, ticks:{ color:theme.muted, font:{ size:10 } } },
+        y:{ beginAtZero:false, grid:{ color:theme.grid }, ticks:{ color:theme.muted, font:{ size:10 }, callback:v=>'$'+Number(v).toLocaleString('es-AR') } }
+      }
+    }
+  });
+}
+function bindKardexEvents(id){
+  let kardexTab = 'movimientos';
+  document.querySelectorAll('#kardex-tabs .cfg-tab').forEach(btn=>{
+    btn.onclick = async () => { kardexTab = btn.dataset.tab; await renderKardexTab(); };
+  });
+  async function renderKardexTab(){
+    document.querySelectorAll('#kardex-tabs .cfg-tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===kardexTab));
+    const cont = document.getElementById('kardex-tab-content');
+    if(!cont) return;
+    if(kardexTab==='precios'){
+      const producto = await DB.get('productos', id);
+      cont.innerHTML = await historialPreciosTabHTML(producto);
+      drawKardexPreciosChart();
+    }else{
+      const movimientos = (await DB.getAllByIndex('movimientosStock','productoId', id)).sort((a,b)=> new Date(b.fecha)-new Date(a.fecha));
+      cont.innerHTML = movimientosTabHTML(movimientos);
+    }
+  }
+  renderKardexTab();
+}
 
 /* -----------------------------------------------------------------------
    20-K. MÓDULO POS (Fase 5)
@@ -12850,6 +13029,7 @@ async function openCompraModal(estadoPrevio=null){
         stockAnterior, stockResultante, motivo:`Compra${numeroFactura?' Nº'+numeroFactura:''} - ${proveedor.nombre}`,
         referencia: compraId, usuarioId:session.usuarioId, usuarioNombre:session.nombre
       });
+      await registrarCambioPrecioSiCorresponde(producto, it.costoUnitario, null);
       await DB.put('productos', { ...producto, stockActual: stockResultante, precioCosto: it.costoUnitario });
     }
 
