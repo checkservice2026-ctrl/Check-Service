@@ -3092,7 +3092,19 @@ async function viewDashboard(){
   const inicioMes = new Date(); inicioMes.setDate(1); inicioMes.setHours(0,0,0,0);
   const historialEsteMes = historial.filter(h => parsearFechaSegura(h.fecha) >= inicioMes);
   const vehiculosAtendidosMes = new Set(historialEsteMes.map(h=>h.vehiculoId)).size;
-  const proximosServices = historial.filter(h => esServicioProximo(h, vehiculosById[h.vehiculoId])).length;
+  // "Próximos services": antes contaba TODOS los registros de historialServicios
+  // cuya fecha de "próximo service" cayera en la ventana de alerta, incluyendo
+  // registros viejos de vehículos que YA tuvieron un service más reciente (con
+  // su propia fecha de "próximo service" actualizada) — eso inflaba el número
+  // y podía marcar como "próximo" un vehículo que en realidad ya no lo está.
+  // Ahora se usa el mismo criterio que la pantalla de Planificación: solo el
+  // ÚLTIMO service de cada vehículo define si tiene un próximo service pendiente.
+  const planificacionVehiculos = await obtenerProximosServicesPlanificados();
+  // Mismo criterio que usa la propia pantalla de Recordatorios (a la que este
+  // KPI enlaza): vencido, urgente o próximo — así el número de la tarjeta
+  // coincide con lo que realmente se ve al hacer clic, en vez de una ventana
+  // de días distinta e inconsistente.
+  const proximosServices = planificacionVehiculos.filter(f => f.estado !== 'ok').length;
   const alertasCRM = await obtenerAlertasCRMDashboard();
 
   const aceiteCount = {};
@@ -3103,14 +3115,26 @@ async function viewDashboard(){
   });
   const aceiteTop = Object.entries(aceiteCount).sort((a,b)=>b[1]-a[1])[0];
 
-  const visitasPorCliente = {};
-  historial.forEach(h=>{ visitasPorCliente[h.clienteId] = (visitasPorCliente[h.clienteId]||0)+1; });
-  const clienteTop = Object.entries(visitasPorCliente).sort((a,b)=>b[1]-a[1])[0];
-  const clienteTopNombre = clienteTop && clientesById[clienteTop[0]] ? clienteNombreCompleto(clientesById[clienteTop[0]]) : null;
-
   // KPIs de negocio ahora reales gracias al POS y Stock (Fase 5)
   const productos = await DB.getAll('productos');
   const ventas = (await DB.getAll('ventas')).filter(v=>v.estado==='completada');
+  const turnosLavaderoTodos = await DB.getAll('lavaderoTurnos');
+
+  // "Cliente más frecuente": antes solo contaba historialServicios, así que un
+  // negocio con clientes que vienen sobre todo por lavado o por el mostrador
+  // (ventas de productos) mostraba "—" aunque tuviera clientes muy asiduos.
+  // Ahora se cuenta la frecuencia real de visitas sumando las 3 fuentes de
+  // interacción con un cliente (services, ventas y turnos de lavadero
+  // completados), y se descartan las visitas "sin cliente registrado" para
+  // que no inflen un cliente fantasma y tapen al que realmente es más frecuente.
+  const visitasPorCliente = {};
+  const sumarVisita = (clienteId) => { if(!clienteId) return; visitasPorCliente[clienteId] = (visitasPorCliente[clienteId]||0)+1; };
+  historial.forEach(h => sumarVisita(h.clienteId));
+  ventas.forEach(v => sumarVisita(v.clienteId));
+  turnosLavaderoTodos.filter(t=>t.estado==='Completado').forEach(t => sumarVisita(t.clienteId));
+  const clienteTop = Object.entries(visitasPorCliente).sort((a,b)=>b[1]-a[1])[0];
+  const clienteTopNombre = clienteTop && clientesById[clienteTop[0]] ? clienteNombreCompleto(clientesById[clienteTop[0]]) : null;
+
   const hoyStr = Utils.hoyLocal();
   const ventasHoy = ventas.filter(v=>Utils.fechaLocalYMD(v.fecha)===hoyStr);
   const ventasMes = ventas.filter(v=> new Date(v.fecha) >= inicioMes);
@@ -3134,8 +3158,7 @@ async function viewDashboard(){
     const gananciaServiciosMes = historialEsteMes.reduce((acc,h)=> acc + ((h.precio||0)-(h.costo||0)), 0);
     // Lavados: sin costo cargado, así que lo facturado es 100% ganancia
     // (mismo criterio que usa el gráfico de Margen de ganancia).
-    const turnosTodos = await DB.getAll('lavaderoTurnos');
-    const turnosEsteMes = turnosTodos.filter(t => t.estado==='Completado' && t.pagado && parsearFechaSegura(t.fecha) >= inicioMes);
+    const turnosEsteMes = turnosLavaderoTodos.filter(t => t.estado==='Completado' && t.pagado && parsearFechaSegura(t.fecha) >= inicioMes);
     const gananciaLavadosMes = turnosEsteMes.reduce((acc,t)=>acc+(t.precio||0),0);
     gananciaMes = gananciaVentasMes + gananciaServiciosMes + gananciaLavadosMes;
     const facturadoMes = totalVentasMes + historialEsteMes.reduce((acc,h)=>acc+(h.precio||0),0) + gananciaLavadosMes;
