@@ -1386,7 +1386,7 @@ var qrcode=function(){var qrcode=function(t,r){var e=t,n=c[r],o=null,i=0,a=null,
    0. CONSTANTES GLOBALES
 ----------------------------------------------------------------------- */
 const DB_NAME = 'CheckServiceDB';
-const DB_VERSION = 21; // Se agrega store 'historialPrecios' (historial de cambios de precio de costo/venta por producto)
+const DB_VERSION = 22; // Se agrega store 'aplicacionesFiltros' (módulo Aplicaciones: qué filtros lleva cada vehículo)
 const SESSION_KEY = 'cs_session';
 const REMEMBER_KEY = 'cs_remember_user';
 const THEME_KEY = 'cs_theme';
@@ -1455,6 +1455,7 @@ function canCobrarHistorial(rol){ return ['Administrador','Supervisor','Caja'].i
 // Permisos de Fase 5: productos, stock y POS.
 function canManageProductos(rol){ return ['Administrador','Supervisor'].includes(rol); }
 function canAjustarStock(rol){ return ['Administrador','Supervisor'].includes(rol); }
+function canManageAplicaciones(rol){ return ['Administrador','Supervisor','Taller'].includes(rol); }
 function canUsarPOS(rol){ return ['Administrador','Supervisor','Vendedor','Caja'].includes(rol); }
 function canUsarCotizaciones(rol){ return ['Administrador','Supervisor','Vendedor','Caja'].includes(rol); }
 function canUsarRemitos(rol){ return canUsarCotizaciones(rol); }
@@ -1744,6 +1745,17 @@ const DB = (() => {
           const st = db.createObjectStore('campanas', { keyPath:'id', autoIncrement:true });
           st.createIndex('fechaCreacion', 'fechaCreacion');
           st.createIndex('estado', 'estado');
+        }
+        if(!db.objectStoreNames.contains('aplicacionesFiltros')){
+          // Módulo Aplicaciones: catálogo de qué filtros (aceite, aire,
+          // combustible, habitáculo) lleva cada vehículo (marca + modelo +
+          // motor + rango de años), con código de fabricante y un vínculo
+          // opcional a un producto de Stock. Permite consultar tanto "qué
+          // filtros lleva este auto" (por vehículo) como, a la inversa,
+          // "a qué autos les sirve este código" (por filtro).
+          const st = db.createObjectStore('aplicacionesFiltros', { keyPath:'id', autoIncrement:true });
+          st.createIndex('marca', 'marca');
+          st.createIndex('modelo', 'modelo');
         }
       };
 
@@ -2678,7 +2690,8 @@ const ICONS = {
   star:'<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
   whatsapp:'<path d="M3 21l1.65-4.95A9 9 0 1112 21a8.96 8.96 0 01-4.35-1.12L3 21z"/><path d="M8.5 8.5c.3-.6.6-.6.9-.6h.4c.2 0 .5 0 .7.5s.7 1.8.8 1.9c.1.2.1.4 0 .6-.1.2-.2.3-.4.5s-.4.4-.2.7c.2.4.9 1.4 1.9 2.3 1.3 1.1 2.3 1.5 2.7 1.6.3.1.5.1.7-.1.2-.2.7-.9.9-1.1.2-.3.4-.2.7-.1s1.8.9 2.1 1c.3.1.5.2.6.3.1.2.1.9-.2 1.7-.3.8-1.6 1.5-2.3 1.6-.6.1-1.3.1-2.1-.1-.5-.2-1.1-.4-1.9-.7-3.3-1.4-5.4-4.7-5.6-4.9-.2-.2-1.3-1.7-1.3-3.3 0-1.6.8-2.3 1.1-2.7z"/>',
   info:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
-  barcode:'<path d="M3 5v14M7 5v14M10 5v14M13 5v14M15 5v14M18 5v14M21 5v14"/>'
+  barcode:'<path d="M3 5v14M7 5v14M10 5v14M13 5v14M15 5v14M18 5v14M21 5v14"/>',
+  aplicaciones:'<path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>'
 };
 function svgIcon(name){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]||ICONS.gear}</svg>`; }
 
@@ -2706,6 +2719,7 @@ const NAV_SECTIONS = [
     { key:'ventas', label:'Ventas', icon:'ventas' },
     { key:'lavadero', label:'Lavadero', icon:'lavadero' },
     { key:'productos', label:'Productos', icon:'productos' },
+    { key:'aplicaciones', label:'Aplicaciones', icon:'aplicaciones' },
     { key:'stock', label:'Stock', icon:'stock' }
   ]},
   { title:'Compras y Finanzas', items:[
@@ -2888,6 +2902,9 @@ async function router(){
     case 'productos':
       if(param){ outlet.innerHTML = await viewKardexProducto(Number(param)); bindKardexEvents(Number(param)); }
       else{ outlet.innerHTML = await viewProductosList(); bindProductosListEvents(); }
+      break;
+    case 'aplicaciones':
+      outlet.innerHTML = await viewAplicacionesList(); bindAplicacionesListEvents();
       break;
     case 'stock':
       if(param==='rotacion'){ outlet.innerHTML = await viewStockRotacion(); bindStockRotacionEvents(); }
@@ -9360,6 +9377,355 @@ function bindProductosListEvents(){
   applyFilters();
 }
 
+/* -----------------------------------------------------------------------
+   APLICACIONES DE FILTROS — catálogo de qué filtro (aceite, aire,
+   combustible, habitáculo) lleva cada vehículo (marca + modelo + motor +
+   rango de años), consultable en ambos sentidos: por vehículo ("¿qué
+   filtros lleva este auto?") y por filtro ("¿a qué autos les sirve este
+   código?"). Cada filtro puede tener un código propio y, opcionalmente,
+   un vínculo a un producto ya cargado en Stock.
+----------------------------------------------------------------------- */
+const TIPOS_FILTRO = ['Aceite','Aire','Combustible','Habitáculo'];
+
+function filtroTipoEstilo(tipo){
+  switch(tipo){
+    case 'Aceite': return { color:'var(--accent)', bg:'var(--accent-dim)' };
+    case 'Aire': return { color:'var(--info)', bg:'var(--info-dim)' };
+    case 'Combustible': return { color:'var(--warning)', bg:'var(--warning-dim)' };
+    case 'Habitáculo': return { color:'var(--teal)', bg:'var(--teal-dim)' };
+    default: return { color:'var(--text-secondary)', bg:'var(--bg-panel-alt)' };
+  }
+}
+function filtroChipHTML(f){
+  const est = filtroTipoEstilo(f.tipo);
+  return `<span class="tag-chip" style="background:${est.bg}; color:${est.color}; border-color:transparent;" title="${Utils.escapeHTML(f.marcaFiltro||'Sin marca')}">${Utils.escapeHTML(f.tipo)}: ${Utils.escapeHTML(f.codigo)}</span>`;
+}
+function aplicacionAnioTexto(a){
+  if(a.anioDesde && a.anioHasta) return `${a.anioDesde}–${a.anioHasta}`;
+  if(a.anioDesde) return `${a.anioDesde} en adelante`;
+  if(a.anioHasta) return `Hasta ${a.anioHasta}`;
+  return 'Todos los años';
+}
+
+let aplicacionesCache = [];
+let aplicacionesUIState = { tab:'vehiculo', q:'', qFiltro:'' };
+
+async function viewAplicacionesList(){
+  aplicacionesCache = (await DB.getAll('aplicacionesFiltros')).sort((a,b)=>(a.marca+a.modelo).localeCompare(b.marca+b.modelo));
+  const session = Session.get();
+  const puedeGestionar = canManageAplicaciones(session.rol);
+  const totalFiltros = aplicacionesCache.reduce((acc,a)=>acc+(a.filtros?a.filtros.length:0),0);
+
+  return `
+    <div class="page-header">
+      <div><h1>Aplicaciones</h1><p>${aplicacionesCache.length} vehículo${aplicacionesCache.length===1?'':'s'} cargados, ${totalFiltros} filtro${totalFiltros===1?'':'s'} en total</p></div>
+      ${puedeGestionar?`<button class="btn btn-accent" id="btn-nueva-aplicacion">${svgIcon('aplicaciones')} Nueva aplicación</button>`:''}
+    </div>
+    <div class="crm-tabs" id="apl-tabs">
+      <button class="crm-tab ${aplicacionesUIState.tab==='vehiculo'?'active':''}" data-tab="vehiculo">Por vehículo</button>
+      <button class="crm-tab ${aplicacionesUIState.tab==='filtro'?'active':''}" data-tab="filtro">Por filtro</button>
+    </div>
+    <div id="apl-tab-vehiculo" class="${aplicacionesUIState.tab==='vehiculo'?'':'hidden'}">
+      ${aplicacionesPorVehiculoHTML(aplicacionesCache, puedeGestionar)}
+    </div>
+    <div id="apl-tab-filtro" class="${aplicacionesUIState.tab==='filtro'?'':'hidden'}">
+      ${aplicacionesPorFiltroHTML(aplicacionesCache)}
+    </div>
+  `;
+}
+
+function aplicacionesPorVehiculoHTML(apps, puedeGestionar){
+  return `
+    <div class="toolbar-filters">
+      <div class="toolbar-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input type="text" id="apl-search" placeholder="Buscar por marca, modelo, motor o código de filtro..." value="${Utils.escapeHTML(aplicacionesUIState.q)}">
+      </div>
+    </div>
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table class="data-table" id="aplicaciones-table">
+        <thead><tr><th>Marca / Modelo</th><th>Motor</th><th>Años</th><th>Filtros</th><th style="text-align:right;">Acciones</th></tr></thead>
+        <tbody>
+          ${apps.length ? apps.map(a=>`
+            <tr data-id="${a.id}" data-search="${Utils.escapeHTML((a.marca+' '+a.modelo+' '+(a.motor||'')+' '+(a.filtros||[]).map(f=>f.tipo+' '+f.codigo+' '+(f.marcaFiltro||'')).join(' ')).toLowerCase())}">
+              <td style="font-weight:700;">${Utils.escapeHTML(a.marca)} ${Utils.escapeHTML(a.modelo)}</td>
+              <td>${a.motor?Utils.escapeHTML(a.motor):'—'}</td>
+              <td>${aplicacionAnioTexto(a)}</td>
+              <td><div style="display:flex; flex-wrap:wrap; gap:5px; max-width:420px;">${(a.filtros||[]).length?(a.filtros||[]).map(filtroChipHTML).join(''):'<span style="color:var(--text-muted); font-size:12px;">Sin filtros cargados</span>'}</div></td>
+              <td style="text-align:right; white-space:nowrap;">
+                ${puedeGestionar?`<button class="btn btn-ghost btn-sm btn-edit-aplicacion" data-id="${a.id}">Editar</button><button class="btn btn-danger-ghost btn-sm btn-eliminar-aplicacion" data-id="${a.id}">Eliminar</button>`:''}
+              </td>
+            </tr>`).join('') : `<tr><td colspan="5"><div class="empty-state">${svgIcon('aplicaciones')}<h3>Todavía no hay aplicaciones cargadas</h3><p>Registrá qué filtros lleva cada vehículo para consultarlo rápido la próxima vez.</p></div></td></tr>`}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderAplicacionesFiltroResultadosHTML(apps){
+  const q = aplicacionesUIState.qFiltro.trim().toLowerCase();
+  const grupos = {};
+  apps.forEach(a=>{
+    (a.filtros||[]).forEach(f=>{
+      if(!f.codigo) return;
+      const clave = f.codigo.trim().toUpperCase();
+      if(!grupos[clave]) grupos[clave] = { codigo:f.codigo.trim(), tipos:new Set(), marcas:new Set(), vehiculos:[] };
+      grupos[clave].tipos.add(f.tipo);
+      if(f.marcaFiltro) grupos[clave].marcas.add(f.marcaFiltro);
+      grupos[clave].vehiculos.push({ marca:a.marca, modelo:a.modelo, motor:a.motor, anioTexto:aplicacionAnioTexto(a), tipo:f.tipo });
+    });
+  });
+  let lista = Object.values(grupos).sort((a,b)=>a.codigo.localeCompare(b.codigo));
+  if(q) lista = lista.filter(g=>g.codigo.toLowerCase().includes(q) || [...g.marcas].some(m=>m.toLowerCase().includes(q)) || g.vehiculos.some(v=>(v.marca+' '+v.modelo+' '+(v.motor||'')).toLowerCase().includes(q)));
+
+  if(!lista.length) return `<div class="empty-state">${svgIcon('aplicaciones')}<h3>No se encontraron filtros</h3><p>Probá con otro código, marca o vehículo, o cargá aplicaciones desde la pestaña "Por vehículo".</p></div>`;
+
+  return lista.map(g=>`
+    <div class="card" style="margin-bottom:12px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <span class="font-mono" style="font-size:15px; font-weight:800;">${Utils.escapeHTML(g.codigo)}</span>
+          ${[...g.tipos].map(t=>{ const e=filtroTipoEstilo(t); return `<span class="tag-chip" style="background:${e.bg}; color:${e.color}; border-color:transparent;">${Utils.escapeHTML(t)}</span>`; }).join('')}
+        </div>
+        ${g.marcas.size?`<span style="font-size:12px; color:var(--text-muted);">Marca: ${Utils.escapeHTML([...g.marcas].join(', '))}</span>`:''}
+      </div>
+      <p style="font-size:12px; color:var(--text-secondary); margin-bottom:8px;">Se usa en ${g.vehiculos.length} vehículo${g.vehiculos.length===1?'':'s'}:</p>
+      <div style="display:flex; flex-wrap:wrap; gap:6px;">
+        ${g.vehiculos.map(v=>`<span class="tag-chip">${Utils.escapeHTML(v.marca)} ${Utils.escapeHTML(v.modelo)}${v.motor?' '+Utils.escapeHTML(v.motor):''} (${v.anioTexto})</span>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+function aplicacionesPorFiltroHTML(apps){
+  return `
+    <div class="toolbar-filters">
+      <div class="toolbar-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input type="text" id="apl-search-filtro" placeholder="Buscar por código de filtro, marca o vehículo..." value="${Utils.escapeHTML(aplicacionesUIState.qFiltro)}">
+      </div>
+    </div>
+    <div id="apl-filtro-resultados">${renderAplicacionesFiltroResultadosHTML(apps)}</div>
+  `;
+}
+
+function bindAplicacionesListEvents(){
+  document.querySelectorAll('#apl-tabs .crm-tab').forEach(btn=>{
+    btn.onclick = () => { aplicacionesUIState.tab = btn.dataset.tab; router(); };
+  });
+  const btnNueva = document.getElementById('btn-nueva-aplicacion');
+  if(btnNueva) btnNueva.onclick = () => openAplicacionModal();
+
+  document.querySelectorAll('.btn-edit-aplicacion').forEach(btn=>{
+    btn.onclick = async () => openAplicacionModal(await DB.get('aplicacionesFiltros', Number(btn.dataset.id)));
+  });
+  document.querySelectorAll('.btn-eliminar-aplicacion').forEach(btn=>{
+    btn.onclick = async () => {
+      const a = await DB.get('aplicacionesFiltros', Number(btn.dataset.id));
+      if(!confirm(`¿Eliminar la aplicación de ${a.marca} ${a.modelo}? Esta acción no se puede deshacer.`)) return;
+      await DB.del('aplicacionesFiltros', a.id);
+      await Audit.log('aplicacion_eliminada', `Aplicación eliminada: ${a.marca} ${a.modelo} ${a.motor||''}.`);
+      Toast.show('success','Aplicación eliminada', `${a.marca} ${a.modelo}`);
+      router();
+    };
+  });
+
+  const searchVeh = document.getElementById('apl-search');
+  if(searchVeh){
+    searchVeh.addEventListener('input', () => {
+      aplicacionesUIState.q = searchVeh.value;
+      const q = searchVeh.value.trim().toLowerCase();
+      document.querySelectorAll('#aplicaciones-table tbody tr[data-id]').forEach(tr=>{
+        tr.style.display = (!q || tr.dataset.search.includes(q)) ? '' : 'none';
+      });
+    });
+  }
+  const searchFil = document.getElementById('apl-search-filtro');
+  if(searchFil){
+    searchFil.addEventListener('input', () => {
+      aplicacionesUIState.qFiltro = searchFil.value;
+      document.getElementById('apl-filtro-resultados').innerHTML = renderAplicacionesFiltroResultadosHTML(aplicacionesCache);
+    });
+  }
+}
+
+function aplicacionFormHTML(a){
+  return `
+    <div class="field-row">
+      <div class="field"><label>Marca</label>
+        <select class="select-input" id="af-marca-select">
+          <option value="">Seleccioná...</option>
+          ${(() => {
+            const lista = Config.cache.marcasVehiculo || [];
+            const marcaActual = a ? a.marca : '';
+            const listaCompleta = marcaActual && !lista.includes(marcaActual) ? [...lista, marcaActual].sort() : lista;
+            return listaCompleta.map(m=>`<option value="${Utils.escapeHTML(m)}" ${marcaActual===m?'selected':''}>${Utils.escapeHTML(m)}</option>`).join('');
+          })()}
+          <option value="__otra__">Otra (especificar)...</option>
+        </select>
+        <input type="text" id="af-marca" placeholder="Nombre de la marca" style="margin-top:6px; display:none;" value="${a?Utils.escapeHTML(a.marca):''}">
+      </div>
+      <div class="field"><label>Modelo</label>
+        <select class="select-input" id="af-modelo-select">
+          <option value="">Seleccioná...</option>
+          <option value="__otro__">Otro (especificar)...</option>
+        </select>
+        <input type="text" id="af-modelo" placeholder="Nombre del modelo" style="margin-top:6px; display:none;" value="${a?Utils.escapeHTML(a.modelo):''}">
+      </div>
+    </div>
+    <div class="field-row" style="grid-template-columns:1fr 1fr 1fr;">
+      <div class="field"><label>Motor</label><input type="text" id="af-motor" placeholder="Ej: 1.6 16v Nafta" value="${a?Utils.escapeHTML(a.motor||''):''}"></div>
+      <div class="field"><label>Año desde</label><input type="number" id="af-anioDesde" min="1950" max="2100" value="${a&&a.anioDesde?a.anioDesde:''}"></div>
+      <div class="field"><label>Año hasta</label><input type="number" id="af-anioHasta" min="1950" max="2100" placeholder="Vacío = actualidad" value="${a&&a.anioHasta?a.anioHasta:''}"></div>
+    </div>
+
+    <div class="field">
+      <label>Filtros de este vehículo</label>
+      <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+        <select class="select-input" id="af-nuevo-tipo" style="max-width:150px;">
+          ${TIPOS_FILTRO.map(t=>`<option value="${t}">${t}</option>`).join('')}
+        </select>
+        <div class="autocomplete-wrap" style="flex:1; min-width:220px;">
+          <input type="text" id="af-producto-search" placeholder="Buscar producto de Stock (opcional)..." autocomplete="off">
+          <div class="autocomplete-results hidden" id="af-autocomplete-results"></div>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" id="af-add-manual">+ Código manual</button>
+      </div>
+      <div class="compra-items-list" id="af-filtros-list"></div>
+    </div>
+
+    <div class="field"><label>Observaciones</label><textarea class="textarea-input" id="af-observaciones">${a?Utils.escapeHTML(a.observaciones||''):''}</textarea></div>
+  `;
+}
+
+function renderAplicacionFiltrosRows(rowsState){
+  const cont = document.getElementById('af-filtros-list');
+  if(!cont) return;
+  cont.innerHTML = rowsState.map((f,idx)=>`
+    <div class="compra-item-row">
+      <select class="af-row-tipo" data-idx="${idx}" style="width:120px; background:var(--bg-panel); border:1px solid var(--border); border-radius:6px; padding:5px 7px; font-size:12px; color:var(--text-primary);">
+        ${TIPOS_FILTRO.map(t=>`<option value="${t}" ${f.tipo===t?'selected':''}>${t}</option>`).join('')}
+      </select>
+      <input type="text" class="af-row-codigo" data-idx="${idx}" placeholder="Código" value="${Utils.escapeHTML(f.codigo||'')}" style="flex:1; background:var(--bg-panel); border:1px solid var(--border); border-radius:6px; padding:5px 7px; font-size:12px; color:var(--text-primary);">
+      <input type="text" class="af-row-marca" data-idx="${idx}" placeholder="Marca (ej: Mann)" value="${Utils.escapeHTML(f.marcaFiltro||'')}" style="width:130px; background:var(--bg-panel); border:1px solid var(--border); border-radius:6px; padding:5px 7px; font-size:12px; color:var(--text-primary);">
+      ${f.productoId?`<span class="tag-chip" title="Vinculado a un producto de Stock">${svgIcon('stock')}</span>`:''}
+      <button type="button" class="cir-remove af-row-remove" data-idx="${idx}">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>`).join('') || `<p style="font-size:12px; color:var(--text-muted); text-align:center; padding:10px;">Todavía no agregaste filtros para este vehículo.</p>`;
+
+  cont.querySelectorAll('.af-row-tipo').forEach(sel=>{ sel.onchange = () => { rowsState[Number(sel.dataset.idx)].tipo = sel.value; }; });
+  cont.querySelectorAll('.af-row-codigo').forEach(inp=>{ inp.onchange = () => { rowsState[Number(inp.dataset.idx)].codigo = inp.value.trim(); }; });
+  cont.querySelectorAll('.af-row-marca').forEach(inp=>{ inp.onchange = () => { rowsState[Number(inp.dataset.idx)].marcaFiltro = inp.value.trim(); }; });
+  cont.querySelectorAll('.af-row-remove').forEach(btn=>{ btn.onclick = () => { rowsState.splice(Number(btn.dataset.idx),1); renderAplicacionFiltrosRows(rowsState); }; });
+}
+
+async function openAplicacionModal(app=null){
+  const productos = (await DB.getAll('productos')).filter(p=>p.activo!==false);
+  Modal.open(
+    app ? 'Editar aplicación' : 'Nueva aplicación',
+    aplicacionFormHTML(app) + `<div class="modal-actions"><button class="btn btn-ghost" id="af-cancel">Cancelar</button><button class="btn btn-accent" id="af-save">Guardar</button></div>`,
+    { width:'640px' }
+  );
+
+  const rowsState = app && app.filtros ? app.filtros.map(f=>({...f})) : [];
+  renderAplicacionFiltrosRows(rowsState);
+
+  // Marca / Modelo en cascada, mismo patrón que el módulo Vehículos.
+  const marcaSelect = document.getElementById('af-marca-select');
+  const marcaInput = document.getElementById('af-marca');
+  if(marcaSelect.value === '' && marcaInput.value) marcaSelect.value = '__otra__';
+  marcaInput.style.display = marcaSelect.value==='__otra__' ? '' : 'none';
+
+  const modeloSelect = document.getElementById('af-modelo-select');
+  const modeloInput = document.getElementById('af-modelo');
+  function marcaEfectivaActual(){ return marcaSelect.value === '__otra__' ? marcaInput.value.trim() : marcaSelect.value; }
+  function poblarModeloSelect(modeloPreseleccionado){
+    const marca = marcaEfectivaActual();
+    const lista = (Config.cache.modelosPorMarca||{})[marca] || [];
+    const listaCompleta = modeloPreseleccionado && !lista.includes(modeloPreseleccionado) ? [...lista, modeloPreseleccionado].sort() : lista;
+    modeloSelect.innerHTML = `<option value="">Seleccioná...</option>${listaCompleta.map(m=>`<option value="${Utils.escapeHTML(m)}" ${modeloPreseleccionado===m?'selected':''}>${Utils.escapeHTML(m)}</option>`).join('')}<option value="__otro__">Otro (especificar)...</option>`;
+    if(!marca){ modeloSelect.disabled = true; modeloSelect.innerHTML = `<option value="">Elegí primero una marca...</option>`; }
+    else modeloSelect.disabled = false;
+  }
+  function actualizarVisibilidadModeloInput(){ modeloInput.style.display = modeloSelect.value==='__otro__' ? '' : 'none'; }
+  poblarModeloSelect(app?app.modelo:'');
+  if(app && app.modelo && !(Config.cache.modelosPorMarca||{})[marcaEfectivaActual()]?.includes(app.modelo)) modeloSelect.value = '__otro__';
+  actualizarVisibilidadModeloInput();
+
+  marcaSelect.onchange = () => {
+    if(marcaSelect.value === '__otra__'){ marcaInput.style.display=''; marcaInput.value=''; marcaInput.focus(); }
+    else { marcaInput.style.display='none'; marcaInput.value = marcaSelect.value; }
+    poblarModeloSelect(''); modeloInput.value=''; actualizarVisibilidadModeloInput();
+  };
+  marcaInput.addEventListener('input', () => { poblarModeloSelect(''); modeloInput.value=''; actualizarVisibilidadModeloInput(); });
+  modeloSelect.onchange = () => {
+    if(modeloSelect.value === '__otro__'){ modeloInput.style.display=''; modeloInput.value=''; modeloInput.focus(); }
+    else { modeloInput.style.display='none'; modeloInput.value = modeloSelect.value; }
+  };
+
+  // Buscador de producto de Stock: al elegir uno, agrega un filtro
+  // prellenado (código = código del producto), vinculado a ese producto.
+  const searchInput = document.getElementById('af-producto-search');
+  const resultsBox = document.getElementById('af-autocomplete-results');
+  const tipoSelect = document.getElementById('af-nuevo-tipo');
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.trim().toLowerCase();
+    if(!q){ resultsBox.classList.add('hidden'); return; }
+    const matches = productos.filter(p=>p.codigo.toLowerCase().includes(q) || p.nombre.toLowerCase().includes(q)).slice(0,8);
+    resultsBox.innerHTML = matches.map(p=>`<div class="autocomplete-item" data-id="${p.id}">${Utils.escapeHTML(p.codigo)} — ${Utils.escapeHTML(p.nombre)}</div>`).join('') || `<div class="autocomplete-item" style="color:var(--text-muted);">Sin resultados</div>`;
+    resultsBox.classList.remove('hidden');
+    resultsBox.querySelectorAll('.autocomplete-item[data-id]').forEach(item=>{
+      item.onclick = () => {
+        const producto = productos.find(p=>p.id===Number(item.dataset.id));
+        rowsState.push({ tipo:tipoSelect.value, codigo:producto.codigo, marcaFiltro:'', productoId:producto.id });
+        renderAplicacionFiltrosRows(rowsState);
+        searchInput.value=''; resultsBox.classList.add('hidden');
+      };
+    });
+  });
+
+  document.getElementById('af-add-manual').onclick = () => {
+    rowsState.push({ tipo:tipoSelect.value, codigo:'', marcaFiltro:'', productoId:null });
+    renderAplicacionFiltrosRows(rowsState);
+  };
+
+  document.getElementById('af-cancel').onclick = () => Modal.close();
+  document.getElementById('af-save').onclick = async () => {
+    const marca = document.getElementById('af-marca').value.trim();
+    const modelo = document.getElementById('af-modelo').value.trim();
+    const anioDesde = Number(document.getElementById('af-anioDesde').value) || null;
+    const anioHasta = Number(document.getElementById('af-anioHasta').value) || null;
+
+    if(!marca){ Toast.show('error','Falta la marca','Seleccioná o escribí la marca del vehículo.'); return; }
+    if(!modelo){ Toast.show('error','Falta el modelo','Seleccioná o escribí el modelo del vehículo.'); return; }
+    if(anioDesde && anioHasta && anioDesde > anioHasta){ Toast.show('error','Rango de años inválido','El año "desde" no puede ser mayor al año "hasta".'); return; }
+    const filtrosValidos = rowsState.filter(f=>f.codigo && f.codigo.trim());
+    if(!filtrosValidos.length){ Toast.show('error','Faltan filtros','Agregá al menos un filtro con su código.'); return; }
+
+    const payload = {
+      marca, modelo,
+      motor: document.getElementById('af-motor').value.trim(),
+      anioDesde, anioHasta,
+      filtros: filtrosValidos.map(f=>({ tipo:f.tipo, codigo:f.codigo.trim(), marcaFiltro:(f.marcaFiltro||'').trim(), productoId:f.productoId||null })),
+      observaciones: document.getElementById('af-observaciones').value.trim(),
+      fechaActualizacion: Utils.nowISO()
+    };
+
+    if(app){
+      await DB.put('aplicacionesFiltros', { ...app, ...payload });
+      await Audit.log('aplicacion_editada', `Aplicación editada: ${marca} ${modelo}.`);
+      Toast.show('success','Aplicación actualizada', `${marca} ${modelo}`);
+    }else{
+      payload.fechaCreacion = Utils.nowISO();
+      await DB.add('aplicacionesFiltros', payload);
+      await Audit.log('aplicacion_creada', `Aplicación creada: ${marca} ${modelo}.`);
+      Toast.show('success','Aplicación creada', `${marca} ${modelo}`);
+    }
+    Modal.close();
+    router();
+  };
+}
+
 async function siguienteCodigoSugerido(){
   const total = await DB.count('productos');
   return 'P' + String(total+1).padStart(4,'0');
@@ -14813,17 +15179,101 @@ function balanceRowHTML(label, monto, esTotal){
   return `<div class="bg-row ${esTotal?'bg-row-total':''}"><span>${label}</span><span>$${Math.round(monto).toLocaleString('es-AR')}</span></div>`;
 }
 
+// Antes el botón "Imprimir" del Balance General llamaba a window.print() a
+// secas. La hoja de estilos de impresión de la app oculta TODO el contenido
+// (body *{visibility:hidden}) salvo el/las áreas dedicadas de impresión
+// (#print-ticket-area, #print-report-area, #print-barcode-area) — y el
+// Balance General no armaba ninguna, así que literalmente no imprimía nada.
+// Ahora arma su propio HTML imprimible (mismo estilo que el resto de los
+// reportes en PDF) y lo manda a través de printReport(), que sí usa
+// #print-report-area correctamente.
+function balanceGeneralImprimirHTML(situacion, resultados, desde, hasta){
+  const cfg = Config.cache;
+  const filaImp = (label, monto, esTotal) => `<tr style="${esTotal?'font-weight:700; border-top:1.5px solid #333;':''}"><td style="padding:5px 4px;">${Utils.escapeHTML(label)}</td><td style="padding:5px 4px; text-align:right; font-family:'Consolas',monospace;">$${Math.round(monto).toLocaleString('es-AR')}</td></tr>`;
+  return `
+    <div style="font-family:Arial,Helvetica,sans-serif; padding:24px; color:#111;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #333; padding-bottom:12px; margin-bottom:18px;">
+        <div>
+          ${cfg.logo?`<img src="${cfg.logo}" style="max-height:44px; margin-bottom:6px;"><br>`:''}
+          <div style="font-size:16px; font-weight:700;">${Utils.escapeHTML(cfg.nombreEmpresa)}</div>
+          <div style="font-size:11px; color:#555;">${Utils.escapeHTML(cfg.direccion||'')} ${cfg.whatsapp?'· '+Utils.escapeHTML(cfg.whatsapp):''}</div>
+        </div>
+        <div style="text-align:right; font-size:11px; color:#555;">
+          <div style="font-size:14px; font-weight:700; color:#111;">Balance General</div>
+          <div>Generado: ${new Date().toLocaleString('es-AR')}</div>
+        </div>
+      </div>
+
+      <div style="font-size:13px; font-weight:700; margin-bottom:2px;">Situación Patrimonial</div>
+      <div style="font-size:10.5px; color:#666; margin-bottom:8px;">A hoy, ${new Date(Utils.hoyLocal()+'T00:00:00').toLocaleDateString('es-AR')}</div>
+      <table style="width:100%; border-collapse:collapse; font-size:11.5px; margin-bottom:18px;">
+        <tr>
+          <td style="width:50%; vertical-align:top; padding-right:14px;">
+            <div style="font-size:10px; font-weight:700; letter-spacing:.06em; color:#666; margin-bottom:4px;">ACTIVO</div>
+            <table style="width:100%; border-collapse:collapse;">
+              ${filaImp('Caja y Bancos', situacion.cajaYBancos)}
+              ${filaImp('Cuentas por Cobrar (clientes)', situacion.cuentasPorCobrar)}
+              ${filaImp('Bienes de Cambio (stock a costo)', situacion.bienesDeCambio)}
+              ${filaImp('Total Activo', situacion.totalActivo, true)}
+            </table>
+          </td>
+          <td style="width:50%; vertical-align:top; padding-left:14px; border-left:1px solid #ddd;">
+            <div style="font-size:10px; font-weight:700; letter-spacing:.06em; color:#666; margin-bottom:4px;">PASIVO</div>
+            <table style="width:100%; border-collapse:collapse;">
+              ${filaImp('Cuentas por Pagar (proveedores)', situacion.cuentasPorPagar)}
+              ${situacion.saldosAFavorClientes>0?filaImp('Saldos a favor de clientes', situacion.saldosAFavorClientes):''}
+              ${filaImp('Total Pasivo', situacion.totalPasivo, true)}
+            </table>
+            <div style="font-size:10px; font-weight:700; letter-spacing:.06em; color:#666; margin:14px 0 4px;">PATRIMONIO NETO</div>
+            <table style="width:100%; border-collapse:collapse;">${filaImp('Patrimonio Neto', situacion.patrimonioNeto, true)}</table>
+          </td>
+        </tr>
+      </table>
+
+      <div style="font-size:13px; font-weight:700; margin-bottom:2px;">Estado de Resultados</div>
+      <div style="font-size:10.5px; color:#666; margin-bottom:8px;">Del ${new Date(desde+'T00:00:00').toLocaleDateString('es-AR')} al ${new Date(hasta+'T00:00:00').toLocaleDateString('es-AR')}</div>
+      <table style="width:100%; border-collapse:collapse; font-size:11.5px;">
+        <tr>
+          <td style="width:50%; vertical-align:top; padding-right:14px;">
+            <div style="font-size:10px; font-weight:700; letter-spacing:.06em; color:#666; margin-bottom:4px;">INGRESOS</div>
+            <table style="width:100%; border-collapse:collapse;">
+              ${filaImp(`Ventas (${resultados.cantidadVentas})`, resultados.ingresosVentas)}
+              ${filaImp(`Servicios (${resultados.cantidadServicios})`, resultados.ingresosServicios)}
+              ${filaImp(`Lavados (${resultados.cantidadLavados})`, resultados.ingresosLavados)}
+              ${resultados.totalNotasCredito>0?filaImp('(–) Notas de crédito', -resultados.totalNotasCredito):''}
+              ${filaImp('Total Ingresos', resultados.totalIngresos, true)}
+            </table>
+          </td>
+          <td style="width:50%; vertical-align:top; padding-left:14px; border-left:1px solid #ddd;">
+            <div style="font-size:10px; font-weight:700; letter-spacing:.06em; color:#666; margin-bottom:4px;">COSTOS Y GASTOS</div>
+            <table style="width:100%; border-collapse:collapse;">
+              ${filaImp('Costo de mercadería vendida (est.)', resultados.costoVentas)}
+              ${filaImp('Costo de repuestos en servicios', resultados.costoServicios)}
+              ${Object.entries(resultados.gastosPorCategoria).map(([cat,monto])=>filaImp(cat, monto)).join('')}
+              ${filaImp('Total Costos y Gastos', resultados.totalCostosYGastos, true)}
+            </table>
+            <div style="font-size:10px; font-weight:700; letter-spacing:.06em; color:#666; margin:14px 0 4px;">RESULTADO DEL PERÍODO</div>
+            <table style="width:100%; border-collapse:collapse;">${filaImp(resultados.resultadoPeriodo>=0?'Utilidad':'Pérdida', Math.abs(resultados.resultadoPeriodo), true)}</table>
+          </td>
+        </tr>
+      </table>
+      ${cfg.pieComprobantes?`<div style="margin-top:20px; font-size:10.5px; color:#666; text-align:center;">${Utils.escapeHTML(cfg.pieComprobantes)}</div>`:''}
+    </div>`;
+}
+
 async function bindBalanceGeneralEvents(){
   const cont = document.getElementById('bg-content');
   const hoy = Utils.hoyLocal();
   let desde = hoy.slice(0,8) + '01';
   let hasta = hoy;
+  let ultimaSituacion = null, ultimosResultados = null;
 
   async function render(){
     const [situacion, resultados] = await Promise.all([
       calcularSituacionPatrimonial(),
       calcularEstadoResultados(desde, hasta)
     ]);
+    ultimaSituacion = situacion; ultimosResultados = resultados;
 
     cont.innerHTML = `
       <div class="card" style="padding:18px; margin-bottom:20px;">
@@ -14896,7 +15346,10 @@ async function bindBalanceGeneralEvents(){
     drawComparativaFinancieraChart(document.getElementById('bg-comparativa-chart'), comparativa.labels, comparativa.facturacion, comparativa.gastosTotales, comparativa.pagosProveedores);
   }
 
-  document.getElementById('bg-imprimir').onclick = () => window.print();
+  document.getElementById('bg-imprimir').onclick = () => {
+    if(!ultimaSituacion || !ultimosResultados){ Toast.show('info','Esperá un instante','El balance todavía se está calculando.'); return; }
+    printReport(balanceGeneralImprimirHTML(ultimaSituacion, ultimosResultados, desde, hasta));
+  };
   await render();
 }
 
