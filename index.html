@@ -672,6 +672,23 @@ textarea.textarea-input{ resize:vertical; min-height:70px; }
 .crm-tab-more-menu a, .crm-tab-more-menu button{ display:flex; width:100%; align-items:center; gap:8px; padding:9px 10px; border-radius:7px; font-size:12.5px; font-weight:600; color:var(--text-secondary); text-align:left; }
 .crm-tab-more-menu a:hover, .crm-tab-more-menu button:hover{ background:var(--bg-panel-alt); color:var(--text-primary); }
 
+/* Vista árbol de Aplicaciones (Marca > Modelo > Vehículo) */
+.apl-tree{ display:flex; flex-direction:column; gap:8px; }
+.apl-tree-marca{ background:var(--bg-panel-raised); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+.apl-tree-marca > summary{ cursor:pointer; list-style:none; display:flex; align-items:center; gap:10px; padding:13px 16px; font-weight:700; font-size:14px; }
+.apl-tree-marca > summary::-webkit-details-marker{ display:none; }
+.apl-tree-modelo{ border-left:2px solid var(--border-soft); }
+.apl-tree-modelo > summary{ cursor:pointer; list-style:none; display:flex; align-items:center; gap:9px; padding:9px 0 9px 12px; font-weight:600; font-size:13px; color:var(--text-secondary); }
+.apl-tree-modelo > summary::-webkit-details-marker{ display:none; }
+.apl-tree-arrow{ width:14px; height:14px; flex-shrink:0; transition:transform .15s ease; color:var(--text-muted); }
+details[open] > summary > .apl-tree-arrow{ transform:rotate(90deg); }
+.apl-tree-count{ background:var(--bg-panel-alt); border:1px solid var(--border); color:var(--text-muted); border-radius:20px; padding:1px 8px; font-size:10.5px; font-weight:700; margin-left:auto; white-space:nowrap; }
+.apl-tree-children{ padding:0 16px 14px 20px; display:flex; flex-direction:column; gap:8px; }
+.apl-tree-modelo .apl-tree-children{ padding:0 0 12px 26px; }
+.apl-tree-leaf{ background:var(--bg-panel-alt); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
+.apl-tree-leaf-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:7px; font-size:12.5px; color:var(--text-secondary); font-weight:600; flex-wrap:wrap; }
+.apl-tree-leaf-filtros{ display:flex; flex-wrap:wrap; gap:5px; }
+
 /* ============================================================================
    CRM — Franja de KPIs de la ficha del cliente
 ============================================================================ */
@@ -1404,7 +1421,7 @@ const UNIDADES_PRODUCTO = ['Unidad','Litro','Caja','Par','Juego'];
 const MEDIOS_PAGO = ['Efectivo','Transferencia','Tarjeta','QR','QR Mercado Pago','Cuenta corriente'];
 const MOTIVOS_NOTA_CREDITO = ['Devolución de mercadería','Error de facturación','Descuento posterior','Servicio no conforme','Otro'];
 const ESTADOS_PAGO_COMPRA = ['Pendiente','Parcial','Pagada'];
-const CONDICIONES_IVA = ['Consumidor Final','Responsable Inscripto','Monotributista','Exento','No Categorizado'];
+const CONDICIONES_IVA = ['Consumidor Final','Exento','Monotributista','No Categorizado','Responsable Inscripto'];
 const PROVINCIAS_AR = ['Buenos Aires','CABA','Catamarca','Chaco','Chubut','Córdoba','Corrientes','Entre Ríos','Formosa','Jujuy','La Pampa','La Rioja','Mendoza','Misiones','Neuquén','Río Negro','Salta','San Juan','San Luis','Santa Cruz','Santa Fe','Santiago del Estero','Tierra del Fuego','Tucumán'];
 // Niveles del sistema de fidelización CRM (Fase 4 de CRM: se calculan automáticamente
 // según gasto acumulado; se listan acá porque el color/orden de cada nivel se usa
@@ -6636,8 +6653,8 @@ async function viewClientesList(){
       </div>
       <select class="toolbar-select" id="cli-filtro-tipo">
         <option value="">Todos los tipos</option>
-        <option value="Particular">Particular</option>
         <option value="Empresa">Empresa</option>
+        <option value="Particular">Particular</option>
       </select>
       <select class="toolbar-select" id="cli-filtro-estado">
         <option value="activos" selected>Activos</option>
@@ -6707,8 +6724,8 @@ function clienteFormHTML(c){
     <div class="field">
       <label>Tipo de cliente</label>
       <select class="select-input" id="clf-tipo">
-        <option value="Particular" ${tipo==='Particular'?'selected':''}>Particular</option>
         <option value="Empresa" ${tipo==='Empresa'?'selected':''}>Empresa</option>
+        <option value="Particular" ${tipo==='Particular'?'selected':''}>Particular</option>
       </select>
     </div>
     <div id="clf-particular-fields" class="field-row" style="${tipo==='Empresa'?'display:none;':''}">
@@ -9408,7 +9425,7 @@ function aplicacionAnioTexto(a){
 }
 
 let aplicacionesCache = [];
-let aplicacionesUIState = { tab:'vehiculo', q:'', qFiltro:'' };
+let aplicacionesUIState = { tab:'vehiculo', q:'', qFiltro:'', qArbol:'' };
 
 async function viewAplicacionesList(){
   aplicacionesCache = (await DB.getAll('aplicacionesFiltros')).sort((a,b)=>(a.marca+a.modelo).localeCompare(b.marca+b.modelo));
@@ -9424,12 +9441,16 @@ async function viewAplicacionesList(){
     <div class="crm-tabs" id="apl-tabs">
       <button class="crm-tab ${aplicacionesUIState.tab==='vehiculo'?'active':''}" data-tab="vehiculo">Por vehículo</button>
       <button class="crm-tab ${aplicacionesUIState.tab==='filtro'?'active':''}" data-tab="filtro">Por filtro</button>
+      <button class="crm-tab ${aplicacionesUIState.tab==='arbol'?'active':''}" data-tab="arbol">Árbol</button>
     </div>
     <div id="apl-tab-vehiculo" class="${aplicacionesUIState.tab==='vehiculo'?'':'hidden'}">
       ${aplicacionesPorVehiculoHTML(aplicacionesCache, puedeGestionar)}
     </div>
     <div id="apl-tab-filtro" class="${aplicacionesUIState.tab==='filtro'?'':'hidden'}">
       ${aplicacionesPorFiltroHTML(aplicacionesCache)}
+    </div>
+    <div id="apl-tab-arbol" class="${aplicacionesUIState.tab==='arbol'?'':'hidden'}">
+      ${aplicacionesArbolHTML(aplicacionesCache, puedeGestionar)}
     </div>
   `;
 }
@@ -9508,6 +9529,56 @@ function aplicacionesPorFiltroHTML(apps){
   `;
 }
 
+function aplicacionesArbolHTML(apps, puedeGestionar){
+  if(!apps.length) return `<div class="empty-state">${svgIcon('aplicaciones')}<h3>Todavía no hay aplicaciones cargadas</h3><p>Registrá vehículos con sus filtros desde la pestaña "Por vehículo" para verlos organizados acá por marca y modelo.</p></div>`;
+
+  const arbol = {};
+  apps.forEach(a=>{
+    arbol[a.marca] = arbol[a.marca] || {};
+    (arbol[a.marca][a.modelo] = arbol[a.marca][a.modelo] || []).push(a);
+  });
+  const marcas = Object.keys(arbol).sort();
+  const flechaSVG = `<svg class="apl-tree-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>`;
+
+  return `
+    <div class="toolbar-filters">
+      <div class="toolbar-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input type="text" id="apl-search-arbol" placeholder="Buscar por marca, modelo, motor o código de filtro..." value="${Utils.escapeHTML(aplicacionesUIState.qArbol)}">
+      </div>
+    </div>
+    <div class="apl-tree" id="apl-tree-cont">
+      ${marcas.map(marca=>{
+        const modelos = Object.keys(arbol[marca]).sort();
+        const totalVeh = modelos.reduce((acc,m)=>acc+arbol[marca][m].length,0);
+        return `
+        <details class="apl-tree-marca" open data-search="${Utils.escapeHTML(marca.toLowerCase())}">
+          <summary>${flechaSVG}<span>${Utils.escapeHTML(marca)}</span><span class="apl-tree-count">${modelos.length} modelo${modelos.length===1?'':'s'} · ${totalVeh} vehículo${totalVeh===1?'':'s'}</span></summary>
+          <div class="apl-tree-children">
+            ${modelos.map(modelo=>{
+              const entries = arbol[marca][modelo];
+              return `
+              <details class="apl-tree-modelo" data-search="${Utils.escapeHTML(modelo.toLowerCase())}">
+                <summary>${flechaSVG}<span>${Utils.escapeHTML(modelo)}</span><span class="apl-tree-count">${entries.length} versión${entries.length===1?'':'es'}</span></summary>
+                <div class="apl-tree-children">
+                  ${entries.map(a=>`
+                    <div class="apl-tree-leaf" data-id="${a.id}" data-search="${Utils.escapeHTML(((a.motor||'')+' '+(a.filtros||[]).map(f=>f.tipo+' '+f.codigo+' '+(f.marcaFiltro||'')).join(' ')).toLowerCase())}">
+                      <div class="apl-tree-leaf-head">
+                        <span>${a.motor?Utils.escapeHTML(a.motor):'Motor no especificado'} · ${aplicacionAnioTexto(a)}</span>
+                        ${puedeGestionar?`<div style="display:flex; gap:6px;"><button class="btn btn-ghost btn-sm btn-edit-aplicacion" data-id="${a.id}">Editar</button><button class="btn btn-danger-ghost btn-sm btn-eliminar-aplicacion" data-id="${a.id}">Eliminar</button></div>`:''}
+                      </div>
+                      <div class="apl-tree-leaf-filtros">${(a.filtros||[]).length?(a.filtros||[]).map(filtroChipHTML).join(''):'<span style="color:var(--text-muted); font-size:12px;">Sin filtros cargados</span>'}</div>
+                    </div>`).join('')}
+                </div>
+              </details>`;
+            }).join('')}
+          </div>
+        </details>`;
+      }).join('')}
+    </div>
+  `;
+}
+
 function bindAplicacionesListEvents(){
   document.querySelectorAll('#apl-tabs .crm-tab').forEach(btn=>{
     btn.onclick = () => { aplicacionesUIState.tab = btn.dataset.tab; router(); };
@@ -9544,6 +9615,30 @@ function bindAplicacionesListEvents(){
     searchFil.addEventListener('input', () => {
       aplicacionesUIState.qFiltro = searchFil.value;
       document.getElementById('apl-filtro-resultados').innerHTML = renderAplicacionesFiltroResultadosHTML(aplicacionesCache);
+    });
+  }
+
+  const searchArbol = document.getElementById('apl-search-arbol');
+  if(searchArbol){
+    searchArbol.addEventListener('input', () => {
+      aplicacionesUIState.qArbol = searchArbol.value;
+      const q = searchArbol.value.trim().toLowerCase();
+      document.querySelectorAll('#apl-tree-cont > .apl-tree-marca').forEach(marcaEl=>{
+        let algunModeloVisible = false;
+        marcaEl.querySelectorAll(':scope > .apl-tree-children > .apl-tree-modelo').forEach(modeloEl=>{
+          let algunaHojaVisible = false;
+          modeloEl.querySelectorAll(':scope > .apl-tree-children > .apl-tree-leaf').forEach(leafEl=>{
+            const coincide = !q || leafEl.dataset.search.includes(q) || modeloEl.dataset.search.includes(q) || marcaEl.dataset.search.includes(q);
+            leafEl.style.display = coincide ? '' : 'none';
+            if(coincide) algunaHojaVisible = true;
+          });
+          modeloEl.style.display = algunaHojaVisible ? '' : 'none';
+          if(q && algunaHojaVisible) modeloEl.open = true;
+          if(algunaHojaVisible) algunModeloVisible = true;
+        });
+        marcaEl.style.display = algunModeloVisible ? '' : 'none';
+        if(q && algunModeloVisible) marcaEl.open = true;
+      });
     });
   }
 }
