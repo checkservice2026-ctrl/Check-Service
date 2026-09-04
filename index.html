@@ -17306,7 +17306,7 @@ function referenciaEntidad(m){
   if(m.referencia && typeof m.referencia==='string' && m.referencia.includes(':')){
     const [tipo, idStr] = m.referencia.split(':');
     const n = Number(idStr);
-    if((tipo==='venta' || tipo==='historial' || tipo==='notacredito') && Number.isFinite(n)) return { tipo, id:n };
+    if((tipo==='venta' || tipo==='historial' || tipo==='notacredito' || tipo==='gasto') && Number.isFinite(n)) return { tipo, id:n };
   }
   return null;
 }
@@ -17324,6 +17324,14 @@ function excluirMovimientosDeVentasNoVigentes(movs, idsVentasVigentes, idsHistor
       const nc = notasCredito ? notasCredito[ref.id] : null;
       if(!nc || nc.ventaId==null) return true; // nota libre o sin venta asociada: siempre cuenta
       return idsVentasVigentes.has(nc.ventaId);
+    }
+    if(ref.tipo==='gasto'){
+      // Al editar o eliminar un gasto se registra un INGRESO de reversa que
+      // anula el egreso original (ver editarGasto/eliminarGasto). Ese ingreso
+      // es solo un asiento contable, no facturación real, así que nunca debe
+      // contarse como "cobrado". El egreso del gasto (original o corregido)
+      // sí es un gasto real y debe seguir contando normalmente.
+      return m.tipo !== 'ingreso';
     }
     return true;
   });
