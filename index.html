@@ -12841,8 +12841,16 @@ async function openNotaCreditoModal(clienteId){
    Proveedores no tiene un libro de movimientos centralizado: la deuda surge
    de sumar cada compra individual, así que el ajuste se guarda como un
    campo aparte en el propio proveedor y se suma al total. */
+/* Una compra marcada como borrador (ver openCompraModal) todavía no generó
+   stock ni movimientos de caja reales — es solo una carga sin terminar. Por
+   eso nunca debe contarse en deuda a proveedores, alertas de vencimiento,
+   pagos ni reportes: se excluye de todos lados salvo del propio listado de
+   Compras, donde se muestra marcada como "Borrador" para poder continuarla. */
+function excluirComprasBorrador(compras){
+  return compras.filter(c=>!c.esBorrador);
+}
 async function saldoPendienteProveedor(proveedorId){
-  const compras = await DB.getAllByIndex('compras','proveedorId', proveedorId);
+  const compras = excluirComprasBorrador(await DB.getAllByIndex('compras','proveedorId', proveedorId));
   const pendienteCompras = compras.reduce((a,c)=>a+(c.total-c.montoPagado),0);
   const proveedor = await DB.get('proveedores', proveedorId);
   return pendienteCompras + (proveedor?.ajusteSaldoManual||0);
@@ -12858,7 +12866,7 @@ async function saldoPendienteProveedor(proveedorId){
    como un punto en la línea de tiempo. */
 async function movimientosCtaCteProveedor(proveedorId){
   const proveedor = await DB.get('proveedores', proveedorId);
-  const compras = await DB.getAllByIndex('compras','proveedorId', proveedorId);
+  const compras = excluirComprasBorrador(await DB.getAllByIndex('compras','proveedorId', proveedorId));
   const comprasIds = new Set(compras.map(c=>c.id));
   const movsCaja = await DB.getAll('caja');
 
@@ -12919,11 +12927,12 @@ async function viewProveedorDetalle(id){
   if(!proveedor){
     return `<div class="empty-state">${svgIcon('proveedores')}<h3>Proveedor no encontrado</h3><a href="#/proveedores" class="btn btn-ghost btn-sm" style="margin-top:10px; display:inline-flex;">Volver a Proveedores</a></div>`;
   }
-  const [movimientosAsc, saldoActual, compras] = await Promise.all([
+  const [movimientosAsc, saldoActual, comprasTodas] = await Promise.all([
     movimientosCtaCteProveedor(id),
     saldoPendienteProveedor(id),
     DB.getAllByIndex('compras','proveedorId', id)
   ]);
+  const compras = excluirComprasBorrador(comprasTodas);
   compras.sort((a,b)=> new Date(b.fecha)-new Date(a.fecha));
 
   const comprasHTML = compras.length ? `
@@ -13206,7 +13215,7 @@ async function openAjustarSaldoProveedorModal(proveedorId){
      descontado de deuda futura. */
 async function openRegistrarPagoProveedorModal(proveedorId){
   const proveedor = await DB.get('proveedores', proveedorId);
-  const todasCompras = await DB.getAllByIndex('compras','proveedorId', proveedorId);
+  const todasCompras = excluirComprasBorrador(await DB.getAllByIndex('compras','proveedorId', proveedorId));
   const pendientes = todasCompras
     .filter(c => (c.total - c.montoPagado) > 0.009)
     .sort((a,b)=> new Date(a.fecha) - new Date(b.fecha)); // más vieja primero
@@ -13336,7 +13345,7 @@ function diasHastaVencimientoCompra(compra){
   return Math.round((vto - hoy) / 86400000);
 }
 async function obtenerFacturasCompraPorVencer(){
-  const compras = await DB.getAll('compras');
+  const compras = excluirComprasBorrador(await DB.getAll('compras'));
   return compras
     .map(c => ({ compra:c, dias: diasHastaVencimientoCompra(c) }))
     .filter(x => x.dias !== null && x.dias <= DIAS_ALERTA_VENCIMIENTO_COMPRA)
@@ -13370,6 +13379,7 @@ async function viewComprasList(){
       </div>
       <select class="toolbar-select" id="compra-filtro-estado">
         <option value="">Todos los estados</option>
+        <option value="Borrador">Borrador</option>
         ${ESTADOS_PAGO_COMPRA.map(e=>`<option value="${e}">${e}</option>`).join('')}
       </select>
     </div>
@@ -13379,15 +13389,17 @@ async function viewComprasList(){
         <tbody>
           ${compras.length ? compras.map(c => {
             const prov = provById[c.proveedorId];
-            return `<tr data-id="${c.id}" data-estado="${c.estadoPago}" data-search="${Utils.escapeHTML(((prov?prov.nombre:'')+' '+(c.numeroFactura||'')).toLowerCase())}">
+            return `<tr data-id="${c.id}" data-estado="${c.esBorrador?'Borrador':c.estadoPago}" data-search="${Utils.escapeHTML(((prov?prov.nombre:'')+' '+(c.numeroFactura||'')).toLowerCase())}">
               <td class="font-mono" style="font-size:12px;">${parsearFechaSegura(c.fecha).toLocaleDateString('es-AR')}</td>
               <td>${prov?Utils.escapeHTML(prov.nombre):'(eliminado)'}</td>
               <td class="font-mono">${Utils.escapeHTML(c.numeroFactura||'—')}</td>
               <td class="font-mono">$${c.total.toLocaleString('es-AR')}</td>
-              <td>${estadoPagoBadge(c.estadoPago)}</td>
-              <td>${compraVencimientoBadge(c)}</td>
+              <td>${c.esBorrador?'<span class="badge badge-neutral">Borrador</span>':estadoPagoBadge(c.estadoPago)}</td>
+              <td>${c.esBorrador?'<span style="color:var(--text-muted); font-size:12px;">—</span>':compraVencimientoBadge(c)}</td>
               <td style="text-align:right; white-space:nowrap;">
-                <button class="btn btn-ghost btn-sm btn-ver-compra" data-id="${c.id}">Ver</button>
+                ${c.esBorrador
+                  ? `<button class="btn btn-ghost btn-sm btn-continuar-compra" data-id="${c.id}">Continuar</button> <button class="btn btn-danger-ghost btn-sm btn-descartar-compra" data-id="${c.id}">Descartar</button>`
+                  : `<button class="btn btn-ghost btn-sm btn-ver-compra" data-id="${c.id}">Ver</button>`}
               </td>
             </tr>`;
           }).join('') : `<tr><td colspan="7"><div class="empty-state">${svgIcon('compras')}<h3>Todavía no hay compras registradas</h3></div></td></tr>`}
@@ -13397,10 +13409,43 @@ async function viewComprasList(){
   `;
 }
 
+/* Convierte el registro guardado de un borrador de compra en el mismo
+   formato "estadoPrevio" que ya usa openCompraModal para preservar datos al
+   agregar un producto nuevo desde adentro del formulario, así se reutiliza
+   toda la lógica de precarga existente. */
+function compraBorradorAEstadoPrevio(c){
+  return {
+    proveedorId: c.proveedorId,
+    fecha: c.fecha,
+    numeroFactura: c.numeroFactura,
+    compraItems: (c.items||[]).map(it=>({ productoId:it.productoId, nombre:it.nombre, cantidad:it.cantidad, costoUnitario:it.costoUnitario })),
+    descuento: c.descuento,
+    estadoPago: c.estadoPago,
+    montoPagado: c.montoPagado,
+    fechaVencimiento: c.fechaVencimiento,
+    observaciones: c.observaciones
+  };
+}
+
 function bindComprasListEvents(){
   document.getElementById('btn-nueva-compra').onclick = () => openCompraModal();
   document.querySelectorAll('.btn-ver-compra').forEach(btn=>{
     btn.onclick = async () => openCompraDetalleModal(await DB.get('compras', Number(btn.dataset.id)));
+  });
+  document.querySelectorAll('.btn-continuar-compra').forEach(btn=>{
+    btn.onclick = async () => {
+      const c = await DB.get('compras', Number(btn.dataset.id));
+      if(!c) return;
+      await openCompraModal(compraBorradorAEstadoPrevio(c), c.id);
+    };
+  });
+  document.querySelectorAll('.btn-descartar-compra').forEach(btn=>{
+    btn.onclick = async () => {
+      if(!confirm('¿Descartar este borrador de compra? No se registró ningún movimiento de stock ni caja todavía.')) return;
+      await DB.del('compras', Number(btn.dataset.id));
+      Toast.show('success','Borrador descartado','');
+      router();
+    };
   });
   document.getElementById('compra-search').addEventListener('input', applyComprasFilters);
   document.getElementById('compra-filtro-estado').addEventListener('change', applyComprasFilters);
@@ -13415,14 +13460,14 @@ function bindComprasListEvents(){
   }
 }
 
-async function openCompraModal(estadoPrevio=null){
+async function openCompraModal(estadoPrevio=null, borradorId=null){
   const proveedores = (await DB.getAll('proveedores')).filter(p=>p.activo!==false);
   if(!proveedores.length){ Toast.show('error','Sin proveedores','Registrá al menos un proveedor activo antes de cargar una compra.'); return; }
   const productos = await DB.getAll('productos');
   let compraItems = estadoPrevio ? estadoPrevio.compraItems : [];
 
   Modal.open(
-    'Nueva compra',
+    borradorId ? 'Continuar borrador de compra' : 'Nueva compra',
     `
     <div class="field">
       <label>Proveedor</label>
@@ -13476,7 +13521,7 @@ async function openCompraModal(estadoPrevio=null){
     const estadoActual = leerEstadoActual();
     openProductoModal(null, async (productoNuevo) => {
       estadoActual.compraItems.push({ productoId:productoNuevo.id, nombre:productoNuevo.nombre, cantidad:1, costoUnitario:productoNuevo.precioCosto||0 });
-      await openCompraModal(estadoActual);
+      await openCompraModal(estadoActual, borradorId);
     });
   };
 
@@ -13537,7 +13582,55 @@ async function openCompraModal(estadoPrevio=null){
     document.getElementById('cf-montoPagado-wrap').style.display = e.target.value==='Parcial' ? '' : 'none';
   });
 
-  document.getElementById('cf-cancel').onclick = () => Modal.close();
+  /* Guardado automático como borrador de compra: se dispara al cerrar el
+     modal ("Cancelar" o la "X") sin haber confirmado la compra. A diferencia
+     de "Guardar compra", NO genera movimientos de stock ni de caja — es
+     solo texto/números guardados para poder retomarlos después, por eso
+     nunca valida nada y puede quedar incompleto. Como el proveedor y la
+     fecha siempre tienen un valor por defecto en el formulario, no sirven
+     para decidir si "hay algo cargado"; se usa en cambio si se agregó algún
+     producto, número de factura, descuento u observación. */
+  async function guardarCompraComoBorrador(){
+    const numeroFactura = document.getElementById('cf-numeroFactura').value.trim();
+    const observaciones = document.getElementById('cf-observaciones').value.trim();
+    const descuento = Number(document.getElementById('cf-descuento').value)||0;
+    const tieneDatos = compraItems.length>0 || !!numeroFactura || !!observaciones || descuento>0;
+    if(!tieneDatos){
+      if(borradorId) await DB.del('compras', borradorId);
+      return;
+    }
+
+    const proveedorId = Number(document.getElementById('cf-proveedorId').value);
+    const fecha = document.getElementById('cf-fecha').value;
+    const subtotal = compraItems.reduce((acc,it)=>acc+it.cantidad*it.costoUnitario,0);
+    const total = Math.max(0, subtotal-descuento);
+    const estadoPago = document.getElementById('cf-estadoPago').value;
+    const session = Session.get();
+
+    const payload = {
+      proveedorId, fecha, numeroFactura,
+      items: compraItems.map(it=>({ productoId:it.productoId, nombre:it.nombre, cantidad:it.cantidad, costoUnitario:it.costoUnitario, subtotal:it.cantidad*it.costoUnitario })),
+      subtotal, descuento, total, estadoPago, montoPagado:0,
+      fechaVencimiento: document.getElementById('cf-fechaVencimiento').value || null,
+      observaciones,
+      esBorrador: true
+    };
+
+    if(borradorId){
+      const actual = await DB.get('compras', borradorId);
+      await DB.put('compras', { ...actual, ...payload });
+    }else{
+      await DB.add('compras', { fechaCreacion:Utils.nowISO(), usuarioId:session.usuarioId, usuarioNombre:session.nombre, ...payload });
+    }
+    Toast.show('info','Guardado como borrador','Podés continuarla después desde la lista de Compras.');
+  }
+  async function cerrarModalCompra(){
+    await guardarCompraComoBorrador();
+    Modal.close();
+    router();
+  }
+  document.getElementById('cf-cancel').onclick = cerrarModalCompra;
+  document.getElementById('modal-close-btn').onclick = cerrarModalCompra;
   document.getElementById('cf-save').onclick = async () => {
     if(!compraItems.length){ Toast.show('error','Sin productos','Agregá al menos un producto a la compra.'); return; }
     const proveedorId = Number(document.getElementById('cf-proveedorId').value);
@@ -13581,6 +13674,8 @@ async function openCompraModal(estadoPrevio=null){
     if(montoPagado>0){
       await registrarMovimientoCaja({ tipo:'egreso', concepto:`Pago a proveedor ${proveedor.nombre}${numeroFactura?' - Factura '+numeroFactura:''}`, monto:montoPagado, medioPago:'Transferencia', referencia:`compra:${compraId}` });
     }
+
+    if(borradorId) await DB.del('compras', borradorId);
 
     await Audit.log('compra_creada', `Compra a ${proveedor.nombre} por $${total.toLocaleString('es-AR')} (${estadoPago}).`);
     Toast.show('success','Compra registrada', `Stock actualizado (${compraItems.length} producto/s).`);
@@ -14282,6 +14377,8 @@ async function openAjustarSaldoCajaModal(){
    Cierre de Caja y Resumen del día lo reflejan sin lógica aparte.
 ----------------------------------------------------------------------- */
 let gastosMesSeleccionado = null; // 'YYYY-MM', se inicializa en bindGastosListEvents
+let gastosCategoriaEvolucionId = null; // categoría elegida para el gráfico de evolución mes a mes
+let gastosCategoriaEvolucionMeses = 12; // cantidad de meses hacia atrás que muestra ese gráfico
 
 /* ---------- Categorías ---------- */
 function openCategoriaGastoModal(categoria=null){
@@ -14518,6 +14615,17 @@ async function renderGastosMes(){
   gastosDelMes.forEach(g=>{ porCategoria[g.categoriaNombre] = (porCategoria[g.categoriaNombre]||0) + g.monto; });
   const categoriasOrdenadas = Object.entries(porCategoria).sort((a,b)=>b[1]-a[1]);
 
+  // Todas las categorías creadas (aunque estén dadas de baja o todavía no
+  // tengan ningún gasto cargado), para el selector del gráfico de evolución
+  // mes a mes — así se puede elegir "Alquiler" desde el primer momento,
+  // aunque el gráfico arranque en cero hasta que se cargue el primer gasto.
+  const categoriasHistoricas = (await DB.getAll('categoriasGastos'))
+    .map(c=>({ id:c.id, nombre:c.nombre }))
+    .sort((a,b)=>a.nombre.localeCompare(b.nombre));
+  if(gastosCategoriaEvolucionId===null || !categoriasHistoricas.some(c=>c.id===gastosCategoriaEvolucionId)){
+    gastosCategoriaEvolucionId = categoriasHistoricas.length ? categoriasHistoricas[0].id : null;
+  }
+
   const mesLabel = new Date(gastosMesSeleccionado+'-01T00:00:00').toLocaleDateString('es-AR',{ month:'long', year:'numeric' });
 
   cont.innerHTML = `
@@ -14549,6 +14657,25 @@ async function renderGastosMes(){
     <div class="report-chart-wrap" style="margin-top:18px;">
       <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">Evolución — últimos 6 meses</div>
       <div class="chart-canvas-box" style="height:260px;"><canvas id="gastos-chart-evolucion"></canvas></div>
+    </div>
+    ` : ''}
+
+    ${categoriasHistoricas.length ? `
+    <div class="report-chart-wrap" style="margin-top:18px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:8px;">
+        <div style="font-size:12px; color:var(--text-muted);">Evolución mensual de un gasto por categoría</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <select class="select-input" id="gastos-cat-evolucion-select" style="max-width:220px; font-size:12.5px; padding:5px 8px;">
+            ${categoriasHistoricas.map(c=>`<option value="${c.id}" ${c.id===gastosCategoriaEvolucionId?'selected':''}>${Utils.escapeHTML(c.nombre)}</option>`).join('')}
+          </select>
+          <select class="select-input" id="gastos-cat-evolucion-periodo" style="max-width:150px; font-size:12.5px; padding:5px 8px;">
+            <option value="6" ${gastosCategoriaEvolucionMeses===6?'selected':''}>Últimos 6 meses</option>
+            <option value="12" ${gastosCategoriaEvolucionMeses===12?'selected':''}>Últimos 12 meses</option>
+            <option value="24" ${gastosCategoriaEvolucionMeses===24?'selected':''}>Últimos 24 meses</option>
+          </select>
+        </div>
+      </div>
+      <div class="chart-canvas-box" style="height:260px;"><canvas id="gastos-chart-cat-evolucion"></canvas></div>
     </div>
     ` : ''}
 
@@ -14595,6 +14722,15 @@ async function renderGastosMes(){
     drawHorizontalBarChart(document.getElementById('gastos-chart-categorias'), topCategorias.map(c=>c[0]), topCategorias.map(c=>c[1]), '#D6393E', 'Gasto');
     await drawGastosEvolucionChart(document.getElementById('gastos-chart-evolucion'), gastosMesSeleccionado);
   }
+
+  const selCatEvolucion = document.getElementById('gastos-cat-evolucion-select');
+  if(selCatEvolucion){
+    selCatEvolucion.onchange = () => { gastosCategoriaEvolucionId = Number(selCatEvolucion.value); renderGastosMes(); };
+    const selPeriodoEvolucion = document.getElementById('gastos-cat-evolucion-periodo');
+    selPeriodoEvolucion.onchange = () => { gastosCategoriaEvolucionMeses = Number(selPeriodoEvolucion.value); renderGastosMes(); };
+    const catEvolucionNombre = (categoriasHistoricas.find(c=>c.id===gastosCategoriaEvolucionId)||{}).nombre || 'Gasto';
+    await drawGastoCategoriaEvolucionMensualChart(document.getElementById('gastos-chart-cat-evolucion'), gastosCategoriaEvolucionId, catEvolucionNombre, gastosMesSeleccionado, gastosCategoriaEvolucionMeses);
+  }
 }
 
 /* Barras apiladas Fijos/Variables de los últimos 6 meses hasta el mes
@@ -14638,6 +14774,88 @@ async function drawGastosEvolucionChart(canvas, mesHasta){
       }
     }
   });
+}
+
+/* Línea simple (con área suave) para una sola serie de valores mensuales,
+   reutilizable para cualquier evolución de un solo indicador en el tiempo.
+   Cae a Chart.js vendorizado si no hay internet, igual que el resto de los
+   gráficos Apex de la app. */
+function drawApexLineSerie(canvas, labels, valores, color, seriesLabel, formatValue){
+  if(typeof ApexCharts==='undefined' || !canvas || !labels.length) return false;
+  const div = ensureApexContainer(canvas);
+  if(!div) return false;
+  canvas.style.display = 'none'; div.style.display = 'block';
+  if(div._apexInstance){ div._apexInstance.destroy(); div._apexInstance = null; }
+  const theme = apexThemeColors();
+  const fmt = formatValue || ((v)=>'$'+Math.round(v).toLocaleString('es-AR'));
+  const inst = new ApexCharts(div, {
+    chart: { type:'area', height:'100%', toolbar:{show:false}, animations:{easing:'easeinout', speed:550}, fontFamily:'inherit', background:'transparent' },
+    series: [{ name: seriesLabel||'Valor', data: valores }],
+    xaxis: { categories: labels, labels:{ style:{ colors: theme.muted, fontSize:'10px' } }, axisBorder:{show:false}, axisTicks:{show:false} },
+    yaxis: { labels: { style:{ colors: theme.muted, fontSize:'10px' }, formatter: fmt } },
+    grid: { borderColor: theme.grid, strokeDashArray:3, xaxis:{ lines:{ show:false } } },
+    stroke: { width:2.5, curve:'smooth' },
+    markers: { size:3.5, colors:[color], strokeColors: theme.panel, strokeWidth:2, hover:{ size:5 } },
+    dataLabels: { enabled:false },
+    colors: [color],
+    fill: { type:'gradient', gradient:{ shade:'light', type:'vertical', shadeIntensity:.35, opacityFrom:.4, opacityTo:.03, stops:[0,100] } },
+    tooltip: { theme:'dark', style:{ fontSize:'12px' }, y:{ formatter: fmt } },
+    states: { hover: { filter: { type:'lighten', value:.06 } } }
+  });
+  inst.render();
+  div._apexInstance = inst;
+  return true;
+}
+function drawGastoCategoriaEvolucionChart(canvas, labels, valores, seriesLabel){
+  if(!canvas) return;
+  if(drawApexLineSerie(canvas, labels, valores, '#17B8A6', seriesLabel)) return;
+  destroyChartOn(canvas);
+  if(!labels.length) return;
+  const theme = chartThemeColors();
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createLinearGradient(0,0,0, canvas.clientHeight||220);
+  gradient.addColorStop(0, hexToRgba('#17B8A6', .35));
+  gradient.addColorStop(1, hexToRgba('#17B8A6', 0));
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: seriesLabel, data: valores,
+        borderColor:'#17B8A6', backgroundColor:gradient, fill:true, tension:.35,
+        pointRadius:3.5, pointBackgroundColor:'#17B8A6', pointBorderColor:theme.panel, pointBorderWidth:2, borderWidth:2.5
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 600, easing: 'easeOutQuart' },
+      plugins: {
+        legend: { display:false },
+        tooltip: {
+          backgroundColor: theme.panel, titleColor: theme.text, bodyColor: theme.text,
+          borderColor: theme.grid, borderWidth: 1, padding: 10, cornerRadius: 8, displayColors:false,
+          callbacks: { label: (item) => `${seriesLabel}: $${Number(item.parsed.y).toLocaleString('es-AR')}` }
+        }
+      },
+      scales: {
+        x: { grid:{ display:false }, ticks:{ color: theme.muted, font:{ size:10.5 } } },
+        y: { beginAtZero:true, grid:{ color: theme.grid }, ticks:{ color: theme.muted, font:{ size:10.5 }, callback:(v)=> '$'+v.toLocaleString('es-AR') } }
+      }
+    }
+  });
+}
+/* Evolución mes a mes del gasto de UNA categoría puntual (ej: Alquiler),
+   para poder seguir su variación en el tiempo más allá del mes que se esté
+   mirando en el listado. Independiente del filtro de mes de la vista. */
+async function drawGastoCategoriaEvolucionMensualChart(canvas, categoriaId, nombreCategoria, mesHasta, cantidadMeses){
+  if(!canvas || !categoriaId) return;
+  const [ay, am] = mesHasta.split('-').map(Number);
+  const meses = [];
+  for(let i=cantidadMeses-1;i>=0;i--){ const d=new Date(ay, am-1-i, 1); meses.push(d.toISOString().slice(0,7)); }
+  const todosLosGastos = await DB.getAll('gastos');
+  const gastosCategoria = todosLosGastos.filter(g=>g.categoriaId===categoriaId);
+  const valores = meses.map(m => gastosCategoria.filter(g=>g.fecha.slice(0,7)===m).reduce((a,g)=>a+g.monto,0));
+  const labels = meses.map(m => new Date(m+'-01T00:00:00').toLocaleDateString('es-AR',{ month:'short', year:'2-digit' }));
+  drawGastoCategoriaEvolucionChart(canvas, labels, valores, nombreCategoria || 'Gasto');
 }
 
 /* -----------------------------------------------------------------------
@@ -15588,7 +15806,7 @@ async function getReporteData(tipo, desde, hasta){
   }
 
   if(tipo==='compras'){
-    const compras = (await DB.getAll('compras')).filter(c=>c.fecha>=desde && c.fecha<=hasta).sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
+    const compras = excluirComprasBorrador(await DB.getAll('compras')).filter(c=>c.fecha>=desde && c.fecha<=hasta).sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
     const proveedores = await DB.getAll('proveedores'); const provById={}; proveedores.forEach(p=>provById[p.id]=p);
     const headers = ['Fecha','Proveedor','Factura','Total','Estado'];
     const rows = compras.map(c=>[parsearFechaSegura(c.fecha).toLocaleDateString('es-AR'), provById[c.proveedorId]?provById[c.proveedorId].nombre:'—', c.numeroFactura||'—', c.total.toFixed(2), c.estadoPago]);
@@ -15651,7 +15869,7 @@ async function bindReportesEvents(tipoParam){
    20-T. MÓDULO COTIZACIONES (presupuestos — no afectan stock ni caja)
 ----------------------------------------------------------------------- */
 function cotEstadoBadge(estado){
-  const map = { Pendiente:'badge-cot-pendiente', Aprobada:'badge-cot-aprobada', Rechazada:'badge-cot-rechazada' };
+  const map = { Pendiente:'badge-cot-pendiente', Aprobada:'badge-cot-aprobada', Rechazada:'badge-cot-rechazada', Borrador:'badge-neutral' };
   return `<span class="badge ${map[estado]||'badge-neutral'}">${estado}</span>`;
 }
 
@@ -15750,6 +15968,7 @@ async function viewCotizacionesList(){
       </div>
       <select class="toolbar-select" id="cot-filtro-estado">
         <option value="">Todos los estados</option>
+        <option value="Borrador">Borrador</option>
         <option value="Pendiente">Pendiente</option>
         <option value="Aprobada">Aprobada</option>
         <option value="Rechazada">Rechazada</option>
@@ -15768,8 +15987,8 @@ async function viewCotizacionesList(){
             <td>${cotEstadoBadge(c.estado)}</td>
             <td style="text-align:right; white-space:nowrap;">
               <button class="btn btn-ghost btn-sm btn-ver-cotizacion" data-id="${c.id}">Ver / Imprimir</button>
-              <button class="btn btn-ghost btn-sm btn-editar-cotizacion" data-id="${c.id}">Editar</button>
-              <button class="btn btn-danger-ghost btn-sm btn-eliminar-cotizacion" data-id="${c.id}">Eliminar</button>
+              <button class="btn btn-ghost btn-sm btn-editar-cotizacion" data-id="${c.id}">${c.estado==='Borrador'?'Continuar':'Editar'}</button>
+              <button class="btn btn-danger-ghost btn-sm btn-eliminar-cotizacion" data-id="${c.id}">${c.estado==='Borrador'?'Descartar':'Eliminar'}</button>
             </td>
           </tr>`).join('') : `<tr><td colspan="7"><div class="empty-state">${svgIcon('cotizaciones')}<h3>Todavía no hay cotizaciones cargadas</h3><p>Creá tu primer presupuesto para pasarle a un cliente.</p></div></td></tr>`}
         </tbody>
@@ -15996,7 +16215,73 @@ async function openCotizacionModal(cotizacion=null){
   if(cotizacion) await onClienteChange();
   if(cotizacion && cotizacion.vehiculoId) vehSelect.value = cotizacion.vehiculoId;
 
-  document.getElementById('cf-cancel').onclick = () => Modal.close();
+  /* Guardado automático como borrador: se dispara al cerrar el modal (botón
+     "Cancelar" o la "X") sin haber guardado la cotización. Si estamos
+     editando una cotización YA guardada como real (Pendiente/Aprobada/
+     Rechazada), cancelar no debe tocarla — solo aplica a cotizaciones nuevas
+     o que ya eran, ellas mismas, un borrador en curso. No valida nada (a
+     diferencia de "Guardar cotización"): un borrador puede quedar
+     incompleto a propósito. Si no hay ningún dato cargado, no genera basura
+     en la lista (y si el borrador ya existía y quedó vacío, lo elimina). */
+  async function guardarComoBorrador(){
+    if(cotizacion && cotizacion.estado!=='Borrador') return;
+
+    const clienteId = Number(clienteSelect.value) || null;
+    const cliente = clienteId ? clientes.find(c=>c.id===clienteId) : null;
+    const clienteNombreManual = document.getElementById('cf-clienteNombreManual').value.trim();
+    const clienteNombre = cliente ? clienteNombreCompleto(cliente) : clienteNombreManual;
+    const vehiculoDescripcion = document.getElementById('cf-vehiculoDescripcion').value.trim();
+    const itemsConDatos = cotItems.filter(it=>it.descripcion && it.descripcion.trim());
+    const observaciones = document.getElementById('cf-observaciones').value.trim();
+
+    const tieneDatos = !!(clienteId || clienteNombreManual || vehiculoDescripcion || itemsConDatos.length || observaciones);
+    if(!tieneDatos){
+      if(cotizacion && cotizacion.estado==='Borrador') await DB.del('cotizaciones', cotizacion.id);
+      return;
+    }
+
+    const trabajos = {};
+    document.querySelectorAll('.cf-trabajo-check').forEach(chk => { trabajos[chk.dataset.key] = chk.checked; });
+    const subtotal = cotItems.reduce((acc,it)=>acc+(it.cantidad||0)*(it.precioUnitario||0),0);
+    const descuentoPct = Number(document.getElementById('cf-descuentoPct').value)||0;
+    const descuentoMonto = subtotal*(descuentoPct/100);
+    const total = Math.max(0, subtotal-descuentoMonto);
+    const recargoTarjetaPct = Number(document.getElementById('cf-recargoTarjetaPct').value)||0;
+    const totalTarjeta = total + total*(recargoTarjetaPct/100);
+    const session = Session.get();
+
+    const payload = {
+      clienteId, clienteNombre: clienteNombre || '(sin cliente)',
+      clienteWhatsappManual: clienteId ? '' : document.getElementById('cf-clienteWhatsappManual').value.trim(),
+      vehiculoId: Number(vehSelect.value)||null,
+      vehiculoDescripcion,
+      vehiculoAnio: Number(document.getElementById('cf-vehiculoAnio').value)||null,
+      vehiculoDominio: document.getElementById('cf-vehiculoDominio').value.trim(),
+      vehiculoKilometraje: Number(document.getElementById('cf-vehiculoKilometraje').value)||null,
+      trabajos,
+      items: cotItems, subtotal, descuentoPct, descuentoMonto, total,
+      recargoTarjetaPct, totalTarjeta,
+      validezDias: Number(document.getElementById('cf-validezDias').value)||7,
+      estado: 'Borrador',
+      observaciones
+    };
+
+    if(cotizacion && cotizacion.estado==='Borrador'){
+      await DB.put('cotizaciones', { ...cotizacion, ...payload });
+    }else{
+      const numero = 'COT-' + String((await DB.count('cotizaciones'))+1).padStart(5,'0');
+      await DB.add('cotizaciones', { numero, fecha:Utils.nowISO(), fechaCreacion:Utils.nowISO(), usuarioId:session.usuarioId, usuarioNombre:session.nombre, ...payload });
+    }
+    Toast.show('info','Guardado como borrador','Podés continuarla después desde la lista de Cotizaciones.');
+  }
+  async function cerrarModalCotizacion(){
+    await guardarComoBorrador();
+    Modal.close();
+    router();
+  }
+  document.getElementById('cf-cancel').onclick = cerrarModalCotizacion;
+  document.getElementById('modal-close-btn').onclick = cerrarModalCotizacion;
+
   document.getElementById('cf-save').onclick = async () => {
     if(!cotItems.length || cotItems.some(it=>!it.descripcion.trim())){ Toast.show('error','Ítems incompletos','Agregá al menos un ítem con descripción.'); return; }
     const clienteId = Number(clienteSelect.value) || null;
