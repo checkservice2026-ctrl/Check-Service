@@ -2218,7 +2218,12 @@ const Modal = {
       </div>`;
     document.body.appendChild(backdrop);
     document.getElementById('modal-close-btn').onclick = () => this.close();
-    if(!opts.persistent){
+    // Por defecto NINGÚN modal se cierra al clickear afuera (fuera de la caja):
+    // un click accidental en el fondo no debe hacer perder datos cargados en
+    // un formulario (cotización, venta, gasto, etc.). Para los pocos casos
+    // donde sí conviene poder cerrar clickeando afuera (p.ej. un visor simple
+    // de solo lectura), pasar explícitamente { closeOnOverlay:true } en opts.
+    if(opts.closeOnOverlay){
       backdrop.addEventListener('mousedown', (e)=>{ if(e.target===backdrop) this.close(); });
     }
   },
@@ -15876,7 +15881,7 @@ async function openCotizacionModal(cotizacion=null){
     <div class="field"><label>Observaciones (aparecen en el comprobante)</label><textarea class="textarea-input" id="cf-observaciones">${cotizacion?Utils.escapeHTML(cotizacion.observaciones||''):''}</textarea></div>
     <div class="modal-actions"><button class="btn btn-ghost" id="cf-cancel">Cancelar</button><button class="btn btn-accent" id="cf-save">Guardar cotización</button></div>
     `,
-    { width:'580px' }
+    { width:'580px', persistent:true }
   );
 
   function renderItemsList(){
