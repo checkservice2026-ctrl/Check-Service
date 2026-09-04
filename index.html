@@ -12836,6 +12836,8 @@ async function openNotaCreditoModal(clienteId){
 /* -----------------------------------------------------------------------
    20-M. MÓDULO PROVEEDORES (Fase 6)
 ----------------------------------------------------------------------- */
+let provComprasMensualPeriodo = 12; // cantidad de meses del gráfico "Compras mes a mes" en la ficha del proveedor
+
 /* Deuda total de un proveedor = suma de lo pendiente de cada compra + un
    ajuste manual opcional (ver "Ajustar saldo"). A diferencia de Clientes,
    Proveedores no tiene un libro de movimientos centralizado: la deuda surge
@@ -12934,6 +12936,7 @@ async function viewProveedorDetalle(id){
   ]);
   const compras = excluirComprasBorrador(comprasTodas);
   compras.sort((a,b)=> new Date(b.fecha)-new Date(a.fecha));
+  const totalComprado = compras.reduce((a,c)=>a+c.total,0);
 
   const comprasHTML = compras.length ? `
     <div class="doc-list">
@@ -12973,6 +12976,14 @@ async function viewProveedorDetalle(id){
 
     ${proveedor.observaciones?`<div class="card" style="margin-bottom:18px;"><div class="cfg-section-title" style="font-size:13px;">Observaciones</div><p style="font-size:13px; color:var(--text-secondary);">${Utils.escapeHTML(proveedor.observaciones)}</p></div>`:''}
 
+    <div class="grid-kpi" style="margin-bottom:18px;">
+      <div class="kpi-card" style="--kpi-color:var(--teal)">
+        <div class="kpi-label">Total comprado</div>
+        <div class="kpi-value">$${totalComprado.toLocaleString('es-AR')}</div>
+        <div class="kpi-sub">${compras.length} compra${compras.length===1?'':'s'} registrada${compras.length===1?'':'s'}</div>
+      </div>
+    </div>
+
     <div class="cfg-layout">
       <div class="cfg-tabs">
         <button class="cfg-tab active" data-tab="cuentacorriente">${svgIcon('cuentascorrientes')} Cuenta corriente</button>
@@ -12983,11 +12994,47 @@ async function viewProveedorDetalle(id){
           ${ctaCteProveedorHTML(proveedor, movimientosAsc, saldoActual)}
         </div>
         <div class="cfg-panel-section" data-panel="compras">
+          ${compras.length ? `
+          <div class="report-chart-wrap" style="margin-bottom:16px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:8px;">
+              <div style="font-size:12px; color:var(--text-muted);">Compras mes a mes</div>
+              <select class="select-input" id="prov-compras-mensual-periodo" style="max-width:150px; font-size:12.5px; padding:5px 8px;">
+                <option value="6" ${provComprasMensualPeriodo===6?'selected':''}>Últimos 6 meses</option>
+                <option value="12" ${provComprasMensualPeriodo===12?'selected':''}>Últimos 12 meses</option>
+                <option value="24" ${provComprasMensualPeriodo===24?'selected':''}>Últimos 24 meses</option>
+              </select>
+            </div>
+            <div class="chart-canvas-box" style="height:220px;"><canvas id="prov-compras-mensual-chart"></canvas></div>
+          </div>` : ''}
           ${comprasHTML}
         </div>
       </div>
     </div>
   `;
+}
+
+/* Compras mes a mes de UN proveedor puntual, para ver cuánto se le viene
+   comprando período a período. Reutiliza el helper genérico drawBarChart
+   (con su capa Apex + fallback Chart.js). */
+function drawComprasMensualesChart(canvas, compras, cantidadMeses){
+  if(!canvas) return;
+  const hoy = Utils.hoyLocal().slice(0,7);
+  const [ay, am] = hoy.split('-').map(Number);
+  const meses = [];
+  for(let i=cantidadMeses-1;i>=0;i--){ const d=new Date(ay, am-1-i, 1); meses.push(d.toISOString().slice(0,7)); }
+  const valores = meses.map(m => compras.filter(c=>c.fecha.slice(0,7)===m).reduce((a,c)=>a+c.total,0));
+  const labels = meses.map(m => new Date(m+'-01T00:00:00').toLocaleDateString('es-AR',{ month:'short', year:'2-digit' }));
+  drawBarChart(canvas, labels, valores, '#17B8A6', (v)=>'$'+Math.round(v).toLocaleString('es-AR'), 'Compras');
+}
+
+/* Vuelve a buscar las compras del proveedor y redibuja el gráfico mensual
+   con el período actualmente elegido en el selector (si existe). */
+function renderComprasMensualesProveedor(id){
+  const canvasCompras = document.getElementById('prov-compras-mensual-chart');
+  if(!canvasCompras) return;
+  DB.getAllByIndex('compras','proveedorId', id).then(comprasTodas=>{
+    drawComprasMensualesChart(canvasCompras, excluirComprasBorrador(comprasTodas), provComprasMensualPeriodo);
+  });
 }
 
 function bindProveedorDetalleEvents(id){
@@ -12997,8 +13044,11 @@ function bindProveedorDetalleEvents(id){
       document.querySelectorAll('.cfg-panel-section').forEach(p=>p.classList.remove('active'));
       tab.classList.add('active');
       document.querySelector(`.cfg-panel-section[data-panel="${tab.dataset.tab}"]`).classList.add('active');
+      if(tab.dataset.tab==='compras') renderComprasMensualesProveedor(id);
     };
   });
+  const selPeriodoCompras = document.getElementById('prov-compras-mensual-periodo');
+  if(selPeriodoCompras) selPeriodoCompras.onchange = () => { provComprasMensualPeriodo = Number(selPeriodoCompras.value); renderComprasMensualesProveedor(id); };
 
   // La pestaña de cuenta corriente está activa por defecto, así que el canvas
   // ya tiene ancho real al momento de montar: se dibuja una sola vez acá.
