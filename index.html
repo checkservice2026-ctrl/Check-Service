@@ -8938,6 +8938,7 @@ let histEstSemanaSeleccionada = null;
 let histEstSemanasCount = 8;
 let histEstPeriodoHistorial = [];
 let histEstPeriodoChartData = {};
+let histEstProductos = []; // catálogo de productos, para cruzar filtros usados con stock actual
 
 function contarServiciosPorDia(historial, desde, hasta){
   const porDia = {};
@@ -8970,6 +8971,28 @@ function histEstSemanaHTML(){
   const total = valores.reduce((a,b)=>a+b,0);
   histEstPeriodoChartData.semana = { labels, valores };
 
+  // ---- Filtros usados esta semana + stock actual restante ----
+  // Se cruzan los ítems facturados (itemsVendidos) de los services de la
+  // semana con el catálogo de productos, quedándose sólo con los que son
+  // de categoría "Filtros" y están vinculados a un producto real del stock
+  // (los ítems "LIBRE", sin productoId, no se pueden cruzar con stock).
+  const productosById = {}; histEstProductos.forEach(p=>productosById[p.id]=p);
+  const filtrosUsados = {}; // productoId -> cantidad usada en la semana
+  histEstPeriodoHistorial.forEach(h=>{
+    const f = Utils.fechaLocalYMD(h.fecha);
+    if(f<inicio || f>fin) return;
+    (h.itemsVendidos||[]).forEach(it=>{
+      if(!it.productoId) return;
+      const prod = productosById[it.productoId];
+      if(!prod || prod.categoria!=='Filtros') return;
+      filtrosUsados[it.productoId] = (filtrosUsados[it.productoId]||0) + it.cantidad;
+    });
+  });
+  const filasFiltros = Object.entries(filtrosUsados)
+    .map(([pid,cant])=>({ producto: productosById[pid], cantidad: cant }))
+    .filter(x=>x.producto)
+    .sort((a,b)=> b.cantidad - a.cantidad);
+
   return `
     <div class="toolbar-filters" style="justify-content:space-between;">
       <div style="display:flex; align-items:center; gap:8px;">
@@ -8985,6 +9008,26 @@ function histEstSemanaHTML(){
       <div class="kpi-card" style="--kpi-color:var(--accent)"><div class="kpi-label">Promedio diario</div><div class="kpi-value">${(total/7).toLocaleString('es-AR',{maximumFractionDigits:1})}</div></div>
     </div>
     <div class="chart-canvas-box" style="height:260px;"><canvas id="hest-chart-semana"></canvas></div>
+
+    <div class="report-chart-wrap" style="margin-top:18px;">
+      <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">Filtros usados esta semana y stock restante</div>
+      ${filasFiltros.length ? `
+      <div class="card" style="padding:0; overflow-x:auto;">
+        <table class="data-table">
+          <thead><tr><th>Filtro</th><th>Usados esta semana</th><th>Stock actual</th></tr></thead>
+          <tbody>
+            ${filasFiltros.map(f=>{
+              const bajo = f.producto.stockActual <= f.producto.stockMinimo;
+              return `<tr>
+                <td>${Utils.escapeHTML(f.producto.nombre)}</td>
+                <td>${f.cantidad}</td>
+                <td class="${bajo?'margen-negativo':''}">${f.producto.stockActual}${bajo?' ⚠️':''}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>` : `<div class="empty-state" style="padding:24px;">${svgIcon('stock')}<h3>No se usaron filtros de stock esta semana</h3><p>Los filtros vinculados a un producto del stock (categoría "Filtros") van a aparecer acá apenas se carguen en un service de esta semana.</p></div>`}
+    </div>
   `;
 }
 function bindHistEstSemanaEvents(){
@@ -9112,6 +9155,7 @@ async function viewHistorialEstadisticas(){
 
 async function bindHistorialEstadisticasEvents(){
   const historial = await DB.getAll('historialServicios');
+  histEstProductos = await DB.getAll('productos');
   const cont = document.getElementById('hest-contenido');
   if(!cont) return;
 
@@ -13078,6 +13122,8 @@ async function viewProveedoresList(){
   for(const p of proveedores){ deudaPorProveedor[p.id] = await saldoPendienteProveedor(p.id); }
   const deudaTotal = Object.values(deudaPorProveedor).reduce((acc,s)=> acc + Math.max(0, s), 0);
   const proveedoresConDeuda = Object.values(deudaPorProveedor).filter(s=>s>0.009).length;
+  const comprasTodas = excluirComprasBorrador(await DB.getAll('compras'));
+  const totalCompradoGlobal = comprasTodas.reduce((a,c)=>a+c.total,0);
   const esAdministrador = Session.get().rol==='Administrador';
   return `
     <div class="page-header">
@@ -13085,6 +13131,11 @@ async function viewProveedoresList(){
       <button class="btn btn-accent" id="btn-nuevo-proveedor">${svgIcon('proveedores')} Nuevo proveedor</button>
     </div>
     <div class="grid-kpi" style="margin-bottom:16px;">
+      <div class="kpi-card" style="--kpi-color:var(--teal)">
+        <div class="kpi-label">Total comprado a proveedores</div>
+        <div class="kpi-value">$${Math.round(totalCompradoGlobal).toLocaleString('es-AR')}</div>
+        <div class="kpi-sub">${comprasTodas.length} compra${comprasTodas.length===1?'':'s'} registrada${comprasTodas.length===1?'':'s'} en total</div>
+      </div>
       <div class="kpi-card" style="--kpi-color:var(--danger)">
         <div class="kpi-label">Deuda total con proveedores</div>
         <div class="kpi-value">$${Math.round(deudaTotal).toLocaleString('es-AR')}</div>
