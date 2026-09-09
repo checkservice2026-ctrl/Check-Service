@@ -7681,6 +7681,46 @@ function historialGarantiaBadge(h){
 function historialEntregaBadge(h){
   return historialEstadoEntregaEfectivo(h)==='Entregado' ? `<span class="badge badge-ok">Entregado</span>` : `<span class="badge badge-warn">En taller</span>`;
 }
+/* Aviso de "vehículo listo para retirar" por WhatsApp — se ofrece automáticamente
+   al cargar un service nuevo, y además queda disponible como botón manual en la
+   card del service (mientras esté "En taller") para reenviar o avisar más tarde. */
+function telefonoWhatsappCliente(cliente){
+  return cliente ? (cliente.whatsapp || cliente.telefono || '') : '';
+}
+function mensajeVehiculoListo(cliente, vehiculo){
+  const nombreCliente = cliente ? clienteNombreCompleto(cliente) : '';
+  return `Hola ${nombreCliente}! Te escribimos de ${Config.cache.nombreEmpresa} para avisarte que tu ${vehiculo.marca} ${vehiculo.modelo} (${vehiculo.dominio}) ya está listo para retirar. ¡Te esperamos!`;
+}
+function openAvisoVehiculoListoModal(cliente, vehiculo){
+  const telefono = telefonoWhatsappCliente(cliente);
+  if(!telefono) return;
+  const mensaje = mensajeVehiculoListo(cliente, vehiculo);
+  Modal.open(
+    'Avisar al cliente',
+    `<p style="color:var(--text-secondary); font-size:13px; margin-bottom:10px;">El service de <b>${Utils.escapeHTML(vehiculo.dominio)}</b> quedó cargado. ¿Le avisamos a ${Utils.escapeHTML(clienteNombreCompleto(cliente))} que el vehículo está listo para retirar?</p>
+    <div class="field"><label>Mensaje</label><textarea class="textarea-input" id="avl-mensaje" rows="4">${Utils.escapeHTML(mensaje)}</textarea></div>
+    <div class="modal-actions"><button class="btn btn-ghost" id="avl-cancel">Ahora no</button><button class="btn btn-accent" id="avl-send">${svgIcon('whatsapp')} Abrir WhatsApp</button></div>`,
+    { width:'480px' }
+  );
+  document.getElementById('avl-cancel').onclick = () => Modal.close();
+  document.getElementById('avl-send').onclick = () => {
+    abrirWhatsApp(telefono, document.getElementById('avl-mensaje').value);
+    Audit.log('aviso_vehiculo_listo', `Aviso de "vehículo listo" enviado por WhatsApp para ${vehiculo.dominio}.`);
+    Modal.close();
+  };
+}
+function botonAvisarRetiroHTML(h, cliente, vehiculo){
+  const entregado = historialEstadoEntregaEfectivo(h) === 'Entregado';
+  const telefono = telefonoWhatsappCliente(cliente);
+  if(entregado || !telefono) return '';
+  const mensaje = mensajeVehiculoListo(cliente, vehiculo);
+  return `<button class="btn btn-ghost btn-sm btn-avisar-retiro" data-whatsapp="${telefono.replace(/\D/g,'')}" data-mensaje="${Utils.escapeHTML(mensaje)}" title="Avisar al cliente por WhatsApp">${svgIcon('whatsapp')} Avisar retiro</button>`;
+}
+function bindBotonesAvisarRetiro(){
+  document.querySelectorAll('.btn-avisar-retiro').forEach(btn=>{
+    btn.onclick = () => abrirWhatsApp(btn.dataset.whatsapp, btn.dataset.mensaje);
+  });
+}
 // Los services cargados antes de esta función no tienen estadoEntrega/estadoPago: se
 // consideran ya entregados y pagados, para no generar saldos ni pendientes retroactivos falsos.
 function historialEstadoEntregaEfectivo(h){ return h.estadoEntrega || 'Entregado'; }
@@ -7995,12 +8035,12 @@ async function viewVehiculoDetalle(id){
       <div class="cfg-section-title" style="margin-bottom:0;">Historial de servicios <span class="badge badge-neutral">${historial.length}</span></div>
       ${puedeGestionar?`<button class="btn btn-accent btn-sm" id="btn-nuevo-service">${svgIcon('historial')} Nuevo service</button>`:''}
     </div>
-    ${historial.length ? `<div class="timeline">${historial.map(h=>historialTimelineCardHTML(h, vehiculo, puedeGestionar, verCosto)).join('')}</div>`
+    ${historial.length ? `<div class="timeline">${historial.map(h=>historialTimelineCardHTML(h, vehiculo, puedeGestionar, verCosto, cliente)).join('')}</div>`
       : `<div class="empty-state">${svgIcon('historial')}<h3>Sin servicios registrados</h3><p>Todavía no se cargó ningún service para este vehículo.</p></div>`}
   `;
 }
 
-function historialTimelineCardHTML(h, vehiculo, puedeGestionar, verCosto){
+function historialTimelineCardHTML(h, vehiculo, puedeGestionar, verCosto, cliente){
   const items = historialItemsRealizados(h);
   const margen = (h.precio||0) - (h.costo||0);
   const session = Session.get();
@@ -8023,6 +8063,7 @@ function historialTimelineCardHTML(h, vehiculo, puedeGestionar, verCosto){
         <button class="btn btn-ghost btn-sm btn-ver-historial" data-id="${h.id}">Ver detalle</button>
         ${puedeGestionar?`<button class="btn btn-ghost btn-sm btn-editar-historial" data-id="${h.id}">Editar</button>`:''}
         ${puedeGestionar?`<button class="btn btn-ghost btn-sm btn-salida-historial" data-id="${h.id}">${entregado?'Reingresar':'Dar salida'}</button>`:''}
+        ${puedeGestionar?botonAvisarRetiroHTML(h, cliente, vehiculo):''}
         ${(puedeCobrar && saldo>0.009)?`<button class="btn btn-accent btn-sm btn-cobrar-historial" data-id="${h.id}">Registrar pago</button>`:''}
         ${puedeGestionar?`<button class="btn btn-danger-ghost btn-sm btn-eliminar-historial" data-id="${h.id}">Eliminar</button>`:''}
       </div>
@@ -8047,6 +8088,7 @@ function bindVehiculoDetalleEvents(id){
 }
 
 function bindHistorialCardEvents(){
+  bindBotonesAvisarRetiro();
   document.querySelectorAll('.btn-ver-historial').forEach(btn=>{
     btn.onclick = async () => openHistorialDetailModal(await DB.get('historialServicios', Number(btn.dataset.id)));
   });
@@ -8454,6 +8496,7 @@ async function openHistorialModal(historial, vehiculo, prefill){
       if(it.productoId) await aplicarMovimientoStockProducto(it.productoId, -it.cantidad, `Service ${fecha} - ${vehiculo.dominio}`);
     }
 
+    const esNuevo = !historial;
     if(historial){
       await DB.put('historialServicios', { ...historial, ...payload, fechaEdicion:Utils.nowISO() });
       await Audit.log('historial_editado', `Service del ${fecha} editado (vehículo ${vehiculo.dominio}).`);
@@ -8485,6 +8528,13 @@ async function openHistorialModal(historial, vehiculo, prefill){
 
     Modal.close();
     router();
+
+    // Si es un service recién cargado (no una edición) y el cliente tiene WhatsApp
+    // cargado, se ofrece avisarle de inmediato que el vehículo está listo para retirar.
+    if(esNuevo){
+      const clienteDelService = await DB.get('clientes', vehiculo.clienteId);
+      if(telefonoWhatsappCliente(clienteDelService)) openAvisoVehiculoListoModal(clienteDelService, vehiculo);
+    }
   };
 }
 
@@ -8574,6 +8624,7 @@ async function viewHistorialList(){
               <td style="text-align:right; white-space:nowrap;">
                 <button class="btn btn-ghost btn-sm btn-ver-historial" data-id="${h.id}">Ver</button>
                 ${puedeGestionar?`<button class="btn btn-ghost btn-sm btn-editar-historial" data-id="${h.id}">Editar</button><button class="btn btn-ghost btn-sm btn-salida-historial" data-id="${h.id}">${entregado?'Reingresar':'Dar salida'}</button>`:''}
+                ${puedeGestionar?botonAvisarRetiroHTML(h, cli, veh):''}
                 ${(canCobrarHistorial(session.rol) && saldo>0.009)?`<button class="btn btn-accent btn-sm btn-cobrar-historial" data-id="${h.id}">Cobrar</button>`:''}
                 ${puedeGestionar?`<button class="btn btn-danger-ghost btn-sm btn-eliminar-historial" data-id="${h.id}">Eliminar</button>`:''}
               </td>
@@ -12509,6 +12560,21 @@ function abrirWhatsApp(telefono, mensaje){
   window.addEventListener('pagehide', marcarSalida, { once:true });
   window.location.href = urlApp;
   setTimeout(() => { if(!seFue) window.open(urlWeb, '_blank', 'noopener'); }, 1200);
+}
+/* Igual que abrirWhatsApp, pero sin destinatario fijo: se usa para mandar
+   informes/reportes, donde uno mismo elige a quién se los reenvía desde
+   el selector de contactos de WhatsApp (por ejemplo a uno mismo, al
+   contador, o a un grupo).
+   A diferencia de abrirWhatsApp, acá NO se usa el esquema "whatsapp://"
+   en mobile: ese esquema nativo es el que suele romper los emojis (sobre
+   todo los "astrales" de 4 bytes como 📊 💰 📈, que necesitan un par
+   subrogado en UTF-16) al pasarlos por texto plano al sistema operativo.
+   El link oficial https://wa.me/?text=... codifica todo correctamente en
+   UTF-8 y de todas formas abre la app en el celular a través de su propio
+   redirect, así que los emojis llegan intactos. */
+function abrirWhatsAppInforme(mensaje){
+  const texto = encodeURIComponent(mensaje||'');
+  window.open(`https://wa.me/?text=${texto}`, '_blank', 'noopener');
 }
 function generarQRSvg(texto, cellSize=3, margin=1){
   if(!texto) return '';
@@ -18055,13 +18121,16 @@ async function viewGraficos(){
       Volver al Dashboard
     </a>
     <div class="page-header"><div><h1>Gráficos</h1><p>Facturación cobrada (Caja) — las ventas a cuenta corriente entran recién cuando el cliente paga</p></div></div>
-    <div class="cfg-tabs" style="flex-direction:row; flex-wrap:wrap; width:auto; margin-bottom:16px;" id="graficos-tabs">
-      <button class="cfg-tab" data-tab="semana">Semana</button>
-      <button class="cfg-tab" data-tab="semanas">Últimas semanas</button>
-      <button class="cfg-tab" data-tab="mensual">Mensual</button>
-      <button class="cfg-tab" data-tab="anual">Anual</button>
-      <button class="cfg-tab" data-tab="objetivos">Planificación de ventas</button>
-      <button class="cfg-tab" data-tab="proyeccion">Proyección mensual</button>
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:16px;">
+      <div class="cfg-tabs" style="flex-direction:row; flex-wrap:wrap; width:auto; margin-bottom:0;" id="graficos-tabs">
+        <button class="cfg-tab" data-tab="semana">Semana</button>
+        <button class="cfg-tab" data-tab="semanas">Últimas semanas</button>
+        <button class="cfg-tab" data-tab="mensual">Mensual</button>
+        <button class="cfg-tab" data-tab="anual">Anual</button>
+        <button class="cfg-tab" data-tab="objetivos">Planificación de ventas</button>
+        <button class="cfg-tab" data-tab="proyeccion">Proyección mensual</button>
+      </div>
+      <button class="btn btn-ghost btn-sm" id="gr-btn-informe-wa" title="Enviar este informe por WhatsApp">${svgIcon('whatsapp')} Enviar informe</button>
     </div>
     <div id="graficos-content"></div>
   `;
@@ -18072,6 +18141,8 @@ async function bindGraficosEvents(){
   document.querySelectorAll('#graficos-tabs .cfg-tab').forEach(btn=>{
     btn.onclick = () => { graficosTab = btn.dataset.tab; renderGraficosTab(); };
   });
+  const btnInformeWA = document.getElementById('gr-btn-informe-wa');
+  if(btnInformeWA) btnInformeWA.onclick = enviarInformeGraficosWhatsApp;
   await renderGraficosTab();
 }
 async function renderGraficosTab(){
@@ -18084,6 +18155,48 @@ async function renderGraficosTab(){
   else if(graficosTab==='objetivos'){ cont.innerHTML = await graficosObjetivosHTML(); bindGraficosObjetivosEvents(); drawGraficosObjetivosChart(); }
   else if(graficosTab==='proyeccion'){ cont.innerHTML = await graficosProyeccionHTML(); bindGraficosProyeccionEvents(); drawGraficosProyeccionChart(); }
   else{ cont.innerHTML = await graficosSemanaHTML(); bindGraficosSemanaEvents(); drawGraficosSemanaChart(); }
+}
+
+/* Arma un texto de informe con la facturación del período que esté activo
+   en ese momento en el módulo Gráficos (Semana / Últimas semanas / Mensual
+   / Anual) y lo abre en WhatsApp para reenviarlo a quien haga falta —
+   uno mismo, el contador, etc. Reutiliza los datos ya calculados en
+   graficosChartData, sin volver a consultar la base. */
+function enviarInformeGraficosWhatsApp(){
+  const tab = graficosTab;
+  const d = graficosChartData[tab];
+  if(!d || !d.valores || !d.valores.length){ Toast.show('error','Sin datos','Todavía no se generó el gráfico de este período.'); return; }
+
+  let titulo, subtitulo = '';
+  if(tab==='semana'){
+    const fin = sumarDias(graficosSemanaSeleccionada, 6);
+    titulo = 'Semanal';
+    subtitulo = `${new Date(graficosSemanaSeleccionada+'T00:00:00').toLocaleDateString('es-AR')} — ${new Date(fin+'T00:00:00').toLocaleDateString('es-AR')}`;
+  } else if(tab==='semanas'){
+    titulo = `Últimas ${graficosSemanasCount} semanas`;
+  } else if(tab==='mensual'){
+    titulo = 'Mensual — últimos 12 meses';
+  } else if(tab==='anual'){
+    titulo = 'Anual';
+  } else {
+    Toast.show('info','No disponible','El informe por WhatsApp está disponible para Semana, Últimas semanas, Mensual y Anual.');
+    return;
+  }
+
+  const total = d.valores.reduce((a,b)=>a+b,0);
+  const promedio = total / d.valores.length;
+  const cfg = Config.cache || {};
+
+  let texto = `*Informe de facturación — ${titulo}*\n`;
+  texto += `${cfg.nombreEmpresa || 'Check Service'}\n`;
+  if(subtitulo) texto += `${subtitulo}\n`;
+  texto += '\n';
+  d.labels.forEach((lab,i)=>{ texto += `${lab}: $${Math.round(d.valores[i]).toLocaleString('es-AR')}\n`; });
+  texto += '\n';
+  texto += `✅ *Total:* $${Math.round(total).toLocaleString('es-AR')}\n`;
+  texto += `✅ *Promedio:* $${Math.round(promedio).toLocaleString('es-AR')}`;
+
+  abrirWhatsAppInforme(texto);
 }
 
 /* ---------- Tab: Semana (facturación diaria) ---------- */
