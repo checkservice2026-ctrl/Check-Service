@@ -13803,6 +13803,7 @@ async function openCompraModal(estadoPrevio=null, borradorId=null){
       </div>
       <div class="field" id="cf-montoPagado-wrap" style="display:${estadoPrevio&&estadoPrevio.estadoPago==='Parcial'?'':'none'};"><label>Monto pagado ahora</label><input type="number" min="0" step="0.01" id="cf-montoPagado" value="${estadoPrevio?estadoPrevio.montoPagado:0}"></div>
     </div>
+    <div class="field" id="cf-medioPago-wrap" style="display:${estadoPrevio&&estadoPrevio.estadoPago&&estadoPrevio.estadoPago!=='Pendiente'?'':'none'};"><label>Medio de pago (del monto pagado ahora)</label><select class="select-input" id="cf-medioPago">${MEDIOS_PAGO.filter(m=>m!=='Cuenta corriente').map(m=>`<option value="${m}" ${estadoPrevio&&estadoPrevio.medioPago===m?'selected':''}>${m}</option>`).join('')}</select></div>
     <div class="field"><label>Fecha de vencimiento (opcional)</label><input type="date" id="cf-fechaVencimiento" value="${estadoPrevio&&estadoPrevio.fechaVencimiento?estadoPrevio.fechaVencimiento:''}"></div>
     <div class="field"><label>Observaciones</label><textarea class="textarea-input" id="cf-observaciones">${estadoPrevio?Utils.escapeHTML(estadoPrevio.observaciones):''}</textarea></div>
     <div class="modal-actions"><button class="btn btn-ghost" id="cf-cancel">Cancelar</button><button class="btn btn-accent" id="cf-save">Guardar compra</button></div>
@@ -13819,6 +13820,7 @@ async function openCompraModal(estadoPrevio=null, borradorId=null){
       descuento: Number(document.getElementById('cf-descuento').value)||0,
       estadoPago: document.getElementById('cf-estadoPago').value,
       montoPagado: Number(document.getElementById('cf-montoPagado').value)||0,
+      medioPago: document.getElementById('cf-medioPago') ? document.getElementById('cf-medioPago').value : 'Efectivo',
       fechaVencimiento: document.getElementById('cf-fechaVencimiento').value || null,
       observaciones: document.getElementById('cf-observaciones').value.trim()
     };
@@ -13887,6 +13889,7 @@ async function openCompraModal(estadoPrevio=null, borradorId=null){
   document.getElementById('cf-descuento').addEventListener('input', updateTotales);
   document.getElementById('cf-estadoPago').addEventListener('change', (e)=>{
     document.getElementById('cf-montoPagado-wrap').style.display = e.target.value==='Parcial' ? '' : 'none';
+    document.getElementById('cf-medioPago-wrap').style.display = e.target.value==='Pendiente' ? 'none' : '';
   });
 
   /* Guardado automático como borrador de compra: se dispara al cerrar el
@@ -13912,12 +13915,13 @@ async function openCompraModal(estadoPrevio=null, borradorId=null){
     const subtotal = compraItems.reduce((acc,it)=>acc+it.cantidad*it.costoUnitario,0);
     const total = Math.max(0, subtotal-descuento);
     const estadoPago = document.getElementById('cf-estadoPago').value;
+    const medioPago = document.getElementById('cf-medioPago') ? document.getElementById('cf-medioPago').value : 'Efectivo';
     const session = Session.get();
 
     const payload = {
       proveedorId, fecha, numeroFactura,
       items: compraItems.map(it=>({ productoId:it.productoId, nombre:it.nombre, cantidad:it.cantidad, costoUnitario:it.costoUnitario, subtotal:it.cantidad*it.costoUnitario })),
-      subtotal, descuento, total, estadoPago, montoPagado:0,
+      subtotal, descuento, total, estadoPago, montoPagado:0, medioPago,
       fechaVencimiento: document.getElementById('cf-fechaVencimiento').value || null,
       observaciones,
       esBorrador: true
@@ -13954,12 +13958,13 @@ async function openCompraModal(estadoPrevio=null, borradorId=null){
       montoPagado = Number(document.getElementById('cf-montoPagado').value)||0;
       if(montoPagado<=0 || montoPagado>=total){ Toast.show('error','Monto inválido','El pago parcial debe ser mayor a 0 y menor al total.'); return; }
     }
+    const medioPago = document.getElementById('cf-medioPago') ? document.getElementById('cf-medioPago').value : 'Efectivo';
 
     const session = Session.get();
     const compraId = await DB.add('compras', {
       proveedorId, fecha, numeroFactura,
       items: compraItems.map(it=>({ productoId:it.productoId, nombre:it.nombre, cantidad:it.cantidad, costoUnitario:it.costoUnitario, subtotal:it.cantidad*it.costoUnitario })),
-      subtotal, descuento, total, estadoPago, montoPagado, estado:'activa',
+      subtotal, descuento, total, estadoPago, montoPagado, medioPago, estado:'activa',
       fechaVencimiento: document.getElementById('cf-fechaVencimiento').value || null,
       observaciones: document.getElementById('cf-observaciones').value.trim(),
       fechaCreacion: Utils.nowISO(), usuarioId:session.usuarioId, usuarioNombre:session.nombre
@@ -13979,7 +13984,7 @@ async function openCompraModal(estadoPrevio=null, borradorId=null){
     }
 
     if(montoPagado>0){
-      await registrarMovimientoCaja({ tipo:'egreso', concepto:`Pago a proveedor ${proveedor.nombre}${numeroFactura?' - Factura '+numeroFactura:''}`, monto:montoPagado, medioPago:'Transferencia', referencia:`compra:${compraId}` });
+      await registrarMovimientoCaja({ tipo:'egreso', concepto:`Pago a proveedor ${proveedor.nombre}${numeroFactura?' - Factura '+numeroFactura:''}`, monto:montoPagado, medioPago, referencia:`compra:${compraId}` });
     }
 
     if(borradorId) await DB.del('compras', borradorId);
@@ -14036,7 +14041,7 @@ async function openCompraEditarModal(compra){
       </div>
       <div class="field" id="ce-montoPagado-wrap" style="display:${compra.estadoPago==='Parcial'?'':'none'};"><label>Monto pagado</label><input type="number" min="0" step="0.01" id="ce-montoPagado" value="${compra.montoPagado||0}"></div>
     </div>
-    <div class="field" id="ce-medioPago-wrap" style="display:${compra.montoPagado>0?'':'none'};"><label>Medio de pago (del monto pagado)</label><select class="select-input" id="ce-medioPago">${MEDIOS_PAGO.filter(m=>m!=='Cuenta corriente').map(m=>`<option value="${m}">${m}</option>`).join('')}</select></div>
+    <div class="field" id="ce-medioPago-wrap" style="display:${compra.montoPagado>0?'':'none'};"><label>Medio de pago (del monto pagado)</label><select class="select-input" id="ce-medioPago">${MEDIOS_PAGO.filter(m=>m!=='Cuenta corriente').map(m=>`<option value="${m}" ${(compra.medioPago||'Transferencia')===m?'selected':''}>${m}</option>`).join('')}</select></div>
     <div class="field"><label>Fecha de vencimiento (opcional)</label><input type="date" id="ce-fechaVencimiento" value="${compra.fechaVencimiento||''}"></div>
     <div class="field"><label>Observaciones</label><textarea class="textarea-input" id="ce-observaciones">${Utils.escapeHTML(compra.observaciones||'')}</textarea></div>
     <div class="modal-actions"><button class="btn btn-ghost" id="ce-cancel">Cancelar</button><button class="btn btn-accent" id="ce-save">Guardar cambios</button></div>
@@ -14099,6 +14104,7 @@ async function openCompraEditarModal(compra){
   document.getElementById('ce-descuento').addEventListener('input', updateTotales);
   document.getElementById('ce-estadoPago').addEventListener('change', (e)=>{
     document.getElementById('ce-montoPagado-wrap').style.display = e.target.value==='Parcial' ? '' : 'none';
+    document.getElementById('ce-medioPago-wrap').style.display = e.target.value==='Pendiente' ? 'none' : '';
   });
   document.getElementById('ce-cancel').onclick = () => Modal.close();
   document.getElementById('ce-save').onclick = async () => {
@@ -14147,7 +14153,7 @@ async function openCompraEditarModal(compra){
     const compraActualizada = {
       ...compra, proveedorId, fecha, numeroFactura,
       items: items.map(it=>({ productoId:it.productoId, nombre:it.nombre, cantidad:it.cantidad, costoUnitario:it.costoUnitario, subtotal:it.cantidad*it.costoUnitario })),
-      subtotal, descuento, total, estadoPago, montoPagado,
+      subtotal, descuento, total, estadoPago, montoPagado, medioPago,
       fechaVencimiento: document.getElementById('ce-fechaVencimiento').value || null,
       observaciones: document.getElementById('ce-observaciones').value.trim(),
       fechaEdicion: Utils.nowISO()
@@ -14283,7 +14289,7 @@ async function reactivarCompra(compra){
   const proveedor = await DB.get('proveedores', compra.proveedorId);
   const ref = compra.numeroFactura ? 'Factura Nº '+compra.numeroFactura : '#'+compra.id;
   if(!confirm(`¿Reactivar la compra ${ref}? Se va a volver a ingresar el stock${compra.montoPagado>0?' y a registrar nuevamente el pago en Caja':''}.`)) return;
-  await aplicarEfectosCompra(compra, `Reactivación de compra ${ref}`);
+  await aplicarEfectosCompra(compra, `Reactivación de compra ${ref}`, compra.medioPago || 'Efectivo');
   await DB.put('compras', { ...compra, estado:'activa', fechaAnulacion:null });
   await Audit.log('compra_reactivada', `Compra ${ref} a ${proveedor?proveedor.nombre:''} reactivada.`);
   Toast.show('success','Compra reactivada','');
