@@ -1007,6 +1007,11 @@ details[open] > summary > .apl-tree-arrow{ transform:rotate(90deg); }
 .bg-row{ display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--border-soft); font-size:13px; }
 .bg-row-total{ font-weight:800; font-size:14px; border-bottom:none; border-top:2px solid var(--border-soft); margin-top:4px; padding-top:10px; }
 @media (max-width: 720px){ .bg-columns{ grid-template-columns:1fr; gap:20px; } }
+@media (max-width: 720px){
+  #backup-banner{ flex-direction:column; align-items:flex-start; padding:14px 16px; }
+  #backup-banner .bb-actions{ width:100%; }
+  #backup-banner .bb-actions .btn{ flex:1; }
+}
 .autocomplete-item{ padding:9px 12px; font-size:12.5px; cursor:pointer; }
 .autocomplete-item:hover{ background:var(--bg-panel-alt); }
 
@@ -1050,8 +1055,8 @@ details[open] > summary > .apl-tree-arrow{ transform:rotate(90deg); }
 }
 #backup-banner.danger{ background:var(--danger-dim); color:var(--danger); border-bottom-color:rgba(229,72,77,.3); }
 #backup-banner svg{ width:16px; height:16px; flex-shrink:0; }
-#backup-banner .bb-msg{ flex:1; }
-#backup-banner .bb-actions{ display:flex; gap:8px; }
+#backup-banner .bb-msg{ flex:1; min-width:0; }
+#backup-banner .bb-actions{ display:flex; gap:8px; flex-shrink:0; }
 .backup-status-card{ display:flex; align-items:center; gap:14px; }
 .backup-status-dot{ width:12px; height:12px; border-radius:50%; flex-shrink:0; }
 
@@ -1120,6 +1125,12 @@ details[open] > summary > .apl-tree-arrow{ transform:rotate(90deg); }
     -webkit-overflow-scrolling:touch;
   }
   .cfg-tab{ white-space:nowrap; flex-shrink:0; }
+  /* Sub-tabs sueltos (Gráficos, Kardex, Lavadero, etc.) que en desktop se
+     angostan a su contenido (width:auto) al lado de otro botón: en mobile
+     fuerzan overflow-x:auto y terminan con pestañas invisibles fuera de
+     pantalla. Se pisa ese ancho para que el flex-wrap:wrap ya declarado
+     inline realmente pase las pestañas sobrantes a una segunda línea. */
+  .cfg-tabs[style*="width:auto"]{ width:100% !important; overflow-x:visible !important; }
   .nav-item{ padding:12px 11px; }
   .btn{ padding:11px 16px; }
   .btn-sm{ padding:9px 12px; }
@@ -4701,7 +4712,7 @@ async function viewConfiguracion(){
                   <div style="font-weight:700; font-size:14px;">📁 ${Utils.escapeHTML(prefLocal.backupDirNombre||'—')}</div>
                   ${permisoCarpeta!=='granted' ? `<div style="font-size:11.5px; color:var(--danger); margin-top:4px;">El permiso de escritura no está activo — el backup automático está pausado.</div>` : `<div style="font-size:11.5px; color:var(--teal); margin-top:4px;">Activo${prefLocal.ultimoBackupAutoFecha?` — último backup automático: ${prefLocal.ultimoBackupAutoFecha}`:' — todavía no se hizo ningún backup automático'}</div>`}
                 </div>
-                <div style="display:flex; gap:8px;">
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
                   ${permisoCarpeta!=='granted' ? `<button class="btn btn-accent btn-sm" id="btn-reautorizar-carpeta-backup">Reautorizar</button>` : ''}
                   <button class="btn btn-ghost btn-sm" id="btn-cambiar-carpeta-backup">Cambiar carpeta</button>
                   <button class="btn btn-danger-ghost btn-sm" id="btn-quitar-carpeta-backup">Quitar</button>
@@ -5586,7 +5597,7 @@ function campanaFiltrosFormHTML(f={}){
       <div class="field"><label>Gasto mínimo histórico ($)</label><input type="number" min="0" id="camf-gastoMin" value="${f.gastoMin||''}"></div>
       <div class="field"><label>Gasto máximo histórico ($)</label><input type="number" min="0" id="camf-gastoMax" value="${f.gastoMax||''}"></div>
       <div class="field"><label>Categoría sin comprar hace más de</label>
-        <div style="display:flex; gap:8px;">
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <select class="select-input" id="camf-categoriaProducto"><option value="">Sin filtro</option>${CATEGORIAS_PRODUCTO.map(c=>`<option value="${c}" ${f.categoriaProducto===c?'selected':''}>${c}</option>`).join('')}</select>
           <input type="number" min="0" id="camf-mesesSinComprar" placeholder="meses" value="${f.mesesSinComprar||''}" style="width:90px;">
         </div>
@@ -6637,7 +6648,7 @@ async function viewCRMHome(){
   return `
     <div class="page-header">
       <div><h1>CRM</h1><p>Vista general de la relación con tus clientes</p></div>
-      <div style="display:flex; gap:8px;">
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <a href="#/crmestadisticas" class="btn btn-ghost">${svgIcon('reportes')} Ver estadísticas</a>
         <button class="btn btn-accent" id="btn-crm-nuevo-cliente">${svgIcon('clientes')} Nuevo cliente</button>
       </div>
@@ -6928,7 +6939,7 @@ async function viewClienteDetalle(id){
   const ctaCteClienteHTML = `
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
       <div><div style="font-size:11.5px; color:var(--text-muted);">Saldo actual</div><div style="font-size:22px; font-weight:700;" class="${saldoCtaCte>0?'saldo-deudor':'saldo-cero'}">$${saldoCtaCte.toLocaleString('es-AR')}</div></div>
-      <div style="display:flex; gap:8px;">
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <button class="btn btn-ghost btn-sm" id="btn-estado-cuenta-ficha">Imprimir estado de cuenta</button>
         ${puedeCobrar?`<button class="btn btn-ghost btn-sm" id="btn-nota-credito-ficha">Nota de crédito</button>`:''}
         ${Session.get().rol==='Administrador'?`<button class="btn btn-ghost btn-sm" id="btn-limite-ctacte-cliente">${svgIcon('gear')} Límite de crédito</button>`:''}
@@ -11301,8 +11312,10 @@ async function viewStockList(){
             <td>${p.stockMinimo}</td>
             <td>${stockBadgeHTML(p)}</td>
             <td style="text-align:right; white-space:nowrap;">
-              <a class="btn btn-ghost btn-sm" href="#/productos/${p.id}">Kardex</a>
-              ${puedeAjustar?`<button class="btn btn-accent btn-sm btn-ajustar-stock" data-id="${p.id}">Ajustar</button>`:''}
+              ${accionesFilaHTML(`
+                <a class="btn btn-ghost btn-sm" href="#/productos/${p.id}">Kardex</a>
+                ${puedeAjustar?`<button class="btn btn-accent btn-sm btn-ajustar-stock" data-id="${p.id}">Ajustar</button>`:''}
+              `)}
             </td>
           </tr>`;
           }).join('') : `<tr><td colspan="7"><div class="empty-state">${svgIcon('stock')}<h3>Sin productos activos</h3></div></td></tr>`}
@@ -11313,6 +11326,7 @@ async function viewStockList(){
 }
 
 function bindStockListEvents(){
+  bindAccionesFilaButtons();
   document.querySelectorAll('.btn-ajustar-stock').forEach(btn=>{
     btn.onclick = async () => openAjusteStockModal(await DB.get('productos', Number(btn.dataset.id)));
   });
@@ -11930,7 +11944,7 @@ async function viewPOS(){
   return `
     <div class="page-header">
       <div><h1>Punto de Venta</h1><p>Vendé productos y generá el comprobante al instante</p></div>
-      <div style="display:flex; gap:8px;">
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <button class="btn btn-ghost btn-sm" id="btn-pos-nueva-pestana">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg>
           Abrir en pestaña nueva
@@ -13108,7 +13122,7 @@ function ctaCteProveedorHTML(proveedor, movimientosAsc, saldoActual){
   return `
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
       <div><div style="font-size:11.5px; color:var(--text-muted);">Deuda actual</div><div style="font-size:22px; font-weight:700;" class="${saldoActual>0.009?'saldo-deudor':'saldo-cero'}">$${saldoActual.toLocaleString('es-AR')}</div></div>
-      <div style="display:flex; gap:8px;">
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
         ${saldoActual>0.009?`<button class="btn btn-accent btn-sm" id="pcc-registrar-pago">${svgIcon('caja')} Registrar pago</button>`:''}
         ${esAdministrador?`<button class="btn btn-ghost btn-sm" id="pcc-ajustar-saldo">${svgIcon('gear')} Ajustar saldo</button>`:''}
       </div>
@@ -14377,7 +14391,7 @@ async function viewCajaList(){
   return `
     <div class="page-header">
       <div><h1>Caja</h1><p>Movimientos de ingresos y egresos del negocio</p></div>
-      <div style="display:flex; gap:8px;">
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
         ${session.rol==='Administrador'?`<button class="btn btn-ghost" id="btn-ajustar-saldo-caja">${svgIcon('gear')} Ajustar saldo</button>`:''}
         <button class="btn btn-ghost" id="btn-nuevo-mov-caja">${svgIcon('caja')} Nuevo movimiento</button>
         <button class="btn btn-ghost" id="btn-resumen-dia">${svgIcon('reportes')} Resumen del día</button>
@@ -15113,7 +15127,7 @@ async function viewGastosList(){
   return `
     <div class="page-header">
       <div><h1>Gastos</h1><p>Gastos fijos y variables del negocio, separados de las compras a proveedores</p></div>
-      <div style="display:flex; gap:8px;">
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
         ${canGestionarCategoriasGastos(Session.get().rol)?`<button class="btn btn-ghost" id="btn-categorias-gastos">${svgIcon('gear')} Categorías</button>`:''}
         <button class="btn btn-accent" id="btn-nuevo-gasto">${svgIcon('gastos')} Nuevo gasto</button>
       </div>
