@@ -403,6 +403,21 @@ a{ color:inherit; text-decoration:none; }
 .dropdown-item.danger{ color:var(--danger); }
 .dropdown-sep{ height:1px; background:var(--border-soft); margin:6px 4px; }
 
+/* Menú "Acciones" por fila de tabla — junta varios botones sueltos en un solo
+   desplegable para no saturar la fila. Se posiciona con position:fixed vía JS
+   (ver bindRowActionsButtons) para no quedar recortado por el overflow del
+   contenedor de la tabla, sin importar en qué fila esté. */
+.row-actions-wrap{ position:relative; display:inline-block; }
+.row-actions-btn svg{ width:13px; height:13px; margin-left:2px; transition:transform .15s ease; }
+.row-actions-btn.open svg{ transform:rotate(180deg); }
+.row-actions-menu{
+  display:none; position:fixed; z-index:600; min-width:172px;
+  background:var(--bg-panel-raised); border:1px solid var(--border); border-radius:11px;
+  box-shadow:var(--shadow-lift); padding:6px; flex-direction:column; gap:2px;
+}
+.row-actions-menu.open{ display:flex; }
+.row-actions-menu .btn{ width:100%; justify-content:flex-start; white-space:nowrap; }
+
 #view-outlet{ flex:1; overflow-y:auto; padding:24px 26px 40px; }
 
 /* Componentes reutilizables */
@@ -3933,9 +3948,11 @@ async function viewUsuarios(){
               <td>${estadoBadge}</td>
               <td style="color:var(--text-muted); font-size:12px;">${u.ultimoAcceso?Utils.fmtFecha(u.ultimoAcceso):'Nunca'}</td>
               <td style="text-align:right; white-space:nowrap;">
-                ${bloqueado?`<button class="btn btn-ghost btn-sm btn-unlock" data-id="${u.id}">Desbloquear</button>`:''}
-                <button class="btn btn-ghost btn-sm btn-edit-user" data-id="${u.id}">Editar</button>
-                <button class="btn btn-danger-ghost btn-sm btn-delete-user" data-id="${u.id}">Eliminar</button>
+                ${accionesFilaHTML(`
+                  ${bloqueado?`<button class="btn btn-ghost btn-sm btn-unlock" data-id="${u.id}">Desbloquear</button>`:''}
+                  <button class="btn btn-ghost btn-sm btn-edit-user" data-id="${u.id}">Editar</button>
+                  <button class="btn btn-danger-ghost btn-sm btn-delete-user" data-id="${u.id}">Eliminar</button>
+                `)}
               </td>
             </tr>`;
           }).join('')}
@@ -4028,6 +4045,7 @@ function openUserModal(user=null){
 }
 
 function bindUsuariosEvents(){
+  bindAccionesFilaButtons();
   document.getElementById('btn-nuevo-usuario').onclick = () => openUserModal();
   document.querySelectorAll('.btn-edit-user').forEach(btn=>{
     btn.onclick = async () => openUserModal(await DB.get('usuarios', Number(btn.dataset.id)));
@@ -6682,8 +6700,10 @@ async function viewClientesList(){
               <td>${countByCliente[c.id]||0}</td>
               <td>${c.activo!==false?`<span class="badge badge-ok">Activo</span>`:`<span class="badge badge-neutral">Baja</span>`}</td>
               <td style="text-align:right; white-space:nowrap;">
-                <a class="btn btn-ghost btn-sm" href="#/clientes/${c.id}">Ver</a>
-                <button class="btn btn-ghost btn-sm btn-edit-cliente" data-id="${c.id}">Editar</button>
+                ${accionesFilaHTML(`
+                  <a class="btn btn-ghost btn-sm" href="#/clientes/${c.id}">Ver</a>
+                  <button class="btn btn-ghost btn-sm btn-edit-cliente" data-id="${c.id}">Editar</button>
+                `)}
               </td>
             </tr>`;
           }).join('') : `<tr><td colspan="8"><div class="empty-state">${svgIcon('clientes')}<h3>Todavía no hay clientes cargados</h3><p>Registrá tu primer cliente para empezar a asociarle vehículos y, más adelante, su historial de servicios.</p></div></td></tr>`}
@@ -6694,6 +6714,7 @@ async function viewClientesList(){
 }
 
 function bindClientesListEvents(){
+  bindAccionesFilaButtons();
   document.getElementById('btn-nuevo-cliente').onclick = () => openClienteModal();
   document.querySelectorAll('.btn-edit-cliente').forEach(btn=>{
     btn.onclick = async (e) => { e.preventDefault(); openClienteModal(await DB.get('clientes', Number(btn.dataset.id))); };
@@ -7410,8 +7431,10 @@ async function viewVehiculosList(){
               <td>${v.kilometraje?Number(v.kilometraje).toLocaleString('es-AR')+' km':'—'}</td>
               <td>${v.activo!==false?`<span class="badge badge-ok">Activo</span>`:`<span class="badge badge-neutral">Baja</span>`}</td>
               <td style="text-align:right; white-space:nowrap;">
-                <button class="btn btn-ghost btn-sm btn-edit-vehiculo-global" data-id="${v.id}">Editar</button>
-                <button class="btn ${v.activo===false?'btn-ghost':'btn-danger-ghost'} btn-sm btn-toggle-baja-vehiculo" data-id="${v.id}">${v.activo===false?'Alta':'Baja'}</button>
+                ${accionesFilaHTML(`
+                  <button class="btn btn-ghost btn-sm btn-edit-vehiculo-global" data-id="${v.id}">Editar</button>
+                  <button class="btn ${v.activo===false?'btn-ghost':'btn-danger-ghost'} btn-sm btn-toggle-baja-vehiculo" data-id="${v.id}">${v.activo===false?'Alta':'Baja'}</button>
+                `)}
               </td>
             </tr>`;
           }).join('') : `<tr><td colspan="8"><div class="empty-state">${svgIcon('vehiculos')}<h3>Todavía no hay vehículos cargados</h3><p>Los vehículos se registran asociados a un cliente. Podés crearlos desde acá o desde la ficha del cliente.</p></div></td></tr>`}
@@ -7422,6 +7445,7 @@ async function viewVehiculosList(){
 }
 
 function bindVehiculosListEvents(){
+  bindAccionesFilaButtons();
   document.getElementById('btn-nuevo-vehiculo').onclick = () => openVehiculoModal();
   document.querySelectorAll('.btn-edit-vehiculo-global').forEach(btn=>{
     btn.onclick = async () => openVehiculoModal(await DB.get('vehiculos', Number(btn.dataset.id)));
@@ -7715,6 +7739,51 @@ function botonAvisarRetiroHTML(h, cliente, vehiculo){
   if(entregado || !telefono) return '';
   const mensaje = mensajeVehiculoListo(cliente, vehiculo);
   return `<button class="btn btn-ghost btn-sm btn-avisar-retiro" data-whatsapp="${telefono.replace(/\D/g,'')}" data-mensaje="${Utils.escapeHTML(mensaje)}" title="Avisar al cliente por WhatsApp">${svgIcon('whatsapp')} Avisar retiro</button>`;
+}
+/* Envuelve un grupo de botones de acciones de fila (tabla) en un único botón
+   "Acciones" con desplegable, para no llenar la fila de botones sueltos.
+   `botonesHTML` es el HTML de los botones tal cual ya se armaba antes (se
+   renderizan sin cambios adentro del panel). Si viene vacío no se muestra nada. */
+function accionesFilaHTML(botonesHTML){
+  if(!botonesHTML || !botonesHTML.trim()) return '';
+  return `<div class="row-actions-wrap">
+    <button type="button" class="btn btn-ghost btn-sm row-actions-btn">Acciones <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+    <div class="row-actions-menu">${botonesHTML}</div>
+  </div>`;
+}
+function cerrarMenusAccionesFila(){
+  document.querySelectorAll('.row-actions-menu.open').forEach(m=>m.classList.remove('open'));
+  document.querySelectorAll('.row-actions-btn.open').forEach(b=>b.classList.remove('open'));
+}
+function initAccionesFilaGlobal(){
+  if(window._accionesFilaGlobalInit) return;
+  window._accionesFilaGlobalInit = true;
+  document.addEventListener('click', cerrarMenusAccionesFila);
+  document.addEventListener('scroll', cerrarMenusAccionesFila, true);
+  window.addEventListener('resize', cerrarMenusAccionesFila);
+}
+function bindAccionesFilaButtons(){
+  initAccionesFilaGlobal();
+  document.querySelectorAll('.row-actions-btn').forEach(btn=>{
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const menu = btn.nextElementSibling;
+      const yaAbierto = menu.classList.contains('open');
+      cerrarMenusAccionesFila();
+      if(yaAbierto) return;
+      menu.classList.add('open');
+      btn.classList.add('open');
+      const rect = btn.getBoundingClientRect();
+      const mw = menu.offsetWidth, mh = menu.offsetHeight;
+      let left = rect.right - mw;
+      if(left < 8) left = 8;
+      if(left + mw > window.innerWidth - 8) left = Math.max(8, window.innerWidth - mw - 8);
+      let top = rect.bottom + 4;
+      if(top + mh > window.innerHeight - 8) top = rect.top - mh - 4;
+      menu.style.left = left + 'px';
+      menu.style.top = top + 'px';
+    };
+  });
 }
 function bindBotonesAvisarRetiro(){
   document.querySelectorAll('.btn-avisar-retiro').forEach(btn=>{
@@ -8060,12 +8129,14 @@ function historialTimelineCardHTML(h, vehiculo, puedeGestionar, verCosto, client
         : (h.precio?`<div style="font-size:12.5px; margin-top:6px;">Precio: <b>$${Number(h.precio).toLocaleString('es-AR')}</b></div>`:'')}
       ${saldo>0.009?`<div style="font-size:12px; color:var(--danger); margin-top:4px;">Saldo pendiente: $${saldo.toLocaleString('es-AR')}</div>`:''}
       <div class="timeline-actions">
-        <button class="btn btn-ghost btn-sm btn-ver-historial" data-id="${h.id}">Ver detalle</button>
-        ${puedeGestionar?`<button class="btn btn-ghost btn-sm btn-editar-historial" data-id="${h.id}">Editar</button>`:''}
-        ${puedeGestionar?`<button class="btn btn-ghost btn-sm btn-salida-historial" data-id="${h.id}">${entregado?'Reingresar':'Dar salida'}</button>`:''}
-        ${puedeGestionar?botonAvisarRetiroHTML(h, cliente, vehiculo):''}
-        ${(puedeCobrar && saldo>0.009)?`<button class="btn btn-accent btn-sm btn-cobrar-historial" data-id="${h.id}">Registrar pago</button>`:''}
-        ${puedeGestionar?`<button class="btn btn-danger-ghost btn-sm btn-eliminar-historial" data-id="${h.id}">Eliminar</button>`:''}
+        ${accionesFilaHTML(`
+          <button class="btn btn-ghost btn-sm btn-ver-historial" data-id="${h.id}">Ver detalle</button>
+          ${puedeGestionar?`<button class="btn btn-ghost btn-sm btn-editar-historial" data-id="${h.id}">Editar</button>`:''}
+          ${puedeGestionar?`<button class="btn btn-ghost btn-sm btn-salida-historial" data-id="${h.id}">${entregado?'Reingresar':'Dar salida'}</button>`:''}
+          ${puedeGestionar?botonAvisarRetiroHTML(h, cliente, vehiculo):''}
+          ${(puedeCobrar && saldo>0.009)?`<button class="btn btn-accent btn-sm btn-cobrar-historial" data-id="${h.id}">Registrar pago</button>`:''}
+          ${puedeGestionar?`<button class="btn btn-danger-ghost btn-sm btn-eliminar-historial" data-id="${h.id}">Eliminar</button>`:''}
+        `)}
       </div>
     </div>
   </div>`;
@@ -8088,6 +8159,7 @@ function bindVehiculoDetalleEvents(id){
 }
 
 function bindHistorialCardEvents(){
+  bindAccionesFilaButtons();
   bindBotonesAvisarRetiro();
   document.querySelectorAll('.btn-ver-historial').forEach(btn=>{
     btn.onclick = async () => openHistorialDetailModal(await DB.get('historialServicios', Number(btn.dataset.id)));
@@ -8622,11 +8694,13 @@ async function viewHistorialList(){
               <td>${historialEntregaBadge(h)}</td>
               <td>${estadoPagoBadge(historialEstadoPagoEfectivo(h))}</td>
               <td style="text-align:right; white-space:nowrap;">
-                <button class="btn btn-ghost btn-sm btn-ver-historial" data-id="${h.id}">Ver</button>
-                ${puedeGestionar?`<button class="btn btn-ghost btn-sm btn-editar-historial" data-id="${h.id}">Editar</button><button class="btn btn-ghost btn-sm btn-salida-historial" data-id="${h.id}">${entregado?'Reingresar':'Dar salida'}</button>`:''}
-                ${puedeGestionar?botonAvisarRetiroHTML(h, cli, veh):''}
-                ${(canCobrarHistorial(session.rol) && saldo>0.009)?`<button class="btn btn-accent btn-sm btn-cobrar-historial" data-id="${h.id}">Cobrar</button>`:''}
-                ${puedeGestionar?`<button class="btn btn-danger-ghost btn-sm btn-eliminar-historial" data-id="${h.id}">Eliminar</button>`:''}
+                ${accionesFilaHTML(`
+                  <button class="btn btn-ghost btn-sm btn-ver-historial" data-id="${h.id}">Ver</button>
+                  ${puedeGestionar?`<button class="btn btn-ghost btn-sm btn-editar-historial" data-id="${h.id}">Editar</button><button class="btn btn-ghost btn-sm btn-salida-historial" data-id="${h.id}">${entregado?'Reingresar':'Dar salida'}</button>`:''}
+                  ${puedeGestionar?botonAvisarRetiroHTML(h, cli, veh):''}
+                  ${(canCobrarHistorial(session.rol) && saldo>0.009)?`<button class="btn btn-accent btn-sm btn-cobrar-historial" data-id="${h.id}">Cobrar</button>`:''}
+                  ${puedeGestionar?`<button class="btn btn-danger-ghost btn-sm btn-eliminar-historial" data-id="${h.id}">Eliminar</button>`:''}
+                `)}
               </td>
             </tr>`;
           }).join('') : `<tr><td colspan="10"><div class="empty-state">${svgIcon('historial')}<h3>Todavía no hay servicios registrados</h3><p>Los servicios se cargan desde la ficha de cada vehículo o desde el botón "Nuevo service".</p></div></td></tr>`}
@@ -8716,13 +8790,16 @@ function serviciosTurnoRowHTML(t, mostrarFecha, extraAttrs){
     <td style="font-size:12px;">${Utils.escapeHTML(t.descripcion||'—')}</td>
     <td>${serviciosTurnoEstadoBadge(t.estado)}</td>
     <td style="text-align:right; white-space:nowrap;">
-      ${t.estado==='Reservado' && puede?`<button class="btn btn-ghost btn-sm btn-completar-turno-servicio" data-id="${t.id}">Completar</button><button class="btn btn-ghost btn-sm btn-cargar-service-turno" data-id="${t.id}">Cargar service</button><button class="btn btn-ghost btn-sm btn-editar-turno-servicio" data-id="${t.id}">Editar</button><button class="btn btn-danger-ghost btn-sm btn-cancelar-turno-servicio" data-id="${t.id}">Cancelar</button>`:''}
-      ${t.estado==='Completado' && puede?`<button class="btn btn-ghost btn-sm btn-reabrir-turno-servicio" data-id="${t.id}">Reabrir</button>`:''}
-      ${t.estado==='Cancelado' && puede?`<button class="btn btn-ghost btn-sm btn-reactivar-turno-servicio" data-id="${t.id}">Reactivar</button><button class="btn btn-danger-ghost btn-sm btn-eliminar-turno-servicio" data-id="${t.id}">Eliminar</button>`:''}
+      ${accionesFilaHTML(`
+        ${t.estado==='Reservado' && puede?`<button class="btn btn-ghost btn-sm btn-completar-turno-servicio" data-id="${t.id}">Completar</button><button class="btn btn-ghost btn-sm btn-cargar-service-turno" data-id="${t.id}">Cargar service</button><button class="btn btn-ghost btn-sm btn-editar-turno-servicio" data-id="${t.id}">Editar</button><button class="btn btn-danger-ghost btn-sm btn-cancelar-turno-servicio" data-id="${t.id}">Cancelar</button>`:''}
+        ${t.estado==='Completado' && puede?`<button class="btn btn-ghost btn-sm btn-reabrir-turno-servicio" data-id="${t.id}">Reabrir</button>`:''}
+        ${t.estado==='Cancelado' && puede?`<button class="btn btn-ghost btn-sm btn-reactivar-turno-servicio" data-id="${t.id}">Reactivar</button><button class="btn btn-danger-ghost btn-sm btn-eliminar-turno-servicio" data-id="${t.id}">Eliminar</button>`:''}
+      `)}
     </td>
   </tr>`;
 }
 function bindServiciosTurnoRowActions(){
+  bindAccionesFilaButtons();
   document.querySelectorAll('.btn-editar-turno-servicio').forEach(btn=>btn.onclick=async()=>openTurnoServicioModal(await DB.get('serviciosTurnos', Number(btn.dataset.id))));
   document.querySelectorAll('.btn-completar-turno-servicio').forEach(btn=>btn.onclick=async()=>{
     const t = await DB.get('serviciosTurnos', Number(btn.dataset.id));
@@ -9410,9 +9487,11 @@ async function viewProductosList(){
               <td>${stockBadgeHTML(p)}</td>
               <td><button class="star-btn ${p.favorito?'active':''} btn-fav-producto" data-id="${p.id}" title="Marcar como favorito">${p.favorito?'★':'☆'}</button></td>
               <td style="text-align:right; white-space:nowrap;">
-                <a class="btn btn-ghost btn-sm" href="#/productos/${p.id}">Kardex</a>
-                <button class="btn btn-ghost btn-sm btn-codigo-barras" data-id="${p.id}" title="Generar e imprimir código de barras">${svgIcon('barcode')}</button>
-                ${puedeGestionar?`<button class="btn btn-ghost btn-sm btn-edit-producto" data-id="${p.id}">Editar</button><button class="btn ${p.activo===false?'btn-ghost':'btn-danger-ghost'} btn-sm btn-toggle-baja-producto" data-id="${p.id}">${p.activo===false?'Alta':'Baja'}</button>`:''}
+                ${accionesFilaHTML(`
+                  <a class="btn btn-ghost btn-sm" href="#/productos/${p.id}">Kardex</a>
+                  <button class="btn btn-ghost btn-sm btn-codigo-barras" data-id="${p.id}" title="Generar e imprimir código de barras">${svgIcon('barcode')} Código de barras</button>
+                  ${puedeGestionar?`<button class="btn btn-ghost btn-sm btn-edit-producto" data-id="${p.id}">Editar</button><button class="btn ${p.activo===false?'btn-ghost':'btn-danger-ghost'} btn-sm btn-toggle-baja-producto" data-id="${p.id}">${p.activo===false?'Alta':'Baja'}</button>`:''}
+                `)}
               </td>
             </tr>`).join('') : `<tr><td colspan="9"><div class="empty-state">${svgIcon('productos')}<h3>Todavía no hay productos cargados</h3><p>Registrá tu primer producto para empezar a vender y controlar stock.</p></div></td></tr>`}
         </tbody>
@@ -9422,6 +9501,7 @@ async function viewProductosList(){
 }
 
 function bindProductosListEvents(){
+  bindAccionesFilaButtons();
   const btnMasAcciones = document.getElementById('btn-prod-mas-acciones');
   const prodDropdown = document.getElementById('prod-dropdown-menu');
   if(btnMasAcciones && prodDropdown){
@@ -9574,7 +9654,7 @@ function aplicacionesPorVehiculoHTML(apps, puedeGestionar){
               <td>${aplicacionAnioTexto(a)}</td>
               <td><div style="display:flex; flex-wrap:wrap; gap:5px; max-width:420px;">${(a.filtros||[]).length?(a.filtros||[]).map(filtroChipHTML).join(''):'<span style="color:var(--text-muted); font-size:12px;">Sin filtros cargados</span>'}</div></td>
               <td style="text-align:right; white-space:nowrap;">
-                ${puedeGestionar?`<button class="btn btn-ghost btn-sm btn-edit-aplicacion" data-id="${a.id}">Editar</button><button class="btn btn-danger-ghost btn-sm btn-eliminar-aplicacion" data-id="${a.id}">Eliminar</button>`:''}
+                ${puedeGestionar?accionesFilaHTML(`<button class="btn btn-ghost btn-sm btn-edit-aplicacion" data-id="${a.id}">Editar</button><button class="btn btn-danger-ghost btn-sm btn-eliminar-aplicacion" data-id="${a.id}">Eliminar</button>`):''}
               </td>
             </tr>`).join('') : `<tr><td colspan="5"><div class="empty-state">${svgIcon('aplicaciones')}<h3>Todavía no hay aplicaciones cargadas</h3><p>Registrá qué filtros lleva cada vehículo para consultarlo rápido la próxima vez.</p></div></td></tr>`}
         </tbody>
@@ -9680,6 +9760,7 @@ function aplicacionesArbolHTML(apps, puedeGestionar){
 }
 
 function bindAplicacionesListEvents(){
+  bindAccionesFilaButtons();
   document.querySelectorAll('#apl-tabs .crm-tab').forEach(btn=>{
     btn.onclick = () => { aplicacionesUIState.tab = btn.dataset.tab; router(); };
   });
@@ -13227,9 +13308,11 @@ async function viewProveedoresList(){
             <td class="font-mono ${deudaPorProveedor[p.id]>0.009?'margen-negativo':''}">$${deudaPorProveedor[p.id].toLocaleString('es-AR')}</td>
             <td>${p.activo!==false?`<span class="badge badge-ok">Activo</span>`:`<span class="badge badge-neutral">Baja</span>`}</td>
             <td style="text-align:right; white-space:nowrap;">
-              <button class="btn btn-ghost btn-sm btn-edit-proveedor" data-id="${p.id}">Editar</button>
-              ${esAdministrador?`<button class="btn btn-ghost btn-sm btn-ajustar-saldo-proveedor" data-id="${p.id}">Ajustar saldo</button>`:''}
-              <button class="btn ${p.activo===false?'btn-ghost':'btn-danger-ghost'} btn-sm btn-toggle-baja-proveedor" data-id="${p.id}">${p.activo===false?'Alta':'Baja'}</button>
+              ${accionesFilaHTML(`
+                <button class="btn btn-ghost btn-sm btn-edit-proveedor" data-id="${p.id}">Editar</button>
+                ${esAdministrador?`<button class="btn btn-ghost btn-sm btn-ajustar-saldo-proveedor" data-id="${p.id}">Ajustar saldo</button>`:''}
+                <button class="btn ${p.activo===false?'btn-ghost':'btn-danger-ghost'} btn-sm btn-toggle-baja-proveedor" data-id="${p.id}">${p.activo===false?'Alta':'Baja'}</button>
+              `)}
             </td>
           </tr>`).join('') : `<tr><td colspan="8"><div class="empty-state">${svgIcon('proveedores')}<h3>Todavía no hay proveedores cargados</h3></div></td></tr>`}
         </tbody>
@@ -13238,6 +13321,7 @@ async function viewProveedoresList(){
   `;
 }
 function bindProveedoresListEvents(){
+  bindAccionesFilaButtons();
   document.getElementById('btn-nuevo-proveedor').onclick = () => openProveedorModal();
   document.querySelectorAll('.btn-edit-proveedor').forEach(btn=>{
     btn.onclick = async () => openProveedorModal(await DB.get('proveedores', Number(btn.dataset.id)));
@@ -13561,7 +13645,7 @@ async function viewComprasList(){
               <td>${c.esBorrador?'<span style="color:var(--text-muted); font-size:12px;">—</span>':compraVencimientoBadge(c)}</td>
               <td style="text-align:right; white-space:nowrap;">
                 ${c.esBorrador
-                  ? `<button class="btn btn-ghost btn-sm btn-continuar-compra" data-id="${c.id}">Continuar</button> <button class="btn btn-danger-ghost btn-sm btn-descartar-compra" data-id="${c.id}">Descartar</button>`
+                  ? accionesFilaHTML(`<button class="btn btn-ghost btn-sm btn-continuar-compra" data-id="${c.id}">Continuar</button><button class="btn btn-danger-ghost btn-sm btn-descartar-compra" data-id="${c.id}">Descartar</button>`)
                   : `<button class="btn btn-ghost btn-sm btn-ver-compra" data-id="${c.id}">Ver</button>`}
               </td>
             </tr>`;
@@ -13591,6 +13675,7 @@ function compraBorradorAEstadoPrevio(c){
 }
 
 function bindComprasListEvents(){
+  bindAccionesFilaButtons();
   document.getElementById('btn-nueva-compra').onclick = () => openCompraModal();
   document.querySelectorAll('.btn-ver-compra').forEach(btn=>{
     btn.onclick = async () => openCompraDetalleModal(await DB.get('compras', Number(btn.dataset.id)));
@@ -14853,7 +14938,7 @@ async function renderGastosMes(){
             <td>${Utils.escapeHTML(g.concepto)}</td>
             <td>${Utils.escapeHTML(g.medioPago)}</td>
             <td class="font-mono">$${g.monto.toLocaleString('es-AR')}</td>
-            <td style="text-align:right;"><button class="btn btn-ghost btn-sm btn-editar-gasto" data-id="${g.id}">Editar</button> <button class="btn btn-danger-ghost btn-sm btn-eliminar-gasto" data-id="${g.id}">Eliminar</button></td>
+            <td style="text-align:right;">${accionesFilaHTML(`<button class="btn btn-ghost btn-sm btn-editar-gasto" data-id="${g.id}">Editar</button><button class="btn btn-danger-ghost btn-sm btn-eliminar-gasto" data-id="${g.id}">Eliminar</button>`)}</td>
           </tr>`).join('') : `<tr><td colspan="7"><div class="empty-state">${svgIcon('gastos')}<h3>Sin gastos cargados este mes</h3></div></td></tr>`}
         </tbody>
       </table>
@@ -14863,6 +14948,7 @@ async function renderGastosMes(){
   document.getElementById('gastos-mes-anterior').onclick = () => { const d=new Date(ay, am-2, 1); gastosMesSeleccionado = d.toISOString().slice(0,7); renderGastosMes(); };
   document.getElementById('gastos-mes-siguiente').onclick = () => { const d=new Date(ay, am, 1); gastosMesSeleccionado = d.toISOString().slice(0,7); renderGastosMes(); };
   document.getElementById('gastos-mes-actual').onclick = () => { gastosMesSeleccionado = Utils.hoyLocal().slice(0,7); renderGastosMes(); };
+  bindAccionesFilaButtons();
   document.querySelectorAll('.btn-editar-gasto').forEach(btn=>{
     btn.onclick = async () => {
       const gasto = await DB.get('gastos', Number(btn.dataset.id));
@@ -15045,8 +15131,10 @@ async function viewCuentasCorrientesList(){
             <td>${Utils.escapeHTML(s.cliente.telefono||'—')}</td>
             <td class="${s.saldo>0?'saldo-deudor':'saldo-cero'}">$${s.saldo.toLocaleString('es-AR')}</td>
             <td style="text-align:right; white-space:nowrap;">
-              <button class="btn btn-ghost btn-sm btn-estado-cuenta" data-id="${s.cliente.id}">Imprimir estado de cuenta</button>
-              ${s.saldo>0?`<button class="btn btn-accent btn-sm btn-pago-ctacte" data-id="${s.cliente.id}">Registrar pago</button>`:''}
+              ${accionesFilaHTML(`
+                <button class="btn btn-ghost btn-sm btn-estado-cuenta" data-id="${s.cliente.id}">Imprimir estado de cuenta</button>
+                ${s.saldo>0?`<button class="btn btn-accent btn-sm btn-pago-ctacte" data-id="${s.cliente.id}">Registrar pago</button>`:''}
+              `)}
             </td>
           </tr>`).join('') : `<tr><td colspan="4"><div class="empty-state">${svgIcon('cuentascorrientes')}<h3>Sin saldos pendientes</h3><p>Los saldos se generan cuando una venta del POS se cobra con "Cuenta corriente".</p></div></td></tr>`}
         </tbody>
@@ -15055,6 +15143,7 @@ async function viewCuentasCorrientesList(){
   `;
 }
 function bindCuentasCorrientesListEvents(){
+  bindAccionesFilaButtons();
   document.querySelectorAll('.btn-pago-ctacte').forEach(btn=>{
     btn.onclick = async () => openRegistrarPagoClienteModal(Number(btn.dataset.id));
   });
@@ -16149,9 +16238,11 @@ async function viewCotizacionesList(){
             <td class="font-mono">$${c.total.toLocaleString('es-AR')}</td>
             <td>${cotEstadoBadge(c.estado)}</td>
             <td style="text-align:right; white-space:nowrap;">
-              <button class="btn btn-ghost btn-sm btn-ver-cotizacion" data-id="${c.id}">Ver / Imprimir</button>
-              <button class="btn btn-ghost btn-sm btn-editar-cotizacion" data-id="${c.id}">${c.estado==='Borrador'?'Continuar':'Editar'}</button>
-              <button class="btn btn-danger-ghost btn-sm btn-eliminar-cotizacion" data-id="${c.id}">${c.estado==='Borrador'?'Descartar':'Eliminar'}</button>
+              ${accionesFilaHTML(`
+                <button class="btn btn-ghost btn-sm btn-ver-cotizacion" data-id="${c.id}">Ver / Imprimir</button>
+                <button class="btn btn-ghost btn-sm btn-editar-cotizacion" data-id="${c.id}">${c.estado==='Borrador'?'Continuar':'Editar'}</button>
+                <button class="btn btn-danger-ghost btn-sm btn-eliminar-cotizacion" data-id="${c.id}">${c.estado==='Borrador'?'Descartar':'Eliminar'}</button>
+              `)}
             </td>
           </tr>`).join('') : `<tr><td colspan="7"><div class="empty-state">${svgIcon('cotizaciones')}<h3>Todavía no hay cotizaciones cargadas</h3><p>Creá tu primer presupuesto para pasarle a un cliente.</p></div></td></tr>`}
         </tbody>
@@ -16161,6 +16252,7 @@ async function viewCotizacionesList(){
 }
 
 function bindCotizacionesListEvents(){
+  bindAccionesFilaButtons();
   document.getElementById('btn-nueva-cotizacion').onclick = () => openCotizacionModal();
   document.querySelectorAll('.btn-ver-cotizacion').forEach(btn=>{
     btn.onclick = async () => openCotizacionTicketModal(await DB.get('cotizaciones', Number(btn.dataset.id)));
@@ -16803,10 +16895,12 @@ async function viewVentasList(){
               ${verMargen?`<td class="font-mono venta-margen-cell ${margen>=0?'margen-positivo':'margen-negativo'}" data-margen="${margen}" data-pct="${pct}">${ventasMargenModo==='monto'?`$${margen.toLocaleString('es-AR')}`:`${pct.toFixed(1)}%`}</td>`:''}
               <td>${anulada?'<span class="badge badge-danger">Anulada</span>':'<span class="badge badge-ok">Completada</span>'}</td>
               <td style="text-align:right; white-space:nowrap;">
-                <button class="btn btn-ghost btn-sm btn-ver-venta" data-id="${v.id}">Ver</button>
-                ${puedeEditar && !anulada?`<button class="btn btn-ghost btn-sm btn-editar-venta" data-id="${v.id}">Editar</button><button class="btn btn-danger-ghost btn-sm btn-anular-venta" data-id="${v.id}">Anular</button>`:''}
-                ${puedeEditar && anulada?`<button class="btn btn-ghost btn-sm btn-reactivar-venta" data-id="${v.id}">Reactivar</button>`:''}
-                ${puedeEditar && anulada && session.rol==='Administrador'?`<button class="btn btn-danger-ghost btn-sm btn-eliminar-venta" data-id="${v.id}">Eliminar</button>`:''}
+                ${accionesFilaHTML(`
+                  <button class="btn btn-ghost btn-sm btn-ver-venta" data-id="${v.id}">Ver</button>
+                  ${puedeEditar && !anulada?`<button class="btn btn-ghost btn-sm btn-editar-venta" data-id="${v.id}">Editar</button><button class="btn btn-danger-ghost btn-sm btn-anular-venta" data-id="${v.id}">Anular</button>`:''}
+                  ${puedeEditar && anulada?`<button class="btn btn-ghost btn-sm btn-reactivar-venta" data-id="${v.id}">Reactivar</button>`:''}
+                  ${puedeEditar && anulada && session.rol==='Administrador'?`<button class="btn btn-danger-ghost btn-sm btn-eliminar-venta" data-id="${v.id}">Eliminar</button>`:''}
+                `)}
               </td>
             </tr>`;
           }).join('') : `<tr><td colspan="${verMargen?8:7}"><div class="empty-state">${svgIcon('ventas')}<h3>Todavía no hay ventas registradas</h3><p>Las ventas se generan desde el POS.</p></div></td></tr>`}
@@ -16817,6 +16911,7 @@ async function viewVentasList(){
 }
 
 function bindVentasListEvents(){
+  bindAccionesFilaButtons();
   document.querySelectorAll('.btn-ver-venta').forEach(btn=>{
     btn.onclick = async () => {
       const v = await DB.get('ventas', Number(btn.dataset.id));
@@ -17141,16 +17236,19 @@ function lavaderoTurnoRowHTML(t, mostrarFecha, extraAttrs){
     <td class="font-mono">$${t.precio.toLocaleString('es-AR')}</td>
     <td>${lavaderoEstadoBadge(t.estado)}</td>
     <td style="text-align:right; white-space:nowrap;">
-      ${t.estado==='Reservado' && puede?`<button class="btn btn-ghost btn-sm btn-marcar-listo-turno" data-id="${t.id}">Marcar listo</button><button class="btn btn-accent btn-sm btn-cobrar-turno" data-id="${t.id}">Cobrar</button><button class="btn btn-ghost btn-sm btn-editar-turno" data-id="${t.id}">Editar</button><button class="btn btn-danger-ghost btn-sm btn-cancelar-turno" data-id="${t.id}">Cancelar</button>`:''}
-      ${t.estado==='Reservado' && t.clienteTelefono?`<button class="btn btn-ghost btn-sm btn-recordar-turno" data-id="${t.id}" title="Recordarle el turno por WhatsApp">📅 Recordar</button>`:''}
-      ${t.estado==='Listo'?`${t.clienteTelefono?`<button class="btn btn-accent btn-sm btn-avisar-turno" data-id="${t.id}" title="Avisar por WhatsApp que está listo">💬 Avisar</button>`:''}${puede?`<button class="btn btn-accent btn-sm btn-cobrar-turno" data-id="${t.id}">Cobrar</button><button class="btn btn-ghost btn-sm btn-volver-reservado-turno" data-id="${t.id}">Volver a reservado</button><button class="btn btn-danger-ghost btn-sm btn-cancelar-turno" data-id="${t.id}">Cancelar</button>`:''}`:''}
-      ${t.estado==='Completado'?`${t.clienteTelefono?`<button class="btn btn-ghost btn-sm btn-avisar-turno" data-id="${t.id}" title="Avisar por WhatsApp que está listo">💬 Avisar</button>`:''}<button class="btn btn-ghost btn-sm btn-ver-turno" data-id="${t.id}">Ver</button>${puede?`<button class="btn btn-danger-ghost btn-sm btn-anular-turno" data-id="${t.id}">Anular</button>`:''}`:''}
-      ${t.estado==='Cancelado' && puede?`<button class="btn btn-ghost btn-sm btn-reactivar-turno" data-id="${t.id}">Reactivar</button><button class="btn btn-danger-ghost btn-sm btn-eliminar-turno" data-id="${t.id}">Eliminar</button>`:''}
-      ${t.estado==='Anulado'?`<button class="btn btn-ghost btn-sm btn-ver-turno" data-id="${t.id}">Ver</button>`:''}
+      ${accionesFilaHTML(`
+        ${t.estado==='Reservado' && puede?`<button class="btn btn-ghost btn-sm btn-marcar-listo-turno" data-id="${t.id}">Marcar listo</button><button class="btn btn-accent btn-sm btn-cobrar-turno" data-id="${t.id}">Cobrar</button><button class="btn btn-ghost btn-sm btn-editar-turno" data-id="${t.id}">Editar</button><button class="btn btn-danger-ghost btn-sm btn-cancelar-turno" data-id="${t.id}">Cancelar</button>`:''}
+        ${t.estado==='Reservado' && t.clienteTelefono?`<button class="btn btn-ghost btn-sm btn-recordar-turno" data-id="${t.id}" title="Recordarle el turno por WhatsApp">📅 Recordar</button>`:''}
+        ${t.estado==='Listo'?`${t.clienteTelefono?`<button class="btn btn-accent btn-sm btn-avisar-turno" data-id="${t.id}" title="Avisar por WhatsApp que está listo">💬 Avisar</button>`:''}${puede?`<button class="btn btn-accent btn-sm btn-cobrar-turno" data-id="${t.id}">Cobrar</button><button class="btn btn-ghost btn-sm btn-volver-reservado-turno" data-id="${t.id}">Volver a reservado</button><button class="btn btn-danger-ghost btn-sm btn-cancelar-turno" data-id="${t.id}">Cancelar</button>`:''}`:''}
+        ${t.estado==='Completado'?`${t.clienteTelefono?`<button class="btn btn-ghost btn-sm btn-avisar-turno" data-id="${t.id}" title="Avisar por WhatsApp que está listo">💬 Avisar</button>`:''}<button class="btn btn-ghost btn-sm btn-ver-turno" data-id="${t.id}">Ver</button>${puede?`<button class="btn btn-danger-ghost btn-sm btn-anular-turno" data-id="${t.id}">Anular</button>`:''}`:''}
+        ${t.estado==='Cancelado' && puede?`<button class="btn btn-ghost btn-sm btn-reactivar-turno" data-id="${t.id}">Reactivar</button><button class="btn btn-danger-ghost btn-sm btn-eliminar-turno" data-id="${t.id}">Eliminar</button>`:''}
+        ${t.estado==='Anulado'?`<button class="btn btn-ghost btn-sm btn-ver-turno" data-id="${t.id}">Ver</button>`:''}
+      `)}
     </td>
   </tr>`;
 }
 function bindLavaderoTurnoRowActions(){
+  bindAccionesFilaButtons();
   document.querySelectorAll('.btn-cobrar-turno').forEach(btn=>btn.onclick=async()=>openCobrarTurnoModal(await DB.get('lavaderoTurnos', Number(btn.dataset.id))));
   document.querySelectorAll('.btn-editar-turno').forEach(btn=>btn.onclick=async()=>openTurnoModal(await DB.get('lavaderoTurnos', Number(btn.dataset.id))));
   document.querySelectorAll('.btn-cancelar-turno').forEach(btn=>btn.onclick=async()=>{
@@ -17588,7 +17686,7 @@ async function lavaderoServiciosHTML(){
             <td class="font-mono">$${s.precio.toLocaleString('es-AR')}</td>
             <td>${s.duracionMinutos} min</td>
             <td>${s.activo!==false?'<span class="badge badge-ok">Activo</span>':'<span class="badge badge-neutral">Baja</span>'}</td>
-            ${puede?`<td style="text-align:right; white-space:nowrap;"><button class="btn btn-ghost btn-sm btn-editar-servicio-lavadero" data-id="${s.id}">Editar</button><button class="btn ${s.activo===false?'btn-ghost':'btn-danger-ghost'} btn-sm btn-baja-servicio-lavadero" data-id="${s.id}">${s.activo===false?'Alta':'Baja'}</button></td>`:''}
+            ${puede?`<td style="text-align:right; white-space:nowrap;">${accionesFilaHTML(`<button class="btn btn-ghost btn-sm btn-editar-servicio-lavadero" data-id="${s.id}">Editar</button><button class="btn ${s.activo===false?'btn-ghost':'btn-danger-ghost'} btn-sm btn-baja-servicio-lavadero" data-id="${s.id}">${s.activo===false?'Alta':'Baja'}</button>`)}</td>`:''}
           </tr>`).join('') : `<tr><td colspan="6"><div class="empty-state">${svgIcon('lavadero')}<h3>Sin servicios cargados</h3><p>Creá los servicios que ofrece tu lavadero (lavado exterior, completo, encerado, etc.)</p></div></td></tr>`}
         </tbody>
       </table>
@@ -17596,6 +17694,7 @@ async function lavaderoServiciosHTML(){
   `;
 }
 function bindLavaderoServiciosEvents(){
+  bindAccionesFilaButtons();
   const btnNuevo = document.getElementById('btn-nuevo-servicio-lavadero');
   if(btnNuevo) btnNuevo.onclick = () => openServicioLavaderoModal();
   document.querySelectorAll('.btn-editar-servicio-lavadero').forEach(btn=>{
@@ -18582,9 +18681,11 @@ async function viewRemitosList(){
             <td>${Utils.escapeHTML(r.clienteNombre||'Consumidor Final')}</td>
             <td>${r.items.length}</td>
             <td style="text-align:right; white-space:nowrap;">
-              <button class="btn btn-ghost btn-sm btn-ver-remito" data-id="${r.id}">Ver / Imprimir</button>
-              <button class="btn btn-ghost btn-sm btn-editar-remito" data-id="${r.id}">Editar</button>
-              <button class="btn btn-danger-ghost btn-sm btn-eliminar-remito" data-id="${r.id}">Eliminar</button>
+              ${accionesFilaHTML(`
+                <button class="btn btn-ghost btn-sm btn-ver-remito" data-id="${r.id}">Ver / Imprimir</button>
+                <button class="btn btn-ghost btn-sm btn-editar-remito" data-id="${r.id}">Editar</button>
+                <button class="btn btn-danger-ghost btn-sm btn-eliminar-remito" data-id="${r.id}">Eliminar</button>
+              `)}
             </td>
           </tr>`).join('') : `<tr><td colspan="6"><div class="empty-state">${svgIcon('remitos')}<h3>Todavía no hay remitos generados</h3><p>Creá uno eligiendo el número de una venta ya registrada en el POS.</p></div></td></tr>`}
         </tbody>
@@ -18594,6 +18695,7 @@ async function viewRemitosList(){
 }
 
 function bindRemitosListEvents(){
+  bindAccionesFilaButtons();
   document.getElementById('btn-nuevo-remito').onclick = () => openVentaPickerParaRemitoModal();
   document.querySelectorAll('.btn-ver-remito').forEach(btn=>{
     btn.onclick = async () => abrirRemitoTicketModal(await DB.get('remitos', Number(btn.dataset.id)));
