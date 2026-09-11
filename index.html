@@ -1007,6 +1007,17 @@ details[open] > summary > .apl-tree-arrow{ transform:rotate(90deg); }
 .bg-row{ display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--border-soft); font-size:13px; }
 .bg-row-total{ font-weight:800; font-size:14px; border-bottom:none; border-top:2px solid var(--border-soft); margin-top:4px; padding-top:10px; }
 @media (max-width: 720px){ .bg-columns{ grid-template-columns:1fr; gap:20px; } }
+.an-rank-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px; }
+.an-rank-row{ display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border-soft); font-size:12.5px; }
+.an-rank-row:last-child{ border-bottom:none; }
+.an-rank-pos{ width:20px; height:20px; border-radius:50%; background:var(--bg-panel-alt); color:var(--text-muted); font-size:10.5px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.an-rank-name{ flex:1; color:var(--text-primary); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.an-rank-value{ font-family:'Consolas',monospace; font-weight:700; color:var(--text-secondary); white-space:nowrap; }
+.an-insight-card{ display:flex; align-items:flex-start; gap:12px; padding:12px 14px; border-radius:12px; background:var(--bg-panel-alt); border-left:3px solid var(--border-soft); font-size:13px; line-height:1.5; color:var(--text-secondary); }
+.an-insight-card b{ color:var(--text-primary); }
+.an-insight-icon{ font-size:16px; line-height:1; flex-shrink:0; margin-top:1px; }
+.an-quickrange{ display:flex; gap:6px; flex-wrap:wrap; }
+.an-quickrange button.active{ background:var(--accent); color:#fff; border-color:var(--accent); }
 @media (max-width: 720px){
   #backup-banner{ flex-direction:column; align-items:flex-start; padding:14px 16px; }
   #backup-banner .bb-actions{ width:100%; }
@@ -2791,6 +2802,7 @@ const NAV_SECTIONS = [
     { key:'gastos', label:'Gastos', icon:'gastos' },
     { key:'cuentascorrientes', label:'Cuentas Corrientes', icon:'cuentascorrientes' },
     { key:'balancegeneral', label:'Balance General', icon:'reportes' },
+    { key:'analisis', label:'Análisis', icon:'reportes' },
     { key:'reportes', label:'Reportes', icon:'reportes' }
   ]},
   { title:'Sistema', items:[
@@ -3020,6 +3032,10 @@ async function router(){
     case 'balancegeneral':
       if(!canSeeCosto(Session.get().rol)){ outlet.innerHTML = viewNoPermiso(); return; }
       outlet.innerHTML = await viewBalanceGeneral(); await bindBalanceGeneralEvents();
+      break;
+    case 'analisis':
+      if(!canSeeCosto(Session.get().rol)){ outlet.innerHTML = viewNoPermiso(); return; }
+      outlet.innerHTML = await viewAnalisis(); await bindAnalisisEvents();
       break;
     case 'reportes':
       outlet.innerHTML = await viewReportes(param); await bindReportesEvents(param);
@@ -6501,6 +6517,63 @@ function drawComparativaFinancieraChart(canvas, labels, facturacion, gastos, pag
       scales:{
         x:{ grid:{ display:false }, ticks:{ color:theme.muted, font:{ size:10 } } },
         y:{ beginAtZero:true, grid:{ color:theme.grid }, ticks:{ color:theme.muted, font:{ size:10 } } }
+      }
+    }
+  });
+}
+
+function drawApexEvolucionAnalisis(canvas, labels, ventas, servicios, lavados){
+  if(typeof ApexCharts==='undefined' || !canvas) return false;
+  const div = ensureApexContainer(canvas);
+  if(!div) return false;
+  canvas.style.display = 'none'; div.style.display = 'block';
+  if(div._apexInstance){ div._apexInstance.destroy(); div._apexInstance = null; }
+  const theme = apexThemeColors();
+  const fmt = (v) => '$'+Math.round(v).toLocaleString('es-AR');
+  const inst = new ApexCharts(div, {
+    chart: { type:'bar', stacked:true, height:'100%', toolbar:{show:false}, animations:{easing:'easeinout', speed:600}, fontFamily:'inherit', background:'transparent' },
+    series: [
+      { name:'Ventas', data: ventas },
+      { name:'Servicios', data: servicios },
+      { name:'Lavados', data: lavados }
+    ],
+    xaxis: { categories: labels, labels:{ style:{ colors: theme.muted, fontSize:'10px' } }, axisBorder:{show:false}, axisTicks:{show:false} },
+    yaxis: { labels: { style:{ colors: theme.muted, fontSize:'10px' }, formatter: fmt } },
+    grid: { borderColor: theme.grid, strokeDashArray:3, xaxis:{ lines:{ show:false } } },
+    plotOptions: { bar: { borderRadius:5, borderRadiusApplication:'end', columnWidth:'55%' } },
+    dataLabels: { enabled:false },
+    colors: ['#FF8C1A','#2FA8D8','#0E9A8A'],
+    legend: { show:true, position:'top', horizontalAlign:'right', fontSize:'11px', labels:{ colors: theme.muted }, markers:{ radius:3 } },
+    tooltip: { theme:'dark', style:{ fontSize:'12px' }, shared:true, intersect:false, y:{ formatter: fmt } },
+    states: { hover: { filter: { type:'lighten', value:.06 } } }
+  });
+  inst.render();
+  div._apexInstance = inst;
+  return true;
+}
+function drawEvolucionAnalisisChart(canvas, labels, ventas, servicios, lavados){
+  if(!canvas) return;
+  if(drawApexEvolucionAnalisis(canvas, labels, ventas, servicios, lavados)) return;
+  destroyChartOn(canvas);
+  if(!labels.length) return;
+  const theme = chartThemeColors();
+  new Chart(canvas.getContext('2d'), {
+    type:'bar',
+    data:{ labels, datasets:[
+      { label:'Ventas', data:ventas, backgroundColor: hexToRgba('#FF8C1A',.85), stack:'s' },
+      { label:'Servicios', data:servicios, backgroundColor: hexToRgba('#2FA8D8',.85), stack:'s' },
+      { label:'Lavados', data:lavados, backgroundColor: hexToRgba('#0E9A8A',.85), stack:'s' }
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false, animation:{ duration:500 },
+      plugins:{
+        legend:{ display:true, position:'top', labels:{ color:theme.muted, boxWidth:11, boxHeight:11, font:{ size:10.5 }, usePointStyle:true, pointStyle:'circle' } },
+        tooltip:{ backgroundColor:theme.panel, titleColor:theme.text, bodyColor:theme.text, borderColor:theme.grid, borderWidth:1, padding:9, cornerRadius:8,
+          callbacks:{ label:(item)=> `${item.dataset.label}: $${Number(item.parsed.y).toLocaleString('es-AR')}` } }
+      },
+      scales:{
+        x:{ stacked:true, grid:{ display:false }, ticks:{ color:theme.muted, font:{ size:10 } } },
+        y:{ stacked:true, beginAtZero:true, grid:{ color:theme.grid }, ticks:{ color:theme.muted, font:{ size:10 } } }
       }
     }
   });
@@ -16008,6 +16081,238 @@ async function calcularEstadoResultados(desde, hasta){
   };
 }
 
+/* -----------------------------------------------------------------------
+   20-Ñ-BIS. MÓDULO ANÁLISIS — resumen inteligente del período
+   Junta Ventas + Servicios + Lavados de un rango de fechas elegido, lo
+   compara contra el período previo de igual duración, arma rankings
+   (productos, clientes, empleados) y genera un resumen en lenguaje llano
+   (generarInsightsAnalisis) a partir de esos números — no hay ningún
+   modelo de IA de por medio, son reglas que leen los datos reales.
+----------------------------------------------------------------------- */
+async function calcularAnalisisPeriodo(desde, hasta){
+  const [ventas, productos, historial, turnos, gastos, notasCredito, clientes] = await Promise.all([
+    DB.getAll('ventas'), DB.getAll('productos'), DB.getAll('historialServicios'),
+    DB.getAll('lavaderoTurnos'), DB.getAll('gastos'), DB.getAll('notasCredito'), DB.getAll('clientes')
+  ]);
+  const costoPorProducto = {}; productos.forEach(p=> costoPorProducto[p.id] = p.precioCosto||0);
+  const clienteById = {}; clientes.forEach(c=>clienteById[c.id]=c);
+  const enRango = (fecha, d, h) => { const f = Utils.fechaLocalYMD(fecha); return f>=d && f<=h; };
+
+  function calcularBloque(d, h){
+    const ventasP = ventas.filter(v=>v.estado!=='anulada' && enRango(v.fecha,d,h));
+    const serviciosP = historial.filter(x=>enRango(x.fecha,d,h));
+    const lavadosP = turnos.filter(t=>t.estado==='Completado' && enRango(t.fechaCompletado||t.fecha,d,h));
+    const notasP = notasCredito.filter(n=>enRango(n.fecha,d,h));
+    const gastosP = gastos.filter(g=>enRango(g.fecha,d,h));
+
+    const ingresosVentas = ventasP.reduce((a,v)=>a+(v.total||0),0);
+    const ingresosServicios = serviciosP.reduce((a,x)=>a+(x.precio||0),0);
+    const ingresosLavados = lavadosP.reduce((a,t)=>a+(t.precio||0),0);
+    const totalNotas = notasP.reduce((a,n)=>a+(n.monto||0),0);
+    const totalIngresos = Math.max(0, ingresosVentas+ingresosServicios+ingresosLavados-totalNotas);
+
+    const costoVentas = ventasP.reduce((a,v)=> a + (v.items||[]).reduce((acc,it)=> acc + (it.productoId ? (costoPorProducto[it.productoId]||0)*it.cantidad : 0), 0), 0);
+    const costoServicios = serviciosP.reduce((a,x)=>a+(x.costo||0),0);
+    const totalGastos = gastosP.reduce((a,g)=>a+(g.monto||0),0);
+    const totalCostos = costoVentas+costoServicios+totalGastos;
+    const resultado = totalIngresos-totalCostos;
+
+    const cantidadOperaciones = ventasP.length+serviciosP.length+lavadosP.length;
+    const ticketPromedio = cantidadOperaciones ? totalIngresos/cantidadOperaciones : 0;
+
+    return { ventasP, serviciosP, lavadosP, ingresosVentas, ingresosServicios, ingresosLavados, totalNotas, totalIngresos,
+      costoVentas, costoServicios, totalGastos, totalCostos, resultado, cantidadOperaciones, ticketPromedio,
+      cantidadVentas: ventasP.length, cantidadServicios: serviciosP.length, cantidadLavados: lavadosP.length };
+  }
+
+  const actual = calcularBloque(desde, hasta);
+
+  // Cobrado real en Caja durante el período (mismo criterio que "Gráficos"
+  // del Dashboard) — se muestra al lado de lo facturado para que la
+  // diferencia entre "vendido" y "cobrado" quede a la vista en vez de
+  // obligar a comparar dos pantallas distintas.
+  const movsCajaPeriodo = await obtenerIngresosCajaEnRango(desde, hasta);
+  const cobradoCaja = movsCajaPeriodo.reduce((a,m)=>a+(m.monto||0), 0);
+
+  // Período de comparación: mismo largo en días, inmediatamente anterior a "desde".
+  const dDesde = parsearFechaSegura(desde), dHasta = parsearFechaSegura(hasta);
+  const dias = Math.max(1, Math.round((dHasta-dDesde)/86400000)+1);
+  const antHasta = new Date(dDesde); antHasta.setDate(antHasta.getDate()-1);
+  const antDesde = new Date(antHasta); antDesde.setDate(antDesde.getDate()-(dias-1));
+  const anterior = calcularBloque(Utils.fechaLocalYMD(antDesde), Utils.fechaLocalYMD(antHasta));
+
+  // Evolución día a día del período elegido, discriminada por categoría —
+  // si el rango es muy largo (>62 días) se agrupa por semana para que el
+  // gráfico siga siendo legible.
+  const agruparPorSemana = dias > 62;
+  const buckets = []; // [{label, desdeYMD, hastaYMD}]
+  if(!agruparPorSemana){
+    for(let d=new Date(dDesde); d<=dHasta; d.setDate(d.getDate()+1)){
+      const ymd = Utils.fechaLocalYMD(d);
+      buckets.push({ label:new Date(ymd+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}), desdeYMD:ymd, hastaYMD:ymd });
+    }
+  }else{
+    let cursor = new Date(dDesde);
+    while(cursor<=dHasta){
+      const inicio = new Date(cursor);
+      const fin = new Date(cursor); fin.setDate(fin.getDate()+6);
+      if(fin>dHasta) fin.setTime(dHasta.getTime());
+      buckets.push({ label:inicio.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})+'–'+fin.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}), desdeYMD:Utils.fechaLocalYMD(inicio), hastaYMD:Utils.fechaLocalYMD(fin) });
+      cursor.setDate(cursor.getDate()+7);
+    }
+  }
+  const evolucion = {
+    labels: buckets.map(b=>b.label),
+    ventas: buckets.map(b=> actual.ventasP.filter(v=>enRango(v.fecha,b.desdeYMD,b.hastaYMD)).reduce((a,v)=>a+v.total,0)),
+    servicios: buckets.map(b=> actual.serviciosP.filter(x=>enRango(x.fecha,b.desdeYMD,b.hastaYMD)).reduce((a,x)=>a+(x.precio||0),0)),
+    lavados: buckets.map(b=> actual.lavadosP.filter(t=>enRango(t.fechaCompletado||t.fecha,b.desdeYMD,b.hastaYMD)).reduce((a,t)=>a+(t.precio||0),0))
+  };
+
+  // Ranking de productos (por importe facturado en Ventas)
+  const productosMap = {};
+  actual.ventasP.forEach(v=>(v.items||[]).forEach(it=>{
+    if(!it.productoId) return;
+    if(!productosMap[it.productoId]) productosMap[it.productoId] = { nombre:it.nombre, cantidad:0, importe:0 };
+    productosMap[it.productoId].cantidad += it.cantidad;
+    productosMap[it.productoId].importe += it.subtotal;
+  }));
+  const topProductos = Object.values(productosMap).sort((a,b)=>b.importe-a.importe).slice(0,5);
+
+  // Ranking de clientes (gasto combinado en Ventas + Servicios + Lavados)
+  const clientesMap = {};
+  function sumarCliente(clienteId, nombre, monto){
+    if(!clienteId || !nombre) return;
+    if(!clientesMap[clienteId]) clientesMap[clienteId] = { nombre, monto:0, operaciones:0 };
+    clientesMap[clienteId].monto += monto;
+    clientesMap[clienteId].operaciones += 1;
+  }
+  actual.ventasP.forEach(v=> sumarCliente(v.clienteId, v.clienteId&&clienteById[v.clienteId]?clienteNombreCompleto(clienteById[v.clienteId]):null, v.total));
+  actual.serviciosP.forEach(x=> sumarCliente(x.clienteId, x.clienteId&&clienteById[x.clienteId]?clienteNombreCompleto(clienteById[x.clienteId]):null, x.precio||0));
+  actual.lavadosP.forEach(t=> sumarCliente(t.clienteId, t.clienteId?t.clienteNombre:null, t.precio||0));
+  const topClientes = Object.values(clientesMap).sort((a,b)=>b.monto-a.monto).slice(0,5);
+
+  // Ranking de empleados (solo Servicios trae el campo "Empleado" cargado;
+  // Lavados y Ventas no registran quién atendió, así que no entran acá).
+  const empleadosMap = {};
+  actual.serviciosP.forEach(x=>{
+    const nombre = (x.empleadoNombre||'').trim();
+    if(!nombre) return;
+    if(!empleadosMap[nombre]) empleadosMap[nombre] = { nombre, cantidad:0, facturado:0 };
+    empleadosMap[nombre].cantidad++;
+    empleadosMap[nombre].facturado += (x.precio||0);
+  });
+  const topEmpleados = Object.values(empleadosMap).sort((a,b)=>b.facturado-a.facturado).slice(0,5);
+
+  return { desde, hasta, dias, actual, anterior, cobradoCaja, evolucion, topProductos, topClientes, topEmpleados };
+}
+
+/* Traduce los números de calcularAnalisisPeriodo() a una lista de
+   oraciones en lenguaje llano, priorizadas (lo más relevante primero).
+   Cada insight tiene un "tipo" (positivo/negativo/atencion/info) que
+   define el color e ícono con el que se muestra. Es 100% determinístico
+   (reglas sobre los datos reales) — no llama a ningún servicio externo. */
+function generarInsightsAnalisis(a){
+  const A = a.actual, P = a.anterior;
+  if(A.cantidadOperaciones===0){
+    return [{ tipo:'atencion', texto:'No se registró ninguna venta, servicio ni lavado en el período elegido.' }];
+  }
+  const pct = (act,ant) => ant>0.009 ? ((act-ant)/ant*100) : (act>0.009?100:0);
+  const money = (v) => '$'+Math.round(Math.abs(v)).toLocaleString('es-AR');
+  const insights = [];
+  const hayComparacion = P.cantidadOperaciones>0 || P.totalIngresos>0;
+
+  // 1) Facturación total vs período anterior
+  const deltaIngresos = pct(A.totalIngresos, P.totalIngresos);
+  if(hayComparacion){
+    insights.push({ tipo: deltaIngresos>=0?'positivo':'negativo',
+      texto: `Facturaste ${money(A.totalIngresos)} en este período (devengado, esté cobrado o no), ${deltaIngresos>=0?'un':'una caída del'} <b>${Math.abs(deltaIngresos).toFixed(0)}%${deltaIngresos>=0?' más':''}</b> que en los ${a.dias} día${a.dias===1?'':'s'} anteriores (${money(P.totalIngresos)}).` });
+  }else{
+    insights.push({ tipo:'info', texto: `Facturaste <b>${money(A.totalIngresos)}</b> en este período (devengado, esté cobrado o no), entre Ventas, Servicios y Lavados.` });
+  }
+
+  // 1-bis) Facturado vs. cobrado real en Caja
+  if(a.cobradoCaja>0.009 || A.totalIngresos>0.009){
+    const diff = a.cobradoCaja - A.totalIngresos;
+    if(Math.abs(diff) < Math.max(A.totalIngresos,a.cobradoCaja)*0.03 + 1){
+      insights.push({ tipo:'positivo', texto: `Lo cobrado en Caja en el período (${money(a.cobradoCaja)}) está muy en línea con lo facturado — poca cuenta corriente pendiente y pocos cobros de deuda de otros meses.` });
+    }else if(diff > 0){
+      insights.push({ tipo:'info', texto: `En Caja entraron ${money(a.cobradoCaja)}, <b>${money(diff)} más</b> que lo facturado en el período — probablemente por cobros de deuda de meses anteriores que se cobraron ahora.` });
+    }else{
+      insights.push({ tipo:'atencion', texto: `De lo facturado, solo entraron ${money(a.cobradoCaja)} a Caja — quedan <b>${money(Math.abs(diff))}</b> en ventas a cuenta corriente todavía sin cobrar (o pendientes de otro medio de pago).` });
+    }
+  }
+
+  // 2) Categoría más fuerte
+  const categorias = [
+    { nombre:'Ventas', valor:A.ingresosVentas },
+    { nombre:'Servicios', valor:A.ingresosServicios },
+    { nombre:'Lavados', valor:A.ingresosLavados }
+  ].filter(c=>c.valor>0.009).sort((x,y)=>y.valor-x.valor);
+  if(categorias.length>1){
+    const pctCat = categorias[0].valor/A.totalIngresos*100;
+    insights.push({ tipo:'info', texto: `<b>${categorias[0].nombre}</b> fue tu principal fuente de ingresos: representó el <b>${pctCat.toFixed(0)}%</b> de lo facturado en el período.` });
+  }else if(categorias.length===1){
+    insights.push({ tipo:'atencion', texto: `Toda la facturación del período vino de <b>${categorias[0].nombre}</b> — las otras dos áreas no tuvieron movimiento.` });
+  }
+
+  // 3) Ticket promedio
+  const deltaTicket = pct(A.ticketPromedio, P.ticketPromedio);
+  if(P.cantidadOperaciones>0){
+    insights.push({ tipo: deltaTicket>=0?'positivo':'atencion',
+      texto: `El ticket promedio fue de ${money(A.ticketPromedio)}, ${deltaTicket>=0?'un':'una baja del'} <b>${Math.abs(deltaTicket).toFixed(0)}%${deltaTicket>=0?' más alto':''}</b> que en el período anterior.` });
+  }
+
+  // 4) Resultado del período (ganancia/pérdida) — solo si hay datos de costos/gastos cargados
+  if(A.totalCostos>0.009){
+    const margenPct = A.totalIngresos>0.009 ? (A.resultado/A.totalIngresos*100) : 0;
+    if(A.resultado>=0){
+      insights.push({ tipo:'positivo', texto: `El período cerró con una <b>utilidad estimada de ${money(A.resultado)}</b> (margen del ${margenPct.toFixed(0)}%), después de descontar costos y gastos.` });
+    }else{
+      insights.push({ tipo:'negativo', texto: `El período cerró con una <b>pérdida estimada de ${money(A.resultado)}</b>: los costos y gastos superaron a lo facturado.` });
+    }
+    if(A.resultado>=0 && margenPct<15){
+      insights.push({ tipo:'atencion', texto: `El margen quedó en <b>${margenPct.toFixed(0)}%</b>, bastante ajustado. Puede valer la pena revisar precios, costos de repuestos o gastos fijos.` });
+    }
+  }
+
+  // 5) Día (o semana) pico de facturación
+  if(a.evolucion.labels.length>1){
+    const totalesPorBucket = a.evolucion.labels.map((l,i)=> a.evolucion.ventas[i]+a.evolucion.servicios[i]+a.evolucion.lavados[i]);
+    const max = Math.max(...totalesPorBucket);
+    if(max>0.009){
+      const idx = totalesPorBucket.indexOf(max);
+      insights.push({ tipo:'info', texto: `El momento de mayor facturación fue el <b>${a.evolucion.labels[idx]}</b>, con ${money(max)}.` });
+    }
+  }
+
+  // 6) Producto más vendido
+  if(a.topProductos.length){
+    const p = a.topProductos[0];
+    insights.push({ tipo:'info', texto: `El producto más vendido fue <b>"${Utils.escapeHTML(p.nombre)}"</b>, con ${p.cantidad} unidad${p.cantidad===1?'':'es'} por ${money(p.importe)}.` });
+  }
+
+  // 7) Cliente que más gastó
+  if(a.topClientes.length){
+    const c = a.topClientes[0];
+    insights.push({ tipo:'info', texto: `<b>${Utils.escapeHTML(c.nombre)}</b> fue el cliente que más te compró: ${money(c.monto)} en ${c.operaciones} operación${c.operaciones===1?'':'es'}.` });
+  }
+
+  // 8) Empleado más productivo (si hay datos cargados)
+  if(a.topEmpleados.length){
+    const e = a.topEmpleados[0];
+    insights.push({ tipo:'info', texto: `<b>${Utils.escapeHTML(e.nombre)}</b> fue quien más facturó en Servicios: ${money(e.facturado)} en ${e.cantidad} trabajo${e.cantidad===1?'':'s'}.` });
+  }
+
+  // 9) Cantidad de operaciones vs período anterior
+  const deltaCantidad = pct(A.cantidadOperaciones, P.cantidadOperaciones);
+  if(P.cantidadOperaciones>0 && Math.abs(deltaCantidad)>=15){
+    insights.push({ tipo: deltaCantidad>=0?'positivo':'atencion',
+      texto: `Atendiste ${A.cantidadOperaciones} operaciones en total, ${deltaCantidad>=0?'un':'una baja del'} <b>${Math.abs(deltaCantidad).toFixed(0)}%${deltaCantidad>=0?' más':''}</b> que en el período anterior (${P.cantidadOperaciones}).` });
+  }
+
+  return insights;
+}
+
 // Comparativa mensual (últimos N meses) para el gráfico de Facturación vs
 // Gastos vs Pagos a proveedores. Facturación = igual criterio que el Estado
 // de Resultados (ventas + servicios + lavados, netos de notas de crédito).
@@ -16229,6 +16534,185 @@ async function bindBalanceGeneralEvents(){
   document.getElementById('bg-imprimir').onclick = () => {
     if(!ultimaSituacion || !ultimosResultados){ Toast.show('info','Esperá un instante','El balance todavía se está calculando.'); return; }
     printReport(balanceGeneralImprimirHTML(ultimaSituacion, ultimosResultados, desde, hasta));
+  };
+  await render();
+}
+
+const AN_INSIGHT_STYLE = {
+  positivo: { icon:'✅', color:'var(--teal)' },
+  negativo: { icon:'⚠️', color:'var(--danger)' },
+  atencion: { icon:'💡', color:'var(--warning)' },
+  info:     { icon:'ℹ️', color:'var(--info)' }
+};
+
+async function viewAnalisis(){
+  return `
+    <div class="page-header"><div><h1>Análisis</h1><p>Facturación devengada — Ventas, Servicios y Lavados del período por su propia fecha, estén cobrados o no (incluye cuenta corriente impaga). Para ver la plata que realmente entró a Caja, mirá "Gráficos" en el Dashboard.</p></div>
+      <button class="btn btn-ghost btn-sm" id="an-imprimir">Imprimir</button>
+    </div>
+    <div id="an-content"><div class="crm-alerts-empty">Calculando...</div></div>
+  `;
+}
+
+function anRankRowHTML(pos, nombre, valorTexto){
+  return `<div class="an-rank-row"><span class="an-rank-pos">${pos}</span><span class="an-rank-name" title="${Utils.escapeHTML(nombre)}">${Utils.escapeHTML(nombre)}</span><span class="an-rank-value">${valorTexto}</span></div>`;
+}
+
+function analisisImprimirHTML(data, insights, desde, hasta){
+  const cfg = Config.cache;
+  const A = data.actual;
+  const money = (v) => '$'+Math.round(v).toLocaleString('es-AR');
+  const fila = (label, monto) => `<tr><td style="padding:5px 4px;">${Utils.escapeHTML(label)}</td><td style="padding:5px 4px; text-align:right; font-family:'Consolas',monospace;">${money(monto)}</td></tr>`;
+  return `
+    <div style="font-family:Arial,Helvetica,sans-serif; padding:24px; color:#111;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #333; padding-bottom:12px; margin-bottom:18px;">
+        <div>
+          ${cfg.logo?`<img src="${cfg.logo}" style="max-height:44px; margin-bottom:6px;"><br>`:''}
+          <div style="font-size:16px; font-weight:700;">${Utils.escapeHTML(cfg.nombreEmpresa)}</div>
+        </div>
+        <div style="text-align:right; font-size:11px; color:#555;">
+          <div style="font-size:14px; font-weight:700; color:#111;">Análisis del período</div>
+          <div>Del ${new Date(desde+'T00:00:00').toLocaleDateString('es-AR')} al ${new Date(hasta+'T00:00:00').toLocaleDateString('es-AR')}</div>
+        </div>
+      </div>
+
+      <div style="font-size:12.5px; font-weight:700; margin-bottom:8px;">Resumen</div>
+      <div style="margin-bottom:18px;">
+        ${insights.map(i=>`<div style="font-size:11.5px; padding:6px 0; border-bottom:1px solid #eee;">• ${i.texto.replace(/<\/?b>/g,'')}</div>`).join('')}
+      </div>
+
+      <table style="width:100%; border-collapse:collapse; font-size:11.5px; margin-bottom:14px;">
+        ${fila(`Ventas (${A.cantidadVentas})`, A.ingresosVentas)}
+        ${fila(`Servicios (${A.cantidadServicios})`, A.ingresosServicios)}
+        ${fila(`Lavados (${A.cantidadLavados})`, A.ingresosLavados)}
+        <tr style="font-weight:700; border-top:1.5px solid #333;"><td style="padding:5px 4px;">Total facturado</td><td style="padding:5px 4px; text-align:right; font-family:'Consolas',monospace;">${money(A.totalIngresos)}</td></tr>
+        <tr><td style="padding:5px 4px; color:#555;">Cobrado en Caja (período)</td><td style="padding:5px 4px; text-align:right; font-family:'Consolas',monospace; color:#555;">${money(data.cobradoCaja)}</td></tr>
+      </table>
+
+      ${data.topProductos.length?`<div style="font-size:12.5px; font-weight:700; margin-bottom:6px;">Productos más vendidos</div><table style="width:100%; border-collapse:collapse; font-size:11px; margin-bottom:14px;">${data.topProductos.map(p=>fila(`${p.nombre} (x${p.cantidad})`, p.importe)).join('')}</table>`:''}
+      ${data.topClientes.length?`<div style="font-size:12.5px; font-weight:700; margin-bottom:6px;">Clientes que más gastaron</div><table style="width:100%; border-collapse:collapse; font-size:11px; margin-bottom:14px;">${data.topClientes.map(c=>fila(c.nombre, c.monto)).join('')}</table>`:''}
+      ${cfg.pieComprobantes?`<div style="margin-top:20px; font-size:10.5px; color:#666; text-align:center;">${Utils.escapeHTML(cfg.pieComprobantes)}</div>`:''}
+    </div>`;
+}
+
+async function bindAnalisisEvents(){
+  const cont = document.getElementById('an-content');
+  const hoy = Utils.hoyLocal();
+  let desde = hoy.slice(0,8) + '01';
+  let hasta = hoy;
+  let ultimaData = null, ultimosInsights = null;
+
+  const RANGOS_RAPIDOS = [
+    { key:'hoy', label:'Hoy', calc:()=>{ const h=Utils.hoyLocal(); return [h,h]; } },
+    { key:'semana', label:'Esta semana', calc:()=>{ const d=new Date(); const diaSemana=(d.getDay()+6)%7; const ini=new Date(d); ini.setDate(d.getDate()-diaSemana); return [Utils.fechaLocalYMD(ini), Utils.hoyLocal()]; } },
+    { key:'mes', label:'Este mes', calc:()=>{ const h=Utils.hoyLocal(); return [h.slice(0,8)+'01', h]; } },
+    { key:'mesant', label:'Mes anterior', calc:()=>{ const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()-1); const ini=Utils.fechaLocalYMD(d); const fin=new Date(d.getFullYear(),d.getMonth()+1,0); return [ini, Utils.fechaLocalYMD(fin)]; } },
+    { key:'anio', label:'Este año', calc:()=>{ const h=Utils.hoyLocal(); return [h.slice(0,4)+'-01-01', h]; } }
+  ];
+  let rangoActivo = 'mes';
+
+  async function render(){
+    const [data] = await Promise.all([ calcularAnalisisPeriodo(desde, hasta) ]);
+    const insights = generarInsightsAnalisis(data);
+    ultimaData = data; ultimosInsights = insights;
+    const A = data.actual, P = data.anterior;
+    const money = (v) => '$'+Math.round(v).toLocaleString('es-AR');
+    const pctTxt = (act,ant) => { if(ant<=0.009) return null; const d=(act-ant)/ant*100; return `${d>=0?'+':''}${d.toFixed(0)}%`; };
+
+    const deltaFact = pctTxt(A.totalIngresos, P.totalIngresos);
+    const deltaOps = pctTxt(A.cantidadOperaciones, P.cantidadOperaciones);
+    const deltaTicket = pctTxt(A.ticketPromedio, P.ticketPromedio);
+    const deltaResultado = pctTxt(A.resultado, P.resultado);
+
+    const categorias = [
+      { nombre:'Ventas', valor:A.ingresosVentas, cant:A.cantidadVentas, color:'#FF8C1A' },
+      { nombre:'Servicios', valor:A.ingresosServicios, cant:A.cantidadServicios, color:'#2FA8D8' },
+      { nombre:'Lavados', valor:A.ingresosLavados, cant:A.cantidadLavados, color:'#0E9A8A' }
+    ];
+
+    cont.innerHTML = `
+      <div class="card" style="padding:16px 18px; margin-bottom:18px;">
+        <div class="cfg-section-title" style="margin-bottom:10px;">Período a analizar</div>
+        <div class="an-quickrange" style="margin-bottom:12px;">
+          ${RANGOS_RAPIDOS.map(r=>`<button type="button" class="btn btn-ghost btn-sm an-rango-btn ${rangoActivo===r.key?'active':''}" data-rango="${r.key}">${r.label}</button>`).join('')}
+        </div>
+        <div class="toolbar-filters">
+          <input type="date" class="toolbar-select" id="an-desde" value="${desde}">
+          <span style="color:var(--text-muted); font-size:12px;">a</span>
+          <input type="date" class="toolbar-select" id="an-hasta" value="${hasta}">
+          <button class="btn btn-ghost btn-sm" id="an-aplicar">Aplicar</button>
+        </div>
+      </div>
+
+      <div class="card" style="padding:18px; margin-bottom:20px;">
+        <div class="cfg-section-title" style="margin-bottom:12px;">Lo más importante del período</div>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          ${insights.map(i=>{ const st=AN_INSIGHT_STYLE[i.tipo]||AN_INSIGHT_STYLE.info; return `<div class="an-insight-card" style="border-left-color:${st.color};"><span class="an-insight-icon">${st.icon}</span><span>${i.texto}</span></div>`; }).join('')}
+        </div>
+      </div>
+
+      <div class="grid-kpi">
+        <div class="kpi-card" style="--kpi-color:var(--accent)"><div class="kpi-label">Facturación total (devengada)</div><div class="kpi-value" style="font-size:19px;">${money(A.totalIngresos)}</div>${deltaFact?`<div class="kpi-sub" style="color:${A.totalIngresos>=P.totalIngresos?'var(--teal)':'var(--danger)'};">${deltaFact} vs período anterior</div>`:''}</div>
+        <div class="kpi-card" style="--kpi-color:var(--info)"><div class="kpi-label">Cobrado en Caja</div><div class="kpi-value" style="font-size:19px;">${money(data.cobradoCaja)}</div><div class="kpi-sub" style="color:var(--text-muted);">Incluye cobros de deuda vieja, excluye cta. cte. impaga</div></div>
+        <div class="kpi-card" style="--kpi-color:var(--info)"><div class="kpi-label">Operaciones</div><div class="kpi-value">${A.cantidadOperaciones}</div>${deltaOps?`<div class="kpi-sub" style="color:${A.cantidadOperaciones>=P.cantidadOperaciones?'var(--teal)':'var(--danger)'};">${deltaOps} vs período anterior</div>`:''}</div>
+        <div class="kpi-card" style="--kpi-color:var(--teal)"><div class="kpi-label">Ticket promedio</div><div class="kpi-value" style="font-size:19px;">${money(A.ticketPromedio)}</div>${deltaTicket?`<div class="kpi-sub" style="color:${A.ticketPromedio>=P.ticketPromedio?'var(--teal)':'var(--danger)'};">${deltaTicket} vs período anterior</div>`:''}</div>
+        ${A.totalCostos>0.009?`<div class="kpi-card" style="--kpi-color:${A.resultado>=0?'var(--teal)':'var(--danger)'}"><div class="kpi-label">Resultado estimado</div><div class="kpi-value" style="font-size:19px; color:${A.resultado>=0?'inherit':'var(--danger)'};">${money(A.resultado)}</div>${deltaResultado?`<div class="kpi-sub" style="color:${A.resultado>=P.resultado?'var(--teal)':'var(--danger)'};">${deltaResultado} vs período anterior</div>`:''}</div>`:''}
+      </div>
+
+      <div class="card" style="padding:18px; margin-bottom:20px;">
+        <div class="cfg-section-title">Facturación por categoría</div>
+        <div class="cfg-section-sub">Ventas, Servicios y Lavados — ${data.dias} día${data.dias===1?'':'s'}</div>
+        <div style="display:flex; gap:24px; flex-wrap:wrap; align-items:center; margin-top:12px;">
+          <div class="chart-canvas-box" style="height:220px; flex:1; min-width:240px;"><canvas id="an-categoria-chart"></canvas></div>
+          <div style="flex:1; min-width:220px;">
+            ${categorias.map(c=>`<div class="an-rank-row"><span class="an-rank-pos" style="background:${hexToRgba(c.color,.18)}; color:${c.color};">●</span><span class="an-rank-name">${c.nombre} <span style="color:var(--text-muted); font-weight:400;">(${c.cant})</span></span><span class="an-rank-value">${A.totalIngresos>0.009?(c.valor/A.totalIngresos*100).toFixed(0):'0'}% · ${money(c.valor)}</span></div>`).join('')}
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="padding:18px; margin-bottom:20px;">
+        <div class="cfg-section-title">Evolución en el período</div>
+        <div class="chart-canvas-box" style="height:260px; margin-top:10px;"><canvas id="an-evolucion-chart"></canvas></div>
+      </div>
+
+      <div class="an-rank-grid">
+        <div class="card" style="padding:18px;">
+          <div class="cfg-section-title" style="margin-bottom:8px;">Productos más vendidos</div>
+          ${data.topProductos.length ? data.topProductos.map((p,i)=>anRankRowHTML(i+1, p.nombre, `x${p.cantidad} · ${money(p.importe)}`)).join('') : `<div class="crm-alerts-empty">Sin ventas de productos en el período</div>`}
+        </div>
+        <div class="card" style="padding:18px;">
+          <div class="cfg-section-title" style="margin-bottom:8px;">Clientes que más gastaron</div>
+          ${data.topClientes.length ? data.topClientes.map((c,i)=>anRankRowHTML(i+1, c.nombre, money(c.monto))).join('') : `<div class="crm-alerts-empty">Sin operaciones asociadas a un cliente en el período</div>`}
+        </div>
+        <div class="card" style="padding:18px;">
+          <div class="cfg-section-title" style="margin-bottom:8px;">Empleados — Servicios</div>
+          ${data.topEmpleados.length ? data.topEmpleados.map((e,i)=>anRankRowHTML(i+1, e.nombre, `${e.cantidad} · ${money(e.facturado)}`)).join('') : `<div class="crm-alerts-empty">Cargá el campo "Empleado" al registrar Servicios para ver este ranking</div>`}
+        </div>
+      </div>
+    `;
+
+    document.querySelectorAll('.an-rango-btn').forEach(btn=>{
+      btn.onclick = () => {
+        const r = RANGOS_RAPIDOS.find(x=>x.key===btn.dataset.rango);
+        if(!r) return;
+        rangoActivo = r.key;
+        [desde, hasta] = r.calc();
+        render();
+      };
+    });
+    document.getElementById('an-aplicar').onclick = () => {
+      desde = document.getElementById('an-desde').value;
+      hasta = document.getElementById('an-hasta').value;
+      if(desde && hasta){ rangoActivo = null; render(); }
+    };
+
+    drawGenericDonutChart(document.getElementById('an-categoria-chart'), categorias.filter(c=>c.valor>0.009).map(c=>c.nombre), categorias.filter(c=>c.valor>0.009).map(c=>c.valor), categorias.filter(c=>c.valor>0.009).map(c=>c.color));
+    drawEvolucionAnalisisChart(document.getElementById('an-evolucion-chart'), data.evolucion.labels, data.evolucion.ventas, data.evolucion.servicios, data.evolucion.lavados);
+  }
+
+  document.getElementById('an-imprimir').onclick = () => {
+    if(!ultimaData){ Toast.show('info','Esperá un instante','El análisis todavía se está calculando.'); return; }
+    printReport(analisisImprimirHTML(ultimaData, ultimosInsights, desde, hasta));
   };
   await render();
 }
