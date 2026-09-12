@@ -471,6 +471,15 @@ a{ color:inherit; text-decoration:none; }
 .plan-legend{ display:flex; align-items:center; gap:18px; flex-wrap:wrap; font-size:12px; color:var(--text-secondary); margin:2px 0 14px; }
 .plan-legend-item{ display:flex; align-items:center; gap:6px; }
 .plan-legend-dot{ width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.calann-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:14px; }
+.calann-month-card{ border:1px solid var(--border); border-radius:14px; padding:16px; background:var(--bg-panel); cursor:pointer; transition:transform .12s, border-color .12s; }
+.calann-month-card:not(.vacio):hover{ transform:translateY(-2px); border-color:var(--accent); }
+.calann-month-card.vacio{ cursor:default; opacity:.6; }
+.calann-month-name{ font-size:12px; font-weight:700; letter-spacing:.03em; color:var(--text-muted); text-transform:uppercase; }
+.calann-month-total{ font-size:28px; font-weight:800; margin:4px 0 2px; }
+.calann-month-sub{ font-size:11.5px; color:var(--text-muted); margin-bottom:8px; }
+.calann-month-dots{ display:flex; gap:5px; flex-wrap:wrap; }
+.calann-month-dots span{ font-size:10.5px; font-weight:700; color:#fff; border-radius:6px; padding:1px 6px; }
 .plan-scroll-wrap{ border:1px solid var(--border); border-radius:14px; overflow-x:auto; background:var(--bg-panel); }
 .plan-grid-inner{ min-width:1180px; position:relative; }
 .plan-row{ display:grid; grid-template-columns:660px 1fr; border-bottom:1px solid var(--border-soft); align-items:stretch; }
@@ -2970,6 +2979,7 @@ async function router(){
     case 'historial':
       if(param === 'estadisticas'){ outlet.innerHTML = await viewHistorialEstadisticas(); await bindHistorialEstadisticasEvents(); }
       else if(param === 'planificacion'){ outlet.innerHTML = await viewHistorialPlanificacion(); bindHistorialPlanificacionEvents(); }
+      else if(param === 'planificacion-calendario'){ outlet.innerHTML = await viewPlanificacionCalendarioAnual(); await bindPlanificacionCalendarioAnualEvents(); }
       else if(param === 'turnos'){ outlet.innerHTML = await viewServiciosTurnos(); await bindServiciosTurnosEvents(); }
       else{ outlet.innerHTML = await viewHistorialList(); bindHistorialListEvents(); }
       break;
@@ -8066,6 +8076,7 @@ async function viewHistorialPlanificacion(){
     </a>
     <div class="page-header">
       <div><h1>Próximos services programados</h1><p>Reporte de planificación — fecha del reporte: ${hoy.toLocaleDateString('es-AR')}</p></div>
+      <a class="btn btn-ghost" href="#/historial/planificacion-calendario">${svgIcon('calendario')} Calendario anual</a>
     </div>
 
     <div class="plan-kpi-grid">
@@ -8135,6 +8146,128 @@ function bindHistorialPlanificacionEvents(){
       const telefono = btn.dataset.whatsapp;
       const mensaje = btn.dataset.mensaje;
       abrirWhatsApp(telefono, mensaje);
+      btn.classList.add('recordado');
+    };
+  });
+}
+
+/* -----------------------------------------------------------------------
+   20-F-TER. CALENDARIO ANUAL DE PLANIFICACIÓN
+   Misma fuente de datos que la pantalla de Planificación (línea de tiempo),
+   pero agrupada por mes/año calendario: para cada uno de los 12 meses del
+   año elegido, cuenta cuántos vehículos tienen su "próximo service"
+   programado en ese mes. Al clickear un mes se abre el detalle con la
+   lista de vehículos y el mismo botón de recordatorio por WhatsApp.
+----------------------------------------------------------------------- */
+async function viewPlanificacionCalendarioAnual(){
+  return `
+    <a href="#/historial/planificacion" class="back-link">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Volver a Planificación
+    </a>
+    <div class="page-header">
+      <div><h1>Calendario anual de services</h1><p>Cuántos vehículos deberían ingresar a service, mes a mes</p></div>
+    </div>
+    <div id="calann-content"><div class="crm-alerts-empty">Calculando...</div></div>
+  `;
+}
+
+async function bindPlanificacionCalendarioAnualEvents(){
+  const cont = document.getElementById('calann-content');
+  const filas = await obtenerProximosServicesPlanificados();
+
+  const porMes = {}; // clave "año-mes(0-11)" -> filas
+  filas.forEach(f=>{
+    const d = parsearFechaSegura(f.proximoServiceFecha);
+    const key = d.getFullYear()+'-'+d.getMonth();
+    if(!porMes[key]) porMes[key] = [];
+    porMes[key].push(f);
+  });
+
+  let anio = new Date().getFullYear();
+
+  function render(){
+    const meses = MESES_ES.map((nombre,i)=>{
+      const items = (porMes[anio+'-'+i]||[]).slice().sort((a,b)=>parsearFechaSegura(a.proximoServiceFecha)-parsearFechaSegura(b.proximoServiceFecha));
+      const counts = { vencido:0, urgente:0, proximo:0, ok:0 };
+      items.forEach(f=>counts[f.estado]++);
+      return { nombre, mesIndex:i, items, counts, total: items.length };
+    });
+    const maxTotal = Math.max(1, ...meses.map(m=>m.total));
+    const totalAnio = meses.reduce((a,m)=>a+m.total,0);
+
+    cont.innerHTML = `
+      <div class="card" style="padding:14px 18px; margin-bottom:18px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+        <div style="display:flex; align-items:center; gap:14px;">
+          <button class="btn btn-ghost btn-sm" id="calann-prev">‹</button>
+          <div style="font-size:20px; font-weight:800; min-width:60px; text-align:center;">${anio}</div>
+          <button class="btn btn-ghost btn-sm" id="calann-next">›</button>
+        </div>
+        <div style="font-size:13px; color:var(--text-muted);"><b style="color:var(--text-primary);">${totalAnio}</b> vehículo${totalAnio===1?'':'s'} con próximo service programado en ${anio}</div>
+      </div>
+
+      <div class="plan-legend" style="margin-bottom:16px;">
+        <span class="plan-legend-item"><span class="plan-legend-dot" style="background:var(--teal);"></span>Más de 30 días</span>
+        <span class="plan-legend-item"><span class="plan-legend-dot" style="background:var(--warning);"></span>Entre 15 y 30 días</span>
+        <span class="plan-legend-item"><span class="plan-legend-dot" style="background:var(--urgente);"></span>Menos de 15 días</span>
+        <span class="plan-legend-item"><span class="plan-legend-dot" style="background:var(--danger);"></span>Service vencido</span>
+      </div>
+
+      <div class="calann-grid">
+        ${meses.map(m=>{
+          const intensidad = m.total / maxTotal;
+          const bg = m.total ? `linear-gradient(135deg, ${hexToRgba('#FF8C1A', (0.05+intensidad*0.20).toFixed(2))}, transparent)` : 'transparent';
+          return `
+          <div class="calann-month-card ${m.total?'':'vacio'}" data-mes="${m.mesIndex}" style="background:${bg};">
+            <div class="calann-month-name">${m.nombre}</div>
+            <div class="calann-month-total">${m.total}</div>
+            <div class="calann-month-sub">${m.total ? 'vehículo'+(m.total===1?'':'s') : 'sin services'}</div>
+            ${m.total ? `<div class="calann-month-dots">
+              ${m.counts.vencido?`<span title="Vencidos" style="background:${PLANIF_ESTADO_COLOR.vencido}">${m.counts.vencido}</span>`:''}
+              ${m.counts.urgente?`<span title="Menos de 15 días" style="background:${PLANIF_ESTADO_COLOR.urgente}">${m.counts.urgente}</span>`:''}
+              ${m.counts.proximo?`<span title="Entre 15 y 30 días" style="background:${PLANIF_ESTADO_COLOR.proximo}">${m.counts.proximo}</span>`:''}
+              ${m.counts.ok?`<span title="Más de 30 días" style="background:${PLANIF_ESTADO_COLOR.ok}">${m.counts.ok}</span>`:''}
+            </div>` : ''}
+          </div>`;
+        }).join('')}
+      </div>
+    `;
+
+    document.getElementById('calann-prev').onclick = () => { anio--; render(); };
+    document.getElementById('calann-next').onclick = () => { anio++; render(); };
+    document.querySelectorAll('.calann-month-card').forEach(card=>{
+      if(card.classList.contains('vacio')) return;
+      card.onclick = () => abrirDetalleMesCalendarioAnual(meses[Number(card.dataset.mes)], anio);
+    });
+  }
+  render();
+}
+
+function abrirDetalleMesCalendarioAnual(mesData, anio){
+  const filasHTML = mesData.items.map(f=>{
+    const whatsappDestino = (f.cliente && f.cliente.whatsapp) ? f.cliente.whatsapp.replace(/\D/g,'') : '';
+    const fechaTarget = parsearFechaSegura(f.proximoServiceFecha).toLocaleDateString('es-AR');
+    const nombreCliente = f.cliente ? clienteNombreCompleto(f.cliente) : '';
+    const vehiculoDesc = `${f.vehiculo.marca} ${f.vehiculo.modelo} (${f.vehiculo.dominio})`;
+    const mensaje = f.estado==='vencido'
+      ? `Hola ${nombreCliente}! Te escribimos de ${Config.cache.nombreEmpresa} porque el service de tu ${vehiculoDesc} venció el ${fechaTarget}. ¿Coordinamos un turno para ponerlo al día?`
+      : `Hola ${nombreCliente}! Te recordamos que el próximo service de tu ${vehiculoDesc} está programado para el ${fechaTarget}${f.proximoServiceKm?` (aprox. ${Number(f.proximoServiceKm).toLocaleString('es-AR')} km)`:''}. ¡Te esperamos en ${Config.cache.nombreEmpresa}!`;
+    return `
+      <div style="display:flex; align-items:center; gap:10px; padding:9px 2px; border-bottom:1px solid var(--border-soft); font-size:12.5px;">
+        <span style="width:9px; height:9px; border-radius:50%; background:${PLANIF_ESTADO_COLOR[f.estado]}; flex-shrink:0;" title="${PLANIF_ESTADO_LABEL[f.estado]}"></span>
+        <span style="flex:1.3; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${f.cliente?`<a href="#/clientes/${f.cliente.id}">${Utils.escapeHTML(nombreCliente)}</a>`:'<span style="color:var(--text-muted);">Sin cliente</span>'}</span>
+        <span style="flex:1.4; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-secondary);"><a href="#/vehiculos/${f.vehiculo.id}">${Utils.escapeHTML(f.vehiculo.marca)} ${Utils.escapeHTML(f.vehiculo.modelo)}</a> · <span class="font-mono">${Utils.escapeHTML(f.vehiculo.dominio)}</span></span>
+        <span style="font-family:'Consolas',monospace; font-weight:700; color:${PLANIF_ESTADO_COLOR[f.estado]}; white-space:nowrap;">${fechaTarget}</span>
+        <button class="plan-btn-recordar btn-recordar-calann" data-whatsapp="${whatsappDestino}" data-mensaje="${Utils.escapeHTML(mensaje)}" ${!whatsappDestino?'disabled title="Este cliente no tiene WhatsApp cargado"':'title="Enviar recordatorio por WhatsApp"'}>💬</button>
+      </div>`;
+  }).join('');
+  Modal.open(`${mesData.nombre} ${anio} <span style="font-weight:400; color:var(--text-muted); font-size:13px;">— ${mesData.total} vehículo${mesData.total===1?'':'s'}</span>`,
+    `<div style="display:flex; flex-direction:column; max-height:60vh; overflow-y:auto;">${filasHTML}</div>`,
+    { width:'640px' });
+  document.querySelectorAll('.btn-recordar-calann').forEach(btn=>{
+    if(btn.disabled) return;
+    btn.onclick = () => {
+      abrirWhatsApp(btn.dataset.whatsapp, btn.dataset.mensaje);
       btn.classList.add('recordado');
     };
   });
