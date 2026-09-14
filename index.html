@@ -14798,7 +14798,7 @@ async function viewCajaList(){
       </div>
       <div class="card" style="padding:0; overflow-x:auto;">
         <table class="data-table" id="caja-table">
-          <thead><tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Medio</th><th>Monto</th><th>Saldo</th><th>Usuario</th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Medio</th><th>Monto</th><th>Saldo</th><th>Usuario</th><th style="text-align:right;">Acciones</th></tr></thead>
           <tbody>
             ${movimientos.length ? movimientos.map(m => `<tr data-id="${m.id}" data-tipo="${m.tipo}" data-fecha="${Utils.fechaLocalYMD(m.fecha)}">
               <td class="font-mono" style="font-size:12px;">${Utils.fmtFecha(m.fecha)}</td>
@@ -14808,7 +14808,13 @@ async function viewCajaList(){
               <td class="font-mono ${m.tipo==='ingreso'?'margen-positivo':'margen-negativo'}">${m.tipo==='ingreso'?'+':'-'}$${m.monto.toLocaleString('es-AR')}</td>
               <td class="font-mono" style="font-weight:700;">$${m.saldoResultante.toLocaleString('es-AR')}</td>
               <td>${Utils.escapeHTML(m.usuarioNombre||'—')}</td>
-            </tr>`).join('') : `<tr><td colspan="7"><div class="empty-state">${svgIcon('caja')}<h3>Sin movimientos registrados</h3></div></td></tr>`}
+              <td style="text-align:right; white-space:nowrap;">
+                ${m.referencia==='manual' ? accionesFilaHTML(`
+                  <button class="btn btn-ghost btn-sm btn-editar-mov-caja" data-id="${m.id}">Editar</button>
+                  <button class="btn btn-danger-ghost btn-sm btn-eliminar-mov-caja" data-id="${m.id}">Eliminar</button>
+                `) : `<span style="font-size:11px; color:var(--text-muted);" title="Este movimiento se generó automáticamente — para modificarlo, editá o anulá la venta/service/lavado/compra que lo originó">Automático</span>`}
+              </td>
+            </tr>`).join('') : `<tr><td colspan="8"><div class="empty-state">${svgIcon('caja')}<h3>Sin movimientos registrados</h3></div></td></tr>`}
           </tbody>
         </table>
       </div>
@@ -14835,6 +14841,7 @@ async function viewCajaList(){
   `;
 }
 function bindCajaListEvents(){
+  bindAccionesFilaButtons();
   const btnAjustar = document.getElementById('btn-ajustar-saldo-caja');
   if(btnAjustar) btnAjustar.onclick = () => openAjustarSaldoCajaModal();
   document.getElementById('btn-nuevo-mov-caja').onclick = () => openMovimientoCajaModal();
@@ -14842,6 +14849,12 @@ function bindCajaListEvents(){
   document.getElementById('btn-cerrar-caja').onclick = () => openCierreCajaModal();
   document.querySelectorAll('.btn-imprimir-cierre').forEach(btn=>{
     btn.onclick = async () => abrirCierreCajaTicketModal(await DB.get('cierresCaja', Number(btn.dataset.id)));
+  });
+  document.querySelectorAll('.btn-editar-mov-caja').forEach(btn=>{
+    btn.onclick = async () => openMovimientoCajaModal(await DB.get('caja', Number(btn.dataset.id)));
+  });
+  document.querySelectorAll('.btn-eliminar-mov-caja').forEach(btn=>{
+    btn.onclick = () => eliminarMovimientoCajaManual(Number(btn.dataset.id));
   });
 
   document.querySelectorAll('.cfg-tab').forEach(tab=>{
@@ -15133,18 +15146,19 @@ async function openCierreCajaModal(){
   };
 }
 
-async function openMovimientoCajaModal(){
+async function openMovimientoCajaModal(movExistente=null){
   Modal.open(
-    'Nuevo movimiento de caja',
+    movExistente ? 'Editar movimiento de caja' : 'Nuevo movimiento de caja',
     `
-    <div class="field"><label>Tipo</label><select class="select-input" id="mc-tipo"><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option></select></div>
-    <div class="field"><label>Concepto</label><input type="text" id="mc-concepto" placeholder="Ej: Retiro de caja, gasto de librería..."></div>
+    <div class="field"><label>Tipo</label><select class="select-input" id="mc-tipo"><option value="ingreso" ${movExistente&&movExistente.tipo==='ingreso'?'selected':''}>Ingreso</option><option value="egreso" ${movExistente&&movExistente.tipo==='egreso'?'selected':''}>Egreso</option></select></div>
+    <div class="field"><label>Concepto</label><input type="text" id="mc-concepto" placeholder="Ej: Retiro de caja, gasto de librería..." value="${movExistente?Utils.escapeHTML(movExistente.concepto):''}"></div>
     <div class="field-row">
-      <div class="field"><label>Monto</label><input type="number" min="0.01" step="0.01" id="mc-monto"></div>
-      <div class="field"><label>Medio de pago</label><select class="select-input" id="mc-medio">${MEDIOS_PAGO.filter(m=>m!=='Cuenta corriente').map(m=>`<option value="${m}">${m}</option>`).join('')}</select></div>
+      <div class="field"><label>Monto</label><input type="number" min="0.01" step="0.01" id="mc-monto" value="${movExistente?movExistente.monto:''}"></div>
+      <div class="field"><label>Medio de pago</label><select class="select-input" id="mc-medio">${MEDIOS_PAGO.filter(m=>m!=='Cuenta corriente').map(m=>`<option value="${m}" ${movExistente&&movExistente.medioPago===m?'selected':''}>${m}</option>`).join('')}</select></div>
     </div>
-    <div class="field"><label>Fecha</label><input type="date" id="mc-fecha" value="${Utils.hoyLocal()}" max="${Utils.hoyLocal()}"></div>
-    <div class="modal-actions"><button class="btn btn-ghost" id="mc-cancel">Cancelar</button><button class="btn btn-accent" id="mc-save">Guardar</button></div>
+    <div class="field"><label>Fecha</label><input type="date" id="mc-fecha" value="${movExistente?Utils.fechaLocalYMD(movExistente.fecha):Utils.hoyLocal()}" max="${Utils.hoyLocal()}"></div>
+    ${movExistente?`<p style="font-size:11px; color:var(--text-muted); margin-top:-4px;">Al guardar, el saldo se recalcula solo — no hace falta tocar nada más.</p>`:''}
+    <div class="modal-actions"><button class="btn btn-ghost" id="mc-cancel">Cancelar</button><button class="btn btn-accent" id="mc-save">${movExistente?'Guardar cambios':'Guardar'}</button></div>
     `,
     { width:'420px' }
   );
@@ -15158,12 +15172,37 @@ async function openMovimientoCajaModal(){
     if(!concepto){ Toast.show('error','Falta el concepto',''); return; }
     if(!monto || monto<=0){ Toast.show('error','Monto inválido',''); return; }
     if(!fecha){ Toast.show('error','Falta la fecha',''); return; }
-    await registrarMovimientoCaja({ tipo, concepto, monto, medioPago, referencia:'manual', fecha: combinarFechaConHoraActual(fecha) });
-    await Audit.log('caja_movimiento_manual', `Movimiento manual de caja: ${tipo} $${monto.toLocaleString('es-AR')} — ${concepto} (fecha: ${fecha})`);
-    Toast.show('success','Movimiento registrado', concepto);
+    if(movExistente){
+      // Se borra el movimiento viejo y se crea uno nuevo con los datos
+      // corregidos (mismo criterio que usa "Editar venta" para sus efectos
+      // en Caja): el saldo TOTAL de Caja se recalcula siempre sumando todos
+      // los movimientos, así que esto no descuadra nada.
+      await DB.del('caja', movExistente.id);
+      await registrarMovimientoCaja({ tipo, concepto, monto, medioPago, referencia:'manual', fecha: combinarFechaConHoraActual(fecha) });
+      await Audit.log('caja_movimiento_editado', `Movimiento manual de caja editado: ${tipo} $${monto.toLocaleString('es-AR')} — ${concepto} (fecha: ${fecha})`);
+      Toast.show('success','Movimiento actualizado', concepto);
+    }else{
+      await registrarMovimientoCaja({ tipo, concepto, monto, medioPago, referencia:'manual', fecha: combinarFechaConHoraActual(fecha) });
+      await Audit.log('caja_movimiento_manual', `Movimiento manual de caja: ${tipo} $${monto.toLocaleString('es-AR')} — ${concepto} (fecha: ${fecha})`);
+      Toast.show('success','Movimiento registrado', concepto);
+    }
     Modal.close();
     router();
   };
+}
+
+async function eliminarMovimientoCajaManual(id){
+  const mov = await DB.get('caja', id);
+  if(!mov) return;
+  if(mov.referencia !== 'manual'){
+    Toast.show('error','No se puede eliminar','Este movimiento se generó automáticamente — anulá o editá la operación que lo originó.');
+    return;
+  }
+  if(!confirm(`¿Eliminar este movimiento de caja?\n\n${mov.tipo==='ingreso'?'Ingreso':'Egreso'}: $${mov.monto.toLocaleString('es-AR')} — ${mov.concepto}\n\nEsta acción no se puede deshacer.`)) return;
+  await DB.del('caja', id);
+  await Audit.log('caja_movimiento_eliminado', `Movimiento manual de caja eliminado: ${mov.tipo} $${mov.monto.toLocaleString('es-AR')} — ${mov.concepto}`);
+  Toast.show('success','Movimiento eliminado', mov.concepto);
+  router();
 }
 
 /* Ajuste directo del saldo acumulado de Caja (solo Administrador), separado
