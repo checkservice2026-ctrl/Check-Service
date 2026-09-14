@@ -1463,11 +1463,12 @@ const DB_VERSION = 24; // Se agrega store 'socios' (catálogo de socios, para at
    una línea abajo) cada vez que se entrega una nueva versión, para tener
    registro de qué se cambió y cuándo sin depender del nombre del archivo.
    Historial:
+     v18.19 — Fix: los gastos anulados/eliminados ya no quedan "fantasma" en Calendario Financiero y Gráficos (se excluyen del todo si el gasto ya no existe); si un gasto se editó más de una vez, solo cuenta el último monto, no cada versión histórica.
      v18.18 — Fix: los retiros de socios se excluyen de "Gastos" en Calendario Financiero y demás reportes financieros (reducen la Caja real, pero no son un gasto operativo).
      v18.17 — Backup automático: ahora corre 2 veces por día (10:00 y 19:50 hora Argentina), cada uno con su propio archivo y control de "ya se hizo hoy".
      v18.16 — Retiros de socios (nuevo submódulo dentro de Caja) + versión visible en la app.
      v18.15 — punto de partida de este historial. */
-const APP_VERSION = 'v18.18';
+const APP_VERSION = 'v18.19';
 const SESSION_KEY = 'cs_session';
 const REMEMBER_KEY = 'cs_remember_user';
 const THEME_KEY = 'cs_theme';
@@ -3924,8 +3925,8 @@ async function renderCalendarioFinancieroTab(){
   const totalDias = diasEnMesCalFin(mesStr);
   const hasta = `${mesStr}-${String(totalDias).padStart(2,'0')}`;
 
-  const [todosMovs, vigentes, historialVigente, notas] = await Promise.all([DB.getAll('caja'), idsVentasCompletadasVigentes(), idsHistorialVigentes(), notasCreditoPorId()]);
-  const movs = excluirMovimientosDeVentasNoVigentes(todosMovs, vigentes, historialVigente, notas).filter(m => {
+  const [todosMovs, vigentes, historialVigente, notas, gastosVigentes] = await Promise.all([DB.getAll('caja'), idsVentasCompletadasVigentes(), idsHistorialVigentes(), notasCreditoPorId(), idsGastosVigentes()]);
+  const movs = excluirMovimientosDeVentasNoVigentes(todosMovs, vigentes, historialVigente, notas, gastosVigentes).filter(m => {
     const d = Utils.fechaLocalYMD(m.fecha);
     return d >= desde && d <= hasta;
   });
@@ -19301,6 +19302,10 @@ async function notasCreditoPorId(){
   notas.forEach(n=>{ mapa[n.id] = n; });
   return mapa;
 }
+async function idsGastosVigentes(){
+  const gastos = await DB.getAll('gastos');
+  return new Set(gastos.map(g=>g.id));
+}
 function referenciaEntidad(m){
   if(m.referencia && typeof m.referencia==='string' && m.referencia.includes(':')){
     const [tipo, idStr] = m.referencia.split(':');
@@ -19309,7 +19314,25 @@ function referenciaEntidad(m){
   }
   return null;
 }
-function excluirMovimientosDeVentasNoVigentes(movs, idsVentasVigentes, idsHistorialVigentes, notasCredito){
+/* Al editar un gasto (ver editarGasto) se revierte el egreso anterior con un
+   ingreso de anulación y se registra un egreso nuevo con la misma
+   referencia "gasto:ID" — así puede haber varios egresos históricos para
+   un mismo gasto si se editó más de una vez. Para no duplicar el total en
+   los reportes, solo debe contar el más reciente (el de mayor id, que es
+   el que refleja el monto/fecha actual del gasto); los anteriores y sus
+   ingresos de anulación son puro historial contable. */
+function idsUltimoEgresoPorGasto(movs){
+  const ultimo = {};
+  movs.forEach(m=>{
+    if(m.tipo!=='egreso') return;
+    const ref = referenciaEntidad(m);
+    if(!ref || ref.tipo!=='gasto') return;
+    if(!ultimo[ref.id] || m.id > ultimo[ref.id]) ultimo[ref.id] = m.id;
+  });
+  return ultimo;
+}
+function excluirMovimientosDeVentasNoVigentes(movs, idsVentasVigentes, idsHistorialVigentes, notasCredito, idsGastos){
+  const ultimoEgresoPorGasto = idsUltimoEgresoPorGasto(movs);
   return movs.filter(m=>{
     // Un ajuste manual de saldo (ver "Ajustar saldo" en Caja) es una
     // corrección contable del total acumulado, no facturación ni un gasto
@@ -19331,19 +19354,23 @@ function excluirMovimientosDeVentasNoVigentes(movs, idsVentasVigentes, idsHistor
       return idsVentasVigentes.has(nc.ventaId);
     }
     if(ref.tipo==='gasto'){
-      // Al editar o eliminar un gasto se registra un INGRESO de reversa que
-      // anula el egreso original (ver editarGasto/eliminarGasto). Ese ingreso
-      // es solo un asiento contable, no facturación real, así que nunca debe
-      // contarse como "cobrado". El egreso del gasto (original o corregido)
-      // sí es un gasto real y debe seguir contando normalmente.
-      return m.tipo !== 'ingreso';
+      // Un gasto eliminado (ver eliminarGasto) ya no existe en el catálogo:
+      // ni su egreso original ni la reversión de anulación deben seguir
+      // contando — quedaron huérfanos, igual que con venta/historial.
+      if(!idsGastos || !idsGastos.has(ref.id)) return false;
+      // El ingreso de anulación (edición o eliminación) nunca es facturación
+      // real, no debe contarse jamás.
+      if(m.tipo==='ingreso') return false;
+      // De los egresos históricos de este gasto (puede haber más de uno si
+      // se editó varias veces), solo cuenta el más reciente.
+      return ultimoEgresoPorGasto[ref.id] === m.id;
     }
     return true;
   });
 }
 async function obtenerIngresosCajaEnRango(desde, hasta){
-  const [movs, vigentes, historialVigente, notas] = await Promise.all([DB.getAll('caja'), idsVentasCompletadasVigentes(), idsHistorialVigentes(), notasCreditoPorId()]);
-  const validos = excluirMovimientosDeVentasNoVigentes(movs, vigentes, historialVigente, notas);
+  const [movs, vigentes, historialVigente, notas, gastosVigentes] = await Promise.all([DB.getAll('caja'), idsVentasCompletadasVigentes(), idsHistorialVigentes(), notasCreditoPorId(), idsGastosVigentes()]);
+  const validos = excluirMovimientosDeVentasNoVigentes(movs, vigentes, historialVigente, notas, gastosVigentes);
   return validos.filter(m=> m.tipo==='ingreso' && Utils.fechaLocalYMD(m.fecha)>=desde && Utils.fechaLocalYMD(m.fecha)<=hasta);
 }
 
@@ -19858,8 +19885,8 @@ function drawGraficosMensualChart(){
 
 /* ---------- Tab: Anual ---------- */
 async function graficosAnualHTML(){
-  const [todos, vigentes, historialVigente, notas] = await Promise.all([DB.getAll('caja'), idsVentasCompletadasVigentes(), idsHistorialVigentes(), notasCreditoPorId()]);
-  const ingresos = excluirMovimientosDeVentasNoVigentes(todos, vigentes, historialVigente, notas).filter(m=>m.tipo==='ingreso');
+  const [todos, vigentes, historialVigente, notas, gastosVigentes] = await Promise.all([DB.getAll('caja'), idsVentasCompletadasVigentes(), idsHistorialVigentes(), notasCreditoPorId(), idsGastosVigentes()]);
+  const ingresos = excluirMovimientosDeVentasNoVigentes(todos, vigentes, historialVigente, notas, gastosVigentes).filter(m=>m.tipo==='ingreso');
   const anios = [...new Set(ingresos.map(m=>Utils.fechaLocalYMD(m.fecha).slice(0,4)))].sort();
   const anioActual = new Date().getFullYear();
   const listaAnios = anios.length ? anios : [String(anioActual)];
