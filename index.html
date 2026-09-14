@@ -446,6 +446,12 @@ a{ color:inherit; text-decoration:none; }
 .kpi-value{ font-size:26px; font-weight:700; margin-top:6px; font-family:'Consolas','SF Mono',monospace; }
 .kpi-sub{ font-size:11.5px; color:var(--text-secondary); margin-top:4px; }
 
+/* Tarjetas de totales por socio (Caja › Retiros de socios): funcionan como
+   filtro rápido de la tabla al hacer click. */
+.socio-total-card{ transition:border-color .15s, background .15s; }
+.socio-total-card:hover{ border-color:var(--accent); }
+.socio-total-card.active{ border-color:var(--accent); background:var(--accent-dim, var(--bg-panel)); }
+
 /* Desglose de saldo de Caja: Efectivo vs Cuentas bancarias */
 .caja-saldo-breakdown{ display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:14px; margin-bottom:10px; }
 .csb-card{ background:var(--bg-panel); border:1px solid var(--border); border-radius:14px; padding:18px 20px; position:relative; overflow:hidden; }
@@ -1332,6 +1338,7 @@ details[open] > summary > .apl-tree-arrow{ transform:rotate(90deg); }
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg>
         <span class="collapse-label">Contraer</span>
       </button>
+      <div id="sidebar-version" style="text-align:center; font-size:10.5px; color:var(--text-muted); padding-top:6px; letter-spacing:.3px;"></div>
     </div>
   </aside>
   <div id="sidebar-backdrop"></div>
@@ -1449,7 +1456,16 @@ var qrcode=function(){var qrcode=function(t,r){var e=t,n=c[r],o=null,i=0,a=null,
    0. CONSTANTES GLOBALES
 ----------------------------------------------------------------------- */
 const DB_NAME = 'CheckServiceDB';
-const DB_VERSION = 23; // Se agrega store 'empleados' (catálogo formal de empleados, reemplaza el texto libre en Servicios)
+const DB_VERSION = 24; // Se agrega store 'socios' (catálogo de socios, para atribuir retiros de Caja)
+
+/* Versión visible de la app — se muestra en el pie del menú lateral y en
+   Configuración › Información del sistema. Actualizar este número (y sumar
+   una línea abajo) cada vez que se entrega una nueva versión, para tener
+   registro de qué se cambió y cuándo sin depender del nombre del archivo.
+   Historial:
+     v18.16 — Retiros de socios (nuevo submódulo dentro de Caja) + versión visible en la app.
+     v18.15 — punto de partida de este historial. */
+const APP_VERSION = 'v18.16';
 const SESSION_KEY = 'cs_session';
 const REMEMBER_KEY = 'cs_remember_user';
 const THEME_KEY = 'cs_theme';
@@ -1842,6 +1858,14 @@ const DB = (() => {
           // typo separe a la misma persona en dos entradas distintas del
           // ranking de Análisis, y dejar la puerta abierta a comisiones).
           const st = db.createObjectStore('empleados', { keyPath:'id', autoIncrement:true });
+          st.createIndex('activo', 'activo');
+        }
+        if(!db.objectStoreNames.contains('socios')){
+          // Catálogo de socios del negocio, usado para atribuir cada retiro
+          // de Caja a una persona puntual (ver "Retiros de socios" dentro
+          // del módulo Caja). Separado de 'empleados' y de 'usuarios': un
+          // socio no necesariamente factura ni tiene login al sistema.
+          const st = db.createObjectStore('socios', { keyPath:'id', autoIncrement:true });
           st.createIndex('activo', 'activo');
         }
       };
@@ -2869,6 +2893,8 @@ function navItemHTML(item){
 
 function renderSidebarNav(){
   const nav = document.getElementById('sidebar-nav');
+  const versionEl = document.getElementById('sidebar-version');
+  if(versionEl) versionEl.textContent = APP_VERSION;
   const session = Session.get();
   const rutaActual = (window.location.hash.replace('#/','') || 'dashboard').split('/')[0];
   nav.innerHTML = NAV_SECTIONS.map(section => `
@@ -3042,7 +3068,8 @@ async function router(){
       break;
     case 'caja':
       if(!canManageCaja(Session.get().rol)){ outlet.innerHTML = viewNoPermiso(); return; }
-      outlet.innerHTML = await viewCajaList(); bindCajaListEvents();
+      if(param === 'retiros-socios'){ outlet.innerHTML = await viewRetirosSociosCaja(); await bindRetirosSociosCajaEvents(); }
+      else{ outlet.innerHTML = await viewCajaList(); bindCajaListEvents(); }
       break;
     case 'gastos':
       if(!canManageGastos(Session.get().rol)){ outlet.innerHTML = viewNoPermiso(); return; }
@@ -4571,7 +4598,7 @@ async function viewConfiguracion(){
   const permisoCarpeta = carpetaConfigurada ? await prefLocal.backupDirHandle.queryPermission({ mode:'readwrite' }).catch(()=>'error') : null;
   return `
     <div class="page-header">
-      <div><h1>Configuración</h1><p>Datos del lubricentro, apariencia y seguridad del sistema</p></div>
+      <div><h1>Configuración</h1><p>Datos del lubricentro, apariencia y seguridad del sistema — <span style="color:var(--text-muted);">${APP_VERSION}</span></p></div>
     </div>
     <div class="cfg-layout">
       <div class="cfg-tabs">
@@ -14743,6 +14770,7 @@ async function viewCajaList(){
       <div><h1>Caja</h1><p>Movimientos de ingresos y egresos del negocio</p></div>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         ${session.rol==='Administrador'?`<button class="btn btn-ghost" id="btn-ajustar-saldo-caja">${svgIcon('gear')} Ajustar saldo</button>`:''}
+        <a class="btn btn-ghost" href="#/caja/retiros-socios">${svgIcon('usuarios')} Retiros de socios</a>
         <button class="btn btn-ghost" id="btn-nuevo-mov-caja">${svgIcon('caja')} Nuevo movimiento</button>
         <button class="btn btn-ghost" id="btn-resumen-dia">${svgIcon('reportes')} Resumen del día</button>
         <button class="btn btn-accent" id="btn-cerrar-caja">${svgIcon('lock')} Cerrar caja</button>
@@ -14881,6 +14909,298 @@ function bindCajaListEvents(){
     document.getElementById(id).addEventListener('change', applyFilters);
   });
 }
+
+/* -----------------------------------------------------------------------
+   20-L-ter. RETIROS DE SOCIOS
+   Submódulo dentro de Caja para registrar y visualizar, de forma separada
+   del resto de los egresos, el dinero que retira cada socio del negocio.
+   Cada retiro es un egreso normal de Caja (mismo motor que cualquier otro
+   movimiento manual) con concepto pre-cargado "Retiro de socios - <nombre>"
+   y referencia "retiro_socio:<socioId>", lo que permite discriminarlos del
+   resto de los movimientos y armar el resumen por socio de esta pantalla.
+----------------------------------------------------------------------- */
+async function viewRetirosSociosCaja(){
+  const [socios, movimientos] = await Promise.all([
+    DB.getAll('socios'),
+    DB.getAll('caja')
+  ]);
+  const sociosOrdenados = socios.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre));
+  const sociosActivos = sociosOrdenados.filter(s=>s.activo!==false);
+  const retiros = movimientos
+    .filter(m=>(m.referencia||'').startsWith('retiro_socio:'))
+    .sort((a,b)=> new Date(b.fecha)-new Date(a.fecha));
+
+  const hoyStr = Utils.hoyLocal();
+  const inicioMes = hoyStr.slice(0,7); // "YYYY-MM"
+
+  // Totales por socio (histórico y mes actual), aunque el socio ya no exista
+  // más en el catálogo (se muestra igual, con el nombre que tenía el retiro).
+  const totalesPorSocio = {};
+  for(const r of retiros){
+    const socioId = r.referencia.split(':')[1];
+    if(!totalesPorSocio[socioId]) totalesPorSocio[socioId] = { total:0, totalMes:0, cantidad:0, nombre: r.concepto.replace(/^Retiro de socios - /,'') };
+    totalesPorSocio[socioId].total += r.monto;
+    totalesPorSocio[socioId].cantidad++;
+    if(Utils.fechaLocalYMD(r.fecha).slice(0,7)===inicioMes) totalesPorSocio[socioId].totalMes += r.monto;
+  }
+  // El nombre actual del catálogo manda por sobre el que quedó guardado en
+  // el concepto (por si el socio fue renombrado después de retirar).
+  for(const s of sociosOrdenados){ if(totalesPorSocio[s.id]) totalesPorSocio[s.id].nombre = s.nombre; }
+
+  const totalHistorico = retiros.reduce((acc,r)=>acc+r.monto, 0);
+  const totalMesActual = retiros.filter(r=>Utils.fechaLocalYMD(r.fecha).slice(0,7)===inicioMes).reduce((acc,r)=>acc+r.monto, 0);
+
+  const tarjetasSocios = Object.keys(totalesPorSocio)
+    .map(socioId => ({ socioId, ...totalesPorSocio[socioId] }))
+    .sort((a,b)=>b.total-a.total);
+
+  return `
+    <a href="#/caja" class="back-link">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Volver a Caja
+    </a>
+    <div class="page-header">
+      <div><h1>Retiros de socios</h1><p>Egresos de Caja atribuidos a cada socio del negocio</p></div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-ghost" id="btn-gestionar-socios">${svgIcon('usuarios')} Gestionar socios</button>
+        <button class="btn btn-accent" id="btn-nuevo-retiro-socio">${svgIcon('caja')} Nuevo retiro</button>
+      </div>
+    </div>
+
+    ${!sociosActivos.length ? `
+      <div class="card empty-state">
+        ${svgIcon('usuarios')}
+        <h3>Todavía no hay socios cargados</h3>
+        <p>Agregá primero a los socios del negocio para poder registrar y ver sus retiros por separado.</p>
+        <button class="btn btn-accent" id="btn-gestionar-socios-empty" style="margin-top:10px;">${svgIcon('usuarios')} Cargar socios</button>
+      </div>
+    ` : `
+      <div class="grid-kpi">
+        <div class="kpi-card" style="--kpi-color:var(--danger)"><div class="kpi-label">Retirado (histórico)</div><div class="kpi-value">$${totalHistorico.toLocaleString('es-AR')}</div></div>
+        <div class="kpi-card" style="--kpi-color:var(--warning)"><div class="kpi-label">Retirado este mes</div><div class="kpi-value">$${totalMesActual.toLocaleString('es-AR')}</div></div>
+        <div class="kpi-card" style="--kpi-color:var(--info)"><div class="kpi-label">Socios activos</div><div class="kpi-value">${sociosActivos.length}</div></div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px,1fr)); gap:12px; margin:4px 0 20px;">
+        <div class="card socio-total-card active" data-socio-id="" style="cursor:pointer; padding:14px 16px; border:1px solid var(--border-soft);">
+          <div style="font-size:12px; color:var(--text-muted); font-weight:600;">Todos los socios</div>
+          <div style="font-size:20px; font-weight:700; margin-top:4px;">$${totalHistorico.toLocaleString('es-AR')}</div>
+          <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${retiros.length} retiro${retiros.length===1?'':'s'} en total</div>
+        </div>
+        ${tarjetasSocios.map(s => `
+          <div class="card socio-total-card" data-socio-id="${s.socioId}" style="cursor:pointer; padding:14px 16px; border:1px solid var(--border-soft);">
+            <div style="font-size:12px; color:var(--text-muted); font-weight:600;">${Utils.escapeHTML(s.nombre)}</div>
+            <div style="font-size:20px; font-weight:700; margin-top:4px;">$${s.total.toLocaleString('es-AR')}</div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${s.cantidad} retiro${s.cantidad===1?'':'s'} · $${s.totalMes.toLocaleString('es-AR')} este mes</div>
+          </div>
+        `).join('')}
+      </div>
+
+      <div class="toolbar-filters">
+        <select class="toolbar-select" id="rs-filtro-socio">
+          <option value="">Todos los socios</option>
+          ${tarjetasSocios.map(s=>`<option value="${s.socioId}">${Utils.escapeHTML(s.nombre)}</option>`).join('')}
+        </select>
+        <input type="date" class="toolbar-select" id="rs-desde" title="Desde">
+        <input type="date" class="toolbar-select" id="rs-hasta" title="Hasta">
+      </div>
+      <div class="card" style="padding:0; overflow-x:auto;">
+        <table class="data-table" id="rs-table">
+          <thead><tr><th>Fecha</th><th>Socio</th><th>Medio</th><th>Monto</th><th>Usuario</th><th style="text-align:right;">Acciones</th></tr></thead>
+          <tbody>
+            ${retiros.length ? retiros.map(r => {
+              const socioId = r.referencia.split(':')[1];
+              const nombreSocio = (totalesPorSocio[socioId]||{}).nombre || r.concepto.replace(/^Retiro de socios - /,'');
+              return `<tr data-id="${r.id}" data-socio-id="${socioId}" data-fecha="${Utils.fechaLocalYMD(r.fecha)}">
+                <td class="font-mono" style="font-size:12px;">${Utils.fmtFecha(r.fecha)}</td>
+                <td style="font-weight:600;">${Utils.escapeHTML(nombreSocio)}</td>
+                <td><span class="tag-chip">${Utils.escapeHTML(r.medioPago)}</span></td>
+                <td class="font-mono margen-negativo">-$${r.monto.toLocaleString('es-AR')}</td>
+                <td>${Utils.escapeHTML(r.usuarioNombre||'—')}</td>
+                <td style="text-align:right; white-space:nowrap;">
+                  ${accionesFilaHTML(`
+                    <button class="btn btn-ghost btn-sm btn-editar-retiro-socio" data-id="${r.id}">Editar</button>
+                    <button class="btn btn-danger-ghost btn-sm btn-eliminar-retiro-socio" data-id="${r.id}">Eliminar</button>
+                  `)}
+                </td>
+              </tr>`;
+            }).join('') : `<tr><td colspan="6"><div class="empty-state">${svgIcon('caja')}<h3>Todavía no se registraron retiros</h3></div></td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    `}
+  `;
+}
+
+async function bindRetirosSociosCajaEvents(){
+  bindAccionesFilaButtons();
+  const btnNuevo = document.getElementById('btn-nuevo-retiro-socio');
+  if(btnNuevo) btnNuevo.onclick = async () => {
+    const sociosActivos = (await DB.getAll('socios')).filter(s=>s.activo!==false);
+    if(!sociosActivos.length){ Toast.show('error','No hay socios activos','Cargá al menos un socio antes de registrar un retiro.'); return; }
+    openRetiroSocioModal();
+  };
+  ['btn-gestionar-socios','btn-gestionar-socios-empty'].forEach(id=>{
+    const btn = document.getElementById(id);
+    if(btn) btn.onclick = () => openSociosManageModal();
+  });
+  document.querySelectorAll('.btn-editar-retiro-socio').forEach(btn=>{
+    btn.onclick = async () => openRetiroSocioModal(await DB.get('caja', Number(btn.dataset.id)));
+  });
+  document.querySelectorAll('.btn-eliminar-retiro-socio').forEach(btn=>{
+    btn.onclick = () => eliminarRetiroSocio(Number(btn.dataset.id));
+  });
+
+  document.querySelectorAll('.socio-total-card').forEach(card=>{
+    card.onclick = () => {
+      document.getElementById('rs-filtro-socio').value = card.dataset.socioId;
+      document.querySelectorAll('.socio-total-card').forEach(c=>c.classList.remove('active'));
+      card.classList.add('active');
+      aplicarFiltrosRetirosSocios();
+    };
+  });
+
+  function aplicarFiltrosRetirosSocios(){
+    const socioId = document.getElementById('rs-filtro-socio').value;
+    const desde = document.getElementById('rs-desde').value;
+    const hasta = document.getElementById('rs-hasta').value;
+    document.querySelectorAll('#rs-table tbody tr[data-id]').forEach(tr=>{
+      const matchSocio = !socioId || tr.dataset.socioId===socioId;
+      const matchDesde = !desde || tr.dataset.fecha >= desde;
+      const matchHasta = !hasta || tr.dataset.fecha <= hasta;
+      tr.style.display = (matchSocio && matchDesde && matchHasta) ? '' : 'none';
+    });
+  }
+  const selSocio = document.getElementById('rs-filtro-socio');
+  if(selSocio){
+    ['rs-filtro-socio','rs-desde','rs-hasta'].forEach(id=>{
+      document.getElementById(id).addEventListener('change', () => {
+        if(id==='rs-filtro-socio'){
+          document.querySelectorAll('.socio-total-card').forEach(c=>c.classList.toggle('active', c.dataset.socioId===selSocio.value));
+        }
+        aplicarFiltrosRetirosSocios();
+      });
+    });
+  }
+}
+
+/* Modal para registrar/editar un retiro puntual. El concepto se genera solo
+   ("Retiro de socios - <nombre>") a partir del socio elegido, así queda
+   prolijo y consistente en el historial de Caja sin que haya que tipearlo
+   cada vez. */
+function openRetiroSocioModal(movExistente=null){
+  DB.getAll('socios').then(socios=>{
+    const sociosActivos = socios.filter(s=>s.activo!==false).sort((a,b)=>a.nombre.localeCompare(b.nombre));
+    const socioIdActual = movExistente ? Number(movExistente.referencia.split(':')[1]) : null;
+    Modal.open(
+      movExistente ? 'Editar retiro de socio' : 'Nuevo retiro de socio',
+      `
+      <div class="field"><label>Socio</label>
+        <select class="select-input" id="rsf-socio">
+          ${sociosActivos.map(s=>`<option value="${s.id}" ${socioIdActual===s.id?'selected':''}>${Utils.escapeHTML(s.nombre)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Monto</label><input type="number" min="0.01" step="0.01" id="rsf-monto" value="${movExistente?movExistente.monto:''}"></div>
+        <div class="field"><label>Medio de pago</label><select class="select-input" id="rsf-medio">${MEDIOS_PAGO.filter(m=>m!=='Cuenta corriente').map(m=>`<option value="${m}" ${movExistente&&movExistente.medioPago===m?'selected':''}>${m}</option>`).join('')}</select></div>
+      </div>
+      <div class="field"><label>Fecha</label><input type="date" id="rsf-fecha" value="${movExistente?Utils.fechaLocalYMD(movExistente.fecha):Utils.hoyLocal()}" max="${Utils.hoyLocal()}"></div>
+      ${movExistente?`<p style="font-size:11px; color:var(--text-muted); margin-top:-4px;">Al guardar, el saldo de Caja se recalcula solo.</p>`:''}
+      <div class="modal-actions"><button class="btn btn-ghost" id="rsf-cancel">Cancelar</button><button class="btn btn-accent" id="rsf-save">${movExistente?'Guardar cambios':'Registrar retiro'}</button></div>
+      `,
+      { width:'420px' }
+    );
+    document.getElementById('rsf-cancel').onclick = () => Modal.close();
+    document.getElementById('rsf-save').onclick = async () => {
+      const socioId = Number(document.getElementById('rsf-socio').value);
+      const socio = sociosActivos.find(s=>s.id===socioId);
+      const monto = Number(document.getElementById('rsf-monto').value);
+      const medioPago = document.getElementById('rsf-medio').value;
+      const fecha = document.getElementById('rsf-fecha').value;
+      if(!socio){ Toast.show('error','Elegí un socio',''); return; }
+      if(!monto || monto<=0){ Toast.show('error','Monto inválido',''); return; }
+      if(!fecha){ Toast.show('error','Falta la fecha',''); return; }
+      const concepto = `Retiro de socios - ${socio.nombre}`;
+      const referencia = `retiro_socio:${socio.id}`;
+      if(movExistente){
+        await DB.del('caja', movExistente.id);
+        await registrarMovimientoCaja({ tipo:'egreso', concepto, monto, medioPago, referencia, fecha: combinarFechaConHoraActual(fecha) });
+        await Audit.log('caja_retiro_socio_editado', `Retiro de socio editado: ${socio.nombre} — $${monto.toLocaleString('es-AR')} (fecha: ${fecha})`);
+        Toast.show('success','Retiro actualizado', socio.nombre);
+      }else{
+        await registrarMovimientoCaja({ tipo:'egreso', concepto, monto, medioPago, referencia, fecha: combinarFechaConHoraActual(fecha) });
+        await Audit.log('caja_retiro_socio', `Retiro de socio: ${socio.nombre} — $${monto.toLocaleString('es-AR')} (fecha: ${fecha})`);
+        Toast.show('success','Retiro registrado', socio.nombre);
+      }
+      Modal.close();
+      router();
+    };
+  });
+}
+
+async function eliminarRetiroSocio(id){
+  const mov = await DB.get('caja', id);
+  if(!mov || !(mov.referencia||'').startsWith('retiro_socio:')) return;
+  if(!confirm(`¿Eliminar este retiro?\n\n${mov.concepto} — $${mov.monto.toLocaleString('es-AR')}\n\nEsta acción no se puede deshacer.`)) return;
+  await DB.del('caja', id);
+  await Audit.log('caja_retiro_socio_eliminado', `Retiro de socio eliminado: ${mov.concepto} — $${mov.monto.toLocaleString('es-AR')}`);
+  Toast.show('success','Retiro eliminado', mov.concepto);
+  router();
+}
+
+/* CRUD simple del catálogo de socios (solo nombre + activo/baja, sin
+   eliminación dura para no perder trazabilidad de retiros ya registrados
+   con referencia a un socio que después se dio de baja). */
+function openSociosManageModal(){
+  DB.getAll('socios').then(socios=>{
+    const sociosOrdenados = socios.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre));
+    Modal.open(
+      'Gestionar socios',
+      `
+      <div class="field-row">
+        <div class="field" style="flex:1;"><label>Nuevo socio</label><input type="text" id="sm-nombre-nuevo" placeholder="Nombre del socio"></div>
+        <button class="btn btn-accent" id="sm-agregar" style="align-self:flex-end; height:40px;">Agregar</button>
+      </div>
+      <div class="card" style="padding:0; margin-top:10px; max-height:280px; overflow-y:auto;">
+        <table class="data-table">
+          <thead><tr><th>Nombre</th><th>Estado</th><th style="text-align:right;">Acciones</th></tr></thead>
+          <tbody id="sm-tbody">
+            ${sociosOrdenados.length ? sociosOrdenados.map(s=>`<tr data-id="${s.id}">
+              <td style="font-weight:600;">${Utils.escapeHTML(s.nombre)}</td>
+              <td>${s.activo!==false?`<span class="badge badge-ok">Activo</span>`:`<span class="badge badge-neutral">Baja</span>`}</td>
+              <td style="text-align:right;"><button class="btn btn-ghost btn-sm sm-toggle-baja" data-id="${s.id}">${s.activo!==false?'Dar de baja':'Reactivar'}</button></td>
+            </tr>`).join('') : `<tr><td colspan="3" style="text-align:center; color:var(--text-muted); padding:16px;">Sin socios cargados todavía</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+      <div class="modal-actions"><button class="btn btn-ghost" id="sm-cerrar">Cerrar</button></div>
+      `,
+      { width:'460px', persistent:true }
+    );
+    document.getElementById('sm-cerrar').onclick = () => { Modal.close(); router(); };
+    document.getElementById('sm-agregar').onclick = async () => {
+      const nombre = document.getElementById('sm-nombre-nuevo').value.trim();
+      if(!nombre){ Toast.show('error','Falta el nombre',''); return; }
+      await DB.add('socios', { nombre, activo:true, fechaCreacion:Utils.nowISO() });
+      await Audit.log('socio_creado', `Socio ${nombre} creado.`);
+      Toast.show('success','Socio agregado', nombre);
+      Modal.close();
+      openSociosManageModal();
+    };
+    document.querySelectorAll('.sm-toggle-baja').forEach(btn=>{
+      btn.onclick = async () => {
+        const s = await DB.get('socios', Number(btn.dataset.id));
+        const nuevoEstado = !(s.activo!==false);
+        await DB.put('socios', { ...s, activo: nuevoEstado });
+        await Audit.log(nuevoEstado?'socio_alta':'socio_baja', `Socio ${s.nombre} ${nuevoEstado?'reactivado':'dado de baja'}.`);
+        Toast.show('success', nuevoEstado?'Socio reactivado':'Socio dado de baja', s.nombre);
+        Modal.close();
+        openSociosManageModal();
+      };
+    });
+  });
+}
+
 /* Ticket imprimible (80mm) del cierre de caja — mismo formato que el resto
    de los comprobantes de la app. Incluye el desglose por medio de pago,
    lo facturado a cuenta corriente (aclarado como pendiente de cobro) y un
