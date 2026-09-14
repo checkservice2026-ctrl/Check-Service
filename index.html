@@ -1449,7 +1449,7 @@ var qrcode=function(){var qrcode=function(t,r){var e=t,n=c[r],o=null,i=0,a=null,
    0. CONSTANTES GLOBALES
 ----------------------------------------------------------------------- */
 const DB_NAME = 'CheckServiceDB';
-const DB_VERSION = 22; // Se agrega store 'aplicacionesFiltros' (módulo Aplicaciones: qué filtros lleva cada vehículo)
+const DB_VERSION = 23; // Se agrega store 'empleados' (catálogo formal de empleados, reemplaza el texto libre en Servicios)
 const SESSION_KEY = 'cs_session';
 const REMEMBER_KEY = 'cs_remember_user';
 const THEME_KEY = 'cs_theme';
@@ -1513,6 +1513,7 @@ const SERVICE_CHECKLIST_ITEMS = [
 ];
 // Permisos: quién puede cargar/editar servicios y quién puede ver costo/margen (info sensible).
 function canManageHistorial(rol){ return ['Administrador','Supervisor','Taller'].includes(rol); }
+function canManageEmpleados(rol){ return ['Administrador','Supervisor'].includes(rol); }
 function canSeeCosto(rol){ return ['Administrador','Supervisor'].includes(rol); }
 function canCobrarHistorial(rol){ return ['Administrador','Supervisor','Caja'].includes(rol); }
 // Permisos de Fase 5: productos, stock y POS.
@@ -1833,6 +1834,15 @@ const DB = (() => {
           const st = db.createObjectStore('aplicacionesFiltros', { keyPath:'id', autoIncrement:true });
           st.createIndex('marca', 'marca');
           st.createIndex('modelo', 'modelo');
+        }
+        if(!db.objectStoreNames.contains('empleados')){
+          // Catálogo de empleados del taller (mecánicos, etc.), con teléfono,
+          // puesto y % de comisión. Reemplaza el campo de texto libre
+          // "Empleado" de Servicios (mismo motivo que 'marcas': evitar que un
+          // typo separe a la misma persona en dos entradas distintas del
+          // ranking de Análisis, y dejar la puerta abierta a comisiones).
+          const st = db.createObjectStore('empleados', { keyPath:'id', autoIncrement:true });
+          st.createIndex('activo', 'activo');
         }
       };
 
@@ -2983,6 +2993,9 @@ async function router(){
       else if(param === 'turnos'){ outlet.innerHTML = await viewServiciosTurnos(); await bindServiciosTurnosEvents(); }
       else{ outlet.innerHTML = await viewHistorialList(); bindHistorialListEvents(); }
       break;
+    case 'empleados':
+      outlet.innerHTML = await viewEmpleadosList(); bindEmpleadosListEvents();
+      break;
     case 'productos':
       if(param){ outlet.innerHTML = await viewKardexProducto(Number(param)); bindKardexEvents(Number(param)); }
       else{ outlet.innerHTML = await viewProductosList(); bindProductosListEvents(); }
@@ -3255,9 +3268,9 @@ async function viewDashboard(){
   let gananciaMes = 0, rentabilidadPct = 0, saldoCajaActual = 0, facturasCompraPorVencer = [];
   if(verFinanzas){
     const productosById = {}; productos.forEach(p=>productosById[p.id]=p);
+    const costoPorProductoDash = {}; productos.forEach(p=>costoPorProductoDash[p.id]=p.precioCosto||0);
     const gananciaVentasMes = ventasMes.reduce((acc,v)=> acc + v.items.reduce((a2,it)=>{
-      const p = productosById[it.productoId];
-      const costo = p ? p.precioCosto : 0;
+      const costo = costoItemVenta(it, costoPorProductoDash);
       return a2 + (it.precioUnitario - costo) * it.cantidad;
     },0), 0);
     const gananciaServiciosMes = historialEsteMes.reduce((acc,h)=> acc + ((h.precio||0)-(h.costo||0)), 0);
@@ -3540,6 +3553,15 @@ async function bindDashboardEvents(){
    cobró en efectivo/tarjeta/etc (pendiente, o cargado a cuenta corriente
    sin cobrar todavía) se sigue mostrando en la fecha del service, como
    aproximación, hasta que se cobre. */
+/* Costo de un ítem de venta: usa el costo guardado en el momento de la
+   venta (it.costoUnitario) si existe; si la venta es de antes de que se
+   empezara a guardar ese dato, cae al costo ACTUAL del producto como
+   aproximación (mismo comportamiento que tenía toda la app antes). */
+function costoItemVenta(it, costoPorProducto){
+  if(it.costoUnitario !== undefined && it.costoUnitario !== null) return it.costoUnitario;
+  return it.productoId ? (costoPorProducto[it.productoId]||0) : 0;
+}
+
 async function calcularMargenPorPeriodo(periodo){
   const CANTIDAD_BUCKETS = { dia:14, semana:8, mes:12, anio:5 };
   const cantidad = CANTIDAD_BUCKETS[periodo] || 12;
@@ -3574,10 +3596,11 @@ async function calcularMargenPorPeriodo(periodo){
     DB.getAll('caja')
   ]);
   const productosById = {}; productos.forEach(p=>productosById[p.id]=p);
+  const costoPorProducto = {}; productos.forEach(p=>costoPorProducto[p.id]=p.precioCosto||0);
 
   ventas.filter(v=>v.estado==='completada').forEach(v=>{
     const margen = v.items.reduce((a,it)=>{
-      const costo = it.productoId ? (productosById[it.productoId]?.precioCosto||0) : 0;
+      const costo = costoItemVenta(it, costoPorProducto);
       return a + (it.precioUnitario-costo)*it.cantidad;
     },0);
     sumarAClave(v.fecha, margen);
@@ -8274,6 +8297,109 @@ function abrirDetalleMesCalendarioAnual(mesData, anio){
 }
 
 /* -----------------------------------------------------------------------
+   20-F-QUATER. MÓDULO EMPLEADOS
+   Catálogo de empleados del taller (mecánicos, lavadores, etc.), separado
+   de "usuarios" (que son las cuentas con login al sistema). Un empleado
+   NO necesita usuario/contraseña para aparecer como "Realizado por" en un
+   service — así un ayudante o mecánico que nunca usa la PC igual puede
+   trackearse en los rankings de Análisis y (a futuro) en comisiones.
+----------------------------------------------------------------------- */
+async function viewEmpleadosList(){
+  const empleados = (await DB.getAll('empleados')).sort((a,b)=>a.nombre.localeCompare(b.nombre));
+  const puedeGestionar = canManageEmpleados(Session.get().rol);
+  return `
+    <a href="#/historial" class="back-link">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Volver a Servicios
+    </a>
+    <div class="page-header">
+      <div><h1>Empleados</h1><p>${empleados.filter(e=>e.activo!==false).length} activos de ${empleados.length} registrados — aparecen como "Realizado por" al cargar un service</p></div>
+      ${puedeGestionar?`<button class="btn btn-accent" id="btn-nuevo-empleado">${svgIcon('clientes')} Nuevo empleado</button>`:''}
+    </div>
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table class="data-table">
+        <thead><tr><th>Nombre</th><th>Teléfono</th><th>Puesto</th><th>Comisión</th><th>Estado</th>${puedeGestionar?'<th style="text-align:right;">Acciones</th>':''}</tr></thead>
+        <tbody>
+          ${empleados.length ? empleados.map(e => `<tr data-id="${e.id}">
+            <td style="font-weight:700;">${Utils.escapeHTML(e.nombre)}</td>
+            <td>${Utils.escapeHTML(e.telefono||'—')}</td>
+            <td>${Utils.escapeHTML(e.puesto||'—')}</td>
+            <td class="font-mono">${e.comision ? e.comision+'%' : '—'}</td>
+            <td>${e.activo!==false?`<span class="badge badge-ok">Activo</span>`:`<span class="badge badge-neutral">Baja</span>`}</td>
+            ${puedeGestionar?`<td style="text-align:right; white-space:nowrap;">
+              ${accionesFilaHTML(`
+                <button class="btn btn-ghost btn-sm btn-edit-empleado" data-id="${e.id}">Editar</button>
+                <button class="btn ${e.activo===false?'btn-ghost':'btn-danger-ghost'} btn-sm btn-toggle-baja-empleado" data-id="${e.id}">${e.activo===false?'Alta':'Baja'}</button>
+              `)}
+            </td>`:''}
+          </tr>`).join('') : `<tr><td colspan="6"><div class="empty-state">${svgIcon('clientes')}<h3>Todavía no hay empleados cargados</h3><p>${puedeGestionar?'Agregalos acá para poder elegirlos como "Realizado por" en cada service.':'Todavía no hay empleados cargados.'}</p></div></td></tr>`}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function bindEmpleadosListEvents(){
+  bindAccionesFilaButtons();
+  const btnNuevo = document.getElementById('btn-nuevo-empleado');
+  if(btnNuevo) btnNuevo.onclick = () => openEmpleadoModal();
+  document.querySelectorAll('.btn-edit-empleado').forEach(btn=>{
+    btn.onclick = async () => openEmpleadoModal(await DB.get('empleados', Number(btn.dataset.id)));
+  });
+  document.querySelectorAll('.btn-toggle-baja-empleado').forEach(btn=>{
+    btn.onclick = async () => {
+      const e = await DB.get('empleados', Number(btn.dataset.id));
+      const nuevoEstado = !(e.activo!==false);
+      await DB.put('empleados', { ...e, activo: nuevoEstado });
+      await Audit.log(nuevoEstado?'empleado_alta':'empleado_baja', `Empleado ${e.nombre} ${nuevoEstado?'reactivado':'dado de baja'}.`);
+      Toast.show('success', nuevoEstado?'Empleado reactivado':'Empleado dado de baja', e.nombre);
+      router();
+    };
+  });
+}
+
+function openEmpleadoModal(e=null){
+  Modal.open(
+    e ? 'Editar empleado' : 'Nuevo empleado',
+    `
+    <div class="field"><label>Nombre</label><input type="text" id="emf-nombre" value="${e?Utils.escapeHTML(e.nombre):''}"></div>
+    <div class="field-row">
+      <div class="field"><label>Teléfono</label><input type="text" id="emf-telefono" value="${e?Utils.escapeHTML(e.telefono||''):''}"></div>
+      <div class="field"><label>Puesto</label><input type="text" id="emf-puesto" placeholder="Ej: Mecánico, Lavador..." value="${e?Utils.escapeHTML(e.puesto||''):''}"></div>
+    </div>
+    <div class="field"><label>% Comisión sobre lo que factura</label><input type="number" min="0" max="100" step="0.1" id="emf-comision" placeholder="0" value="${e?e.comision||'':''}"></div>
+    <div class="field"><label>Observaciones</label><textarea class="textarea-input" id="emf-observaciones">${e?Utils.escapeHTML(e.observaciones||''):''}</textarea></div>
+    <div class="modal-actions"><button class="btn btn-ghost" id="emf-cancel">Cancelar</button><button class="btn btn-accent" id="emf-save">Guardar</button></div>
+    `,
+    { width:'480px' }
+  );
+  document.getElementById('emf-cancel').onclick = () => Modal.close();
+  document.getElementById('emf-save').onclick = async () => {
+    const nombre = document.getElementById('emf-nombre').value.trim();
+    if(!nombre){ Toast.show('error','Falta el nombre',''); return; }
+    const payload = {
+      nombre,
+      telefono: document.getElementById('emf-telefono').value.trim(),
+      puesto: document.getElementById('emf-puesto').value.trim(),
+      comision: Number(document.getElementById('emf-comision').value) || 0,
+      observaciones: document.getElementById('emf-observaciones').value.trim()
+    };
+    if(e){
+      await DB.put('empleados', { ...e, ...payload });
+      await Audit.log('empleado_editado', `Empleado ${nombre} editado.`);
+      Toast.show('success','Empleado actualizado', nombre);
+    }else{
+      payload.activo = true; payload.fechaCreacion = Utils.nowISO();
+      await DB.add('empleados', payload);
+      await Audit.log('empleado_creado', `Empleado ${nombre} creado.`);
+      Toast.show('success','Empleado creado', nombre);
+    }
+    Modal.close();
+    router();
+  };
+}
+
+/* -----------------------------------------------------------------------
    20-F. VISTA DETALLE DE VEHÍCULO + HISTORIAL asociado (Fase 4)
 ----------------------------------------------------------------------- */
 async function viewVehiculoDetalle(id){
@@ -8507,7 +8633,7 @@ async function openRegistrarPagoHistorialModal(h){
 /* -----------------------------------------------------------------------
    20-G. FORMULARIO Y MODALES DE HISTORIAL DE SERVICIOS (Fase 4)
 ----------------------------------------------------------------------- */
-function historialFormHTML(h, vehiculo, usuariosActivos, verCosto, prefill){
+function historialFormHTML(h, vehiculo, empleadosActivos, verCosto, prefill){
   const items = h && h.items ? h.items : (prefill && prefill.trabajos ? prefill.trabajos : {});
   return `
     <div class="card" style="margin-bottom:16px; padding:12px 14px;">
@@ -8573,9 +8699,13 @@ function historialFormHTML(h, vehiculo, usuariosActivos, verCosto, prefill){
 
     <div class="field">
       <label>Realizado por</label>
+      ${empleadosActivos.length ? `
       <select class="select-input" id="hf-empleadoId">
-        ${usuariosActivos.map(u=>`<option value="${u.id}" ${(h?h.empleadoId===u.id:Session.get().usuarioId===u.id)?'selected':''}>${Utils.escapeHTML(u.nombre)}</option>`).join('')}
-      </select>
+        <option value="">— Sin asignar —</option>
+        ${empleadosActivos.map(e=>`<option value="${e.id}" ${h&&h.empleadoId===e.id?'selected':''}>${Utils.escapeHTML(e.nombre)}${e.puesto?' ('+Utils.escapeHTML(e.puesto)+')':''}</option>`).join('')}
+      </select>` : `
+      <select class="select-input" id="hf-empleadoId" disabled><option value="">— Sin empleados cargados —</option></select>
+      <p style="font-size:11px; color:var(--text-muted); margin-top:5px;">Todavía no cargaste empleados. <a href="#/empleados">Cargalos acá</a> y después vas a poder elegirlos en cada service.</p>`}
     </div>
 
     <div class="field-row">
@@ -8627,14 +8757,14 @@ function renderHistorialPhotoGrid(fotosState){
 }
 
 async function openHistorialModal(historial, vehiculo, prefill){
-  const usuariosActivos = (await DB.getAll('usuarios')).filter(u=>u.activo);
+  const empleadosActivos = (await DB.getAll('empleados')).filter(e=>e.activo!==false).sort((a,b)=>a.nombre.localeCompare(b.nombre));
   const productos = await DB.getAll('productos');
   const session = Session.get();
   const verCosto = canSeeCosto(session.rol);
 
   Modal.open(
     historial ? 'Editar service' : (prefill ? `Nuevo service — desde cotización #${prefill.origenCotizacionNumero}` : 'Nuevo service'),
-    historialFormHTML(historial, vehiculo, usuariosActivos, verCosto, prefill) + `<div class="modal-actions"><button class="btn btn-ghost" id="hf-cancel">Cancelar</button><button class="btn btn-accent" id="hf-save">Guardar</button></div>`,
+    historialFormHTML(historial, vehiculo, empleadosActivos, verCosto, prefill) + `<div class="modal-actions"><button class="btn btn-ghost" id="hf-cancel">Cancelar</button><button class="btn btn-accent" id="hf-save">Guardar</button></div>`,
     { width:'600px' }
   );
 
@@ -8763,8 +8893,9 @@ async function openHistorialModal(historial, vehiculo, prefill){
     const items = {};
     document.querySelectorAll('.hf-item-check').forEach(chk => { items[chk.dataset.key] = chk.checked; });
 
-    const empleadoId = Number(document.getElementById('hf-empleadoId').value);
-    const empleado = usuariosActivos.find(u=>u.id===empleadoId);
+    const empleadoIdRaw = document.getElementById('hf-empleadoId').value;
+    const empleadoId = empleadoIdRaw ? Number(empleadoIdRaw) : null;
+    const empleado = empleadoId ? empleadosActivos.find(e=>e.id===empleadoId) : null;
     const precio = itemsState.reduce((acc,it)=>acc+it.cantidad*it.precioUnitario,0);
     const costo = itemsState.reduce((acc,it)=>acc+it.cantidad*(it.costoUnitario||0),0);
 
@@ -8782,7 +8913,7 @@ async function openHistorialModal(historial, vehiculo, prefill){
       observaciones: document.getElementById('hf-observaciones').value.trim(),
       fotos: fotosState,
       itemsVendidos: itemsState, costo, precio,
-      empleadoId, empleadoNombre: empleado ? empleado.nombre : '(usuario eliminado)',
+      empleadoId, empleadoNombre: empleado ? empleado.nombre : (empleadoId ? '(empleado eliminado)' : null),
       garantiaDias: Number(document.getElementById('hf-garantiaDias').value) || 0,
       proximoServiceKm: Number(document.getElementById('hf-proximoServiceKm').value) || null,
       proximoServiceFecha: document.getElementById('hf-proximoServiceFecha').value || null
@@ -8876,7 +9007,7 @@ async function viewHistorialList(){
   const historial = (await DB.getAll('historialServicios')).sort((a,b)=> new Date(b.fecha)-new Date(a.fecha));
   const vehiculos = await DB.getAll('vehiculos');
   const clientes = await DB.getAll('clientes');
-  const usuarios = await DB.getAll('usuarios');
+  const empleados = (await DB.getAll('empleados')).filter(e=>e.activo!==false).sort((a,b)=>a.nombre.localeCompare(b.nombre));
   const vehById = {}; vehiculos.forEach(v=>vehById[v.id]=v);
   const cliById = {}; clientes.forEach(c=>cliById[c.id]=c);
   const session = Session.get();
@@ -8889,6 +9020,7 @@ async function viewHistorialList(){
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <a class="btn btn-ghost" href="#/historial/turnos">${svgIcon('calendario')} Turnos</a>
         <a class="btn btn-ghost" href="#/historial/planificacion">${svgIcon('calendario')} Planificación</a>
+        <a class="btn btn-ghost" href="#/empleados">${svgIcon('clientes')} Empleados</a>
         <a class="btn btn-ghost" href="#/historial/estadisticas">${svgIcon('reportes')} Estadísticas</a>
         ${puedeGestionar?`<button class="btn btn-accent" id="btn-nuevo-service-global">${svgIcon('historial')} Nuevo service</button>`:''}
       </div>
@@ -8900,7 +9032,7 @@ async function viewHistorialList(){
       </div>
       <select class="toolbar-select" id="hist-filtro-empleado">
         <option value="">Todos los empleados</option>
-        ${usuarios.map(u=>`<option value="${u.id}">${Utils.escapeHTML(u.nombre)}</option>`).join('')}
+        ${empleados.map(e=>`<option value="${e.id}">${Utils.escapeHTML(e.nombre)}</option>`).join('')}
       </select>
       <input type="date" class="toolbar-select" id="hist-desde" title="Desde">
       <input type="date" class="toolbar-select" id="hist-hasta" title="Hasta">
@@ -12775,10 +12907,16 @@ async function finalizarVenta(){
 
   // Chequeo final de stock (por si cambió desde que se armó el carrito). No bloquea la venta:
   // solo avisa y pregunta si querés continuar igual, dejando el stock en negativo.
+  // De paso, se guarda una "foto" del costo actual de cada producto
+  // (costoSnapshot) para grabarla en el ítem de la venta — así el margen de
+  // esta venta queda fijo para siempre, sin importar que el costo del
+  // producto cambie más adelante (ver costoItemVenta()).
   const itemsCortos = [];
+  const costoSnapshot = {};
   for(const item of posCart){
     if(!item.productoId) continue;
     const producto = await DB.get('productos', item.productoId);
+    if(producto) costoSnapshot[item.productoId] = producto.precioCosto || 0;
     if(!producto || producto.stockActual < item.cantidad){
       itemsCortos.push(`${item.nombre} — disponible: ${producto?producto.stockActual:0}, en el carrito: ${item.cantidad}`);
     }
@@ -12806,7 +12944,7 @@ async function finalizarVenta(){
 
   const venta = {
     numero, fecha: Utils.nowISO(), clienteId,
-    items: posCart.map(i=>({ productoId:i.productoId, nombre:i.nombre, cantidad:i.cantidad, precioUnitario:i.precioUnitario, subtotal:i.precioUnitario*i.cantidad })),
+    items: posCart.map(i=>({ productoId:i.productoId, nombre:i.nombre, cantidad:i.cantidad, precioUnitario:i.precioUnitario, subtotal:i.precioUnitario*i.cantidad, costoUnitario: i.productoId ? (costoSnapshot[i.productoId]||0) : 0 })),
     subtotal, descuentoPct:descPct, descuentoTotal, total, medioPago, estado:'completada',
     montoRecibido, vuelto,
     cotizacionOrigenId: posCotizacionOrigen ? posCotizacionOrigen.id : null,
@@ -16182,10 +16320,10 @@ async function calcularEstadoResultados(desde, hasta){
 
   const ventasPeriodo = ventas.filter(v=>v.estado!=='anulada' && enRango(v.fecha));
   const ingresosVentas = ventasPeriodo.reduce((acc,v)=>acc+(v.total||0), 0);
-  // El costo de venta se estima con el costo ACTUAL registrado en cada
-  // producto (las ventas no guardan el costo histórico del momento en que
-  // se vendió) — es una aproximación razonable, no un costeo exacto.
-  const costoVentas = ventasPeriodo.reduce((acc,v)=> acc + (v.items||[]).reduce((a,it)=> a + (it.productoId ? (costoPorProducto[it.productoId]||0) * it.cantidad : 0), 0), 0);
+  // El costo de venta usa el costo guardado en el momento de la venta
+  // (costoUnitario); si la venta es anterior a ese cambio, aproxima con
+  // el costo actual del producto.
+  const costoVentas = ventasPeriodo.reduce((acc,v)=> acc + (v.items||[]).reduce((a,it)=> a + costoItemVenta(it, costoPorProducto)*it.cantidad, 0), 0);
 
   const serviciosPeriodo = historial.filter(h=>enRango(h.fecha));
   const ingresosServicios = serviciosPeriodo.reduce((acc,h)=>acc+(h.precio||0), 0);
@@ -16244,7 +16382,7 @@ async function calcularAnalisisPeriodo(desde, hasta){
     const totalNotas = notasP.reduce((a,n)=>a+(n.monto||0),0);
     const totalIngresos = Math.max(0, ingresosVentas+ingresosServicios+ingresosLavados-totalNotas);
 
-    const costoVentas = ventasP.reduce((a,v)=> a + (v.items||[]).reduce((acc,it)=> acc + (it.productoId ? (costoPorProducto[it.productoId]||0)*it.cantidad : 0), 0), 0);
+    const costoVentas = ventasP.reduce((a,v)=> a + (v.items||[]).reduce((acc,it)=> acc + costoItemVenta(it, costoPorProducto)*it.cantidad, 0), 0);
     const costoServicios = serviciosP.reduce((a,x)=>a+(x.costo||0),0);
     const totalGastos = gastosP.reduce((a,g)=>a+(g.monto||0),0);
     const totalCostos = costoVentas+costoServicios+totalGastos;
@@ -17767,18 +17905,20 @@ async function viewVentasList(){
   const puedeEditar = canEditarVentas(session.rol);
   const verMargen = canSeeCosto(session.rol);
   let productosById = {};
+  let costoPorProducto = {};
   if(verMargen){
     const productos = await DB.getAll('productos');
-    productos.forEach(p=>productosById[p.id]=p);
+    productos.forEach(p=>{ productosById[p.id]=p; costoPorProducto[p.id]=p.precioCosto||0; });
   }
-  /* Margen = precio de venta - costo actual del producto (mismo criterio que
-     el resto de la app: no se guarda una foto del costo al momento de la
-     venta). Los ítems sin producto vinculado (mano de obra, ítems libres) no
-     tienen costo, así que su margen es el 100% de lo cobrado por ese ítem. */
+  /* Margen = precio de venta - costo del producto en el momento de la venta
+     (costoUnitario, guardado desde que se vende). Las ventas de antes de
+     ese cambio caen al costo actual del producto como aproximación. Los
+     ítems sin producto vinculado (mano de obra, ítems libres) no tienen
+     costo, así que su margen es el 100% de lo cobrado por ese ítem. */
   function margenDeVenta(v){
     let margen = 0, costoTotal = 0;
     v.items.forEach(it=>{
-      const costo = it.productoId ? (productosById[it.productoId]?.precioCosto||0) : 0;
+      const costo = costoItemVenta(it, costoPorProducto);
       margen += (it.precioUnitario-costo)*it.cantidad;
       costoTotal += costo*it.cantidad;
     });
@@ -18062,15 +18202,20 @@ async function openVentaEditarModal(venta){
     // 1) revierte lo que la venta original había generado
     await revertirEfectosVenta(venta, `Corrección por edición de venta #${venta.numero}`);
 
+    // Costo de cada ítem: se conserva el costoUnitario que ya tenía (no se
+    // pisa la foto histórica solo por editar la venta); los ítems nuevos
+    // que se hayan agregado durante la edición (sin costoUnitario todavía)
+    // toman el costo ACTUAL del producto como foto en este momento.
+    const productosFrescos = await DB.getAll('productos');
+    const productosById = {}; productosFrescos.forEach(p=>productosById[p.id]=p);
     const ventaActualizada = {
       ...venta, clienteId, medioPago, descuentoPct, descuentoTotal, subtotal, total,
-      items: items.map(it=>({ productoId:it.productoId, nombre:it.nombre, cantidad:it.cantidad, precioUnitario:it.precioUnitario, subtotal:it.cantidad*it.precioUnitario })),
+      items: items.map(it=>({ productoId:it.productoId, nombre:it.nombre, cantidad:it.cantidad, precioUnitario:it.precioUnitario, subtotal:it.cantidad*it.precioUnitario,
+        costoUnitario: (it.costoUnitario!==undefined && it.costoUnitario!==null) ? it.costoUnitario : (it.productoId ? (productosById[it.productoId]?.precioCosto||0) : 0) })),
       fechaEdicion: Utils.nowISO()
     };
 
     // 2) valida stock para los ítems nuevos (permite continuar en negativo si el usuario confirma)
-    const productosFrescos = await DB.getAll('productos');
-    const productosById = {}; productosFrescos.forEach(p=>productosById[p.id]=p);
     const cortos = ventaActualizada.items.filter(it=>it.productoId && (productosById[it.productoId]?.stockActual||0) < it.cantidad);
     if(cortos.length){
       const continuar = confirm(`Estos productos no tienen stock suficiente:\n\n${cortos.map(it=>`${it.nombre} (disp: ${productosById[it.productoId]?.stockActual||0})`).join('\n')}\n\n¿Continuar de todas formas?`);
