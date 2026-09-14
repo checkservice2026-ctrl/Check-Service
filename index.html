@@ -1463,9 +1463,11 @@ const DB_VERSION = 24; // Se agrega store 'socios' (catálogo de socios, para at
    una línea abajo) cada vez que se entrega una nueva versión, para tener
    registro de qué se cambió y cuándo sin depender del nombre del archivo.
    Historial:
+     v18.18 — Fix: los retiros de socios se excluyen de "Gastos" en Calendario Financiero y demás reportes financieros (reducen la Caja real, pero no son un gasto operativo).
+     v18.17 — Backup automático: ahora corre 2 veces por día (10:00 y 19:50 hora Argentina), cada uno con su propio archivo y control de "ya se hizo hoy".
      v18.16 — Retiros de socios (nuevo submódulo dentro de Caja) + versión visible en la app.
      v18.15 — punto de partida de este historial. */
-const APP_VERSION = 'v18.16';
+const APP_VERSION = 'v18.18';
 const SESSION_KEY = 'cs_session';
 const REMEMBER_KEY = 'cs_remember_user';
 const THEME_KEY = 'cs_theme';
@@ -4362,9 +4364,10 @@ async function importBackupFile(file){
    20-S-TER. BACKUP AUTOMÁTICO A CARPETA LOCAL
    Usa la File System Access API (Chrome/Edge y navegadores basados en
    Chromium — Firefox y Safari no la soportan) para guardar, todos los días
-   a las 10:00 hora Argentina, un backup en una carpeta del dispositivo que
-   el usuario elige una única vez. Solo ocurre si la PC está prendida y la
-   app abierta en ese momento — no hay ningún proceso en segundo plano.
+   a las 10:00 y a las 19:50 (hora Argentina), un backup en una carpeta del
+   dispositivo que el usuario elige una única vez. Solo ocurre si la PC
+   está prendida y la app abierta en ese momento — no hay ningún proceso en
+   segundo plano.
 ----------------------------------------------------------------------- */
 function horaArgentinaActual(){
   const partes = new Intl.DateTimeFormat('en-US', {
@@ -4382,7 +4385,12 @@ function fechaArgentinaHoyYMD(){
 }
 
 const BackupAutomatico = {
-  HORA_OBJETIVO: 10, // 10:00 hora Argentina
+  // Dos backups por día, cada uno con su propio campo de "ya se hizo hoy"
+  // en preferenciasLocales, para que uno no bloquee al otro.
+  HORARIOS: [
+    { hora:10, minuto:0, campoFecha:'ultimoBackupAutoFecha', etiqueta:'mañana', sufijoArchivo:'am' },
+    { hora:19, minuto:50, campoFecha:'ultimoBackupAutoFecha2', etiqueta:'tarde', sufijoArchivo:'pm' }
+  ],
   intervalId: null,
   soportado(){ return 'showDirectoryPicker' in window; },
 
@@ -4399,37 +4407,42 @@ const BackupAutomatico = {
       if(!pref || !pref.backupDirHandle) return; // no hay carpeta configurada
 
       const hoyAR = fechaArgentinaHoyYMD();
-      if(pref.ultimoBackupAutoFecha === hoyAR) return; // ya se hizo hoy
+      const { hora, minuto } = horaArgentinaActual();
+      const minutosAhora = hora*60 + minuto;
 
-      const { hora } = horaArgentinaActual();
-      if(hora < this.HORA_OBJETIVO) return; // todavía no es la hora
+      for(const horario of this.HORARIOS){
+        if(pref[horario.campoFecha] === hoyAR) continue; // este horario ya se hizo hoy
+        const minutosObjetivo = horario.hora*60 + horario.minuto;
+        if(minutosAhora < minutosObjetivo) continue; // todavía no es la hora de este horario
 
-      const permiso = await pref.backupDirHandle.queryPermission({ mode:'readwrite' });
-      if(permiso !== 'granted'){
-        // No se puede volver a pedir el permiso sin un clic del usuario;
-        // se avisa una vez por sesión para que lo reautorice a mano.
-        if(!this._avisoPermisoMostrado){
-          this._avisoPermisoMostrado = true;
-          Toast.show('warn','Backup automático pausado', 'Volvé a autorizar la carpeta en Configuración → Base de datos.', 8000);
+        const permiso = await pref.backupDirHandle.queryPermission({ mode:'readwrite' });
+        if(permiso !== 'granted'){
+          // No se puede volver a pedir el permiso sin un clic del usuario;
+          // se avisa una vez por sesión para que lo reautorice a mano.
+          if(!this._avisoPermisoMostrado){
+            this._avisoPermisoMostrado = true;
+            Toast.show('warn','Backup automático pausado', 'Volvé a autorizar la carpeta en Configuración → Base de datos.', 8000);
+          }
+          return;
         }
-        return;
-      }
 
-      await this.ejecutar(pref.backupDirHandle);
-      await DB.put('preferenciasLocales', { ...pref, ultimoBackupAutoFecha: hoyAR });
+        await this.ejecutar(pref.backupDirHandle, horario);
+        pref[horario.campoFecha] = hoyAR;
+        await DB.put('preferenciasLocales', pref);
+      }
     }catch(e){
       console.log('Backup automático: no se pudo verificar/ejecutar:', e.message);
     }
   },
 
-  async ejecutar(dirHandle){
+  async ejecutar(dirHandle, horario){
     const payload = await construirPayloadBackup();
-    const nombreArchivo = `checkservice_backup_auto_${fechaArgentinaHoyYMD()}.json`;
+    const nombreArchivo = `checkservice_backup_auto_${fechaArgentinaHoyYMD()}_${horario.sufijoArchivo}.json`;
     const fileHandle = await dirHandle.getFileHandle(nombreArchivo, { create:true });
     const writable = await fileHandle.createWritable();
     await writable.write(JSON.stringify(payload, null, 2));
     await writable.close();
-    await Audit.log('backup_automatico', `Backup automático diario guardado en carpeta local (${nombreArchivo}).`);
+    await Audit.log('backup_automatico', `Backup automático de ${horario.etiqueta} guardado en carpeta local (${nombreArchivo}).`);
     await Config.save({ ultimoBackupFecha: Utils.nowISO() });
     localStorage.removeItem(BACKUP_SNOOZE_KEY);
     updateBackupBanner();
@@ -4449,9 +4462,9 @@ async function elegirCarpetaBackupAutomatico(){
       Toast.show('error','Permiso no concedido', 'No se pudo obtener permiso de escritura sobre esa carpeta.');
       return;
     }
-    await DB.put('preferenciasLocales', { id:1, backupDirHandle:handle, backupDirNombre:handle.name, ultimoBackupAutoFecha:null });
+    await DB.put('preferenciasLocales', { id:1, backupDirHandle:handle, backupDirNombre:handle.name, ultimoBackupAutoFecha:null, ultimoBackupAutoFecha2:null });
     await Audit.log('backup_auto_configurado', `Carpeta de backup automático configurada: "${handle.name}".`);
-    Toast.show('success','Carpeta configurada', `Todos los días a las 10:00 (hora Argentina) se va a guardar un backup en "${handle.name}".`);
+    Toast.show('success','Carpeta configurada', `Todos los días a las 10:00 y a las 19:50 (hora Argentina) se va a guardar un backup en "${handle.name}".`);
     router();
   }catch(e){
     if(e.name==='AbortError') return; // el usuario cerró el selector sin elegir nada
@@ -4462,7 +4475,7 @@ async function elegirCarpetaBackupAutomatico(){
 
 async function quitarCarpetaBackupAutomatico(){
   if(!confirm('¿Dejar de hacer backups automáticos? A partir de ahora vas a tener que exportarlos manualmente desde Backups.')) return;
-  await DB.put('preferenciasLocales', { id:1, backupDirHandle:null, backupDirNombre:null, ultimoBackupAutoFecha:null });
+  await DB.put('preferenciasLocales', { id:1, backupDirHandle:null, backupDirNombre:null, ultimoBackupAutoFecha:null, ultimoBackupAutoFecha2:null });
   await Audit.log('backup_auto_desconfigurado', 'Se quitó la carpeta de backup automático.');
   Toast.show('info','Backup automático desactivado','');
   router();
@@ -4775,7 +4788,7 @@ async function viewConfiguracion(){
 
         <div class="cfg-panel-section" data-panel="datos">
           <div class="cfg-section-title">Backup automático</div>
-          <div class="cfg-section-sub">Todos los días a las 10:00 (hora Argentina), mientras la PC esté prendida y la app abierta, se guarda un backup solo en la carpeta que elijas acá.</div>
+          <div class="cfg-section-sub">Todos los días a las 10:00 y a las 19:50 (hora Argentina), mientras la PC esté prendida y la app abierta, se guarda un backup solo en la carpeta que elijas acá.</div>
           ${!BackupAutomatico.soportado() ? `
             <div class="card" style="margin-top:6px;">
               <p style="font-size:12.5px; color:var(--text-secondary); margin:0;">Tu navegador actual no soporta esta función. Necesitás Chrome, Edge u otro navegador basado en Chromium.</p>
@@ -4786,7 +4799,7 @@ async function viewConfiguracion(){
                 <div>
                   <div style="font-size:12px; color:var(--text-muted);">Carpeta configurada</div>
                   <div style="font-weight:700; font-size:14px;">📁 ${Utils.escapeHTML(prefLocal.backupDirNombre||'—')}</div>
-                  ${permisoCarpeta!=='granted' ? `<div style="font-size:11.5px; color:var(--danger); margin-top:4px;">El permiso de escritura no está activo — el backup automático está pausado.</div>` : `<div style="font-size:11.5px; color:var(--teal); margin-top:4px;">Activo${prefLocal.ultimoBackupAutoFecha?` — último backup automático: ${prefLocal.ultimoBackupAutoFecha}`:' — todavía no se hizo ningún backup automático'}</div>`}
+                  ${permisoCarpeta!=='granted' ? `<div style="font-size:11.5px; color:var(--danger); margin-top:4px;">El permiso de escritura no está activo — el backup automático está pausado.</div>` : `<div style="font-size:11.5px; color:var(--teal); margin-top:4px;">Activo — 10:00: ${prefLocal.ultimoBackupAutoFecha||'todavía no se hizo'} · 19:50: ${prefLocal.ultimoBackupAutoFecha2||'todavía no se hizo'}</div>`}
                 </div>
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
                   ${permisoCarpeta!=='granted' ? `<button class="btn btn-accent btn-sm" id="btn-reautorizar-carpeta-backup">Reautorizar</button>` : ''}
@@ -19302,6 +19315,12 @@ function excluirMovimientosDeVentasNoVigentes(movs, idsVentasVigentes, idsHistor
     // corrección contable del total acumulado, no facturación ni un gasto
     // real del negocio — no debe contarse en estos reportes.
     if(m.referencia==='ajuste-saldo') return false;
+    // Un retiro de socio (ver Caja › Retiros de socios) sí reduce la plata
+    // real de Caja, pero no es un gasto operativo del negocio — es un
+    // retiro de capital. Se excluye acá por el mismo motivo que el ajuste
+    // de saldo, para no inflar "Gastos" en Calendario Financiero, Gráficos
+    // y demás reportes financieros que usan esta función.
+    if(typeof m.referencia==='string' && m.referencia.startsWith('retiro_socio:')) return false;
     const ref = referenciaEntidad(m);
     if(!ref) return true; // no está ligado a una venta, service o nota de crédito puntual: no se toca
     if(ref.tipo==='venta') return idsVentasVigentes.has(ref.id);
