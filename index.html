@@ -15143,6 +15143,7 @@ async function openMovimientoCajaModal(){
       <div class="field"><label>Monto</label><input type="number" min="0.01" step="0.01" id="mc-monto"></div>
       <div class="field"><label>Medio de pago</label><select class="select-input" id="mc-medio">${MEDIOS_PAGO.filter(m=>m!=='Cuenta corriente').map(m=>`<option value="${m}">${m}</option>`).join('')}</select></div>
     </div>
+    <div class="field"><label>Fecha</label><input type="date" id="mc-fecha" value="${Utils.hoyLocal()}" max="${Utils.hoyLocal()}"></div>
     <div class="modal-actions"><button class="btn btn-ghost" id="mc-cancel">Cancelar</button><button class="btn btn-accent" id="mc-save">Guardar</button></div>
     `,
     { width:'420px' }
@@ -15153,10 +15154,12 @@ async function openMovimientoCajaModal(){
     const concepto = document.getElementById('mc-concepto').value.trim();
     const monto = Number(document.getElementById('mc-monto').value);
     const medioPago = document.getElementById('mc-medio').value;
+    const fecha = document.getElementById('mc-fecha').value;
     if(!concepto){ Toast.show('error','Falta el concepto',''); return; }
     if(!monto || monto<=0){ Toast.show('error','Monto inválido',''); return; }
-    await registrarMovimientoCaja({ tipo, concepto, monto, medioPago, referencia:'manual' });
-    await Audit.log('caja_movimiento_manual', `Movimiento manual de caja: ${tipo} $${monto.toLocaleString('es-AR')} — ${concepto}`);
+    if(!fecha){ Toast.show('error','Falta la fecha',''); return; }
+    await registrarMovimientoCaja({ tipo, concepto, monto, medioPago, referencia:'manual', fecha: combinarFechaConHoraActual(fecha) });
+    await Audit.log('caja_movimiento_manual', `Movimiento manual de caja: ${tipo} $${monto.toLocaleString('es-AR')} — ${concepto} (fecha: ${fecha})`);
     Toast.show('success','Movimiento registrado', concepto);
     Modal.close();
     router();
