@@ -1463,13 +1463,14 @@ const DB_VERSION = 24; // Se agrega store 'socios' (catálogo de socios, para at
    una línea abajo) cada vez que se entrega una nueva versión, para tener
    registro de qué se cambió y cuándo sin depender del nombre del archivo.
    Historial:
+     v18.21 — Perfil de cliente › Documentos: ahora se pueden ver en pantalla (imágenes y PDF se previsualizan en un modal), no solo descargar.
      v18.20 — Fix: el botón de contraer/expandir el menú lateral siempre decía "Contraer", incluso ya colapsado; ahora el texto cambia según el estado.
      v18.19 — Fix: los gastos anulados/eliminados ya no quedan "fantasma" en Calendario Financiero y Gráficos (se excluyen del todo si el gasto ya no existe); si un gasto se editó más de una vez, solo cuenta el último monto, no cada versión histórica.
      v18.18 — Fix: los retiros de socios se excluyen de "Gastos" en Calendario Financiero y demás reportes financieros (reducen la Caja real, pero no son un gasto operativo).
      v18.17 — Backup automático: ahora corre 2 veces por día (10:00 y 19:50 hora Argentina), cada uno con su propio archivo y control de "ya se hizo hoy".
      v18.16 — Retiros de socios (nuevo submódulo dentro de Caja) + versión visible en la app.
      v18.15 — punto de partida de este historial. */
-const APP_VERSION = 'v18.20';
+const APP_VERSION = 'v18.21';
 const SESSION_KEY = 'cs_session';
 const REMEMBER_KEY = 'cs_remember_user';
 const THEME_KEY = 'cs_theme';
@@ -7031,6 +7032,27 @@ function openClienteModal(cliente=null){
   };
 }
 
+/* Previsualización de un documento adjunto (perfil de cliente): imágenes y
+   PDF se muestran inline en un modal grande; el resto de los formatos no
+   tiene forma de mostrarse en el navegador, así que se ofrece igual el
+   link de descarga. */
+function verDocumentoAdjunto(doc){
+  const mime = (doc.dataURL.match(/^data:([^;]+);/)||[])[1] || '';
+  let contenido;
+  if(mime.startsWith('image/')){
+    contenido = `<img src="${doc.dataURL}" alt="${Utils.escapeHTML(doc.nombre)}" style="max-width:100%; max-height:75vh; display:block; margin:0 auto; border-radius:8px;">`;
+  }else if(mime === 'application/pdf'){
+    contenido = `<iframe src="${doc.dataURL}" style="width:100%; height:75vh; border:0; border-radius:8px;"></iframe>`;
+  }else{
+    contenido = `<div class="empty-state" style="padding:30px;">${svgIcon('logs')}<h3>Vista previa no disponible</h3><p>Este tipo de archivo no se puede mostrar acá — descargalo para abrirlo.</p></div>`;
+  }
+  Modal.open(
+    doc.nombre,
+    `${contenido}<div class="modal-actions"><a class="btn btn-accent" href="${doc.dataURL}" download="${Utils.escapeHTML(doc.nombre)}">Descargar</a></div>`,
+    { width: (mime.startsWith('image/')||mime==='application/pdf') ? '720px' : '420px' }
+  );
+}
+
 async function viewClienteDetalle(id){
   const cliente = await DB.get('clientes', id);
   if(!cliente){
@@ -7248,6 +7270,7 @@ async function viewClienteDetalle(id){
               ${svgIcon('logs')}
               <span class="doc-name">${Utils.escapeHTML(d.nombre)}</span>
               <span class="doc-date">${Utils.fmtFecha(d.fecha)}</span>
+              <button class="btn btn-ghost btn-sm btn-ver-doc" data-doc-id="${d.id}">Ver</button>
               <a class="btn btn-ghost btn-sm" href="${d.dataURL}" download="${Utils.escapeHTML(d.nombre)}">Descargar</a>
               <button class="btn btn-danger-ghost btn-sm btn-del-doc" data-doc-id="${d.id}">Eliminar</button>
             </div>`).join('') : `<div class="empty-state" style="padding:30px;">${svgIcon('logs')}<h3>Sin documentos adjuntos</h3></div>`}
@@ -7547,6 +7570,13 @@ function bindClienteDetalleEvents(id){
     Toast.show('success','Documentos adjuntados', `${nuevosDocs.length} archivo(s) agregado(s).`);
     router();
   };
+  document.querySelectorAll('.btn-ver-doc').forEach(btn=>{
+    btn.onclick = async () => {
+      const cliente = await DB.get('clientes', id);
+      const doc = (cliente.documentos||[]).find(d => d.id === btn.dataset.docId);
+      if(doc) verDocumentoAdjunto(doc);
+    };
+  });
   document.querySelectorAll('.btn-del-doc').forEach(btn=>{
     btn.onclick = async () => {
       if(!confirm('¿Eliminar este documento?')) return;
