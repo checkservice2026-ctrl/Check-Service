@@ -1463,6 +1463,7 @@ const DB_VERSION = 24; // Se agrega store 'socios' (catálogo de socios, para at
    una línea abajo) cada vez que se entrega una nueva versión, para tener
    registro de qué se cambió y cuándo sin depender del nombre del archivo.
    Historial:
+     v18.23 — Fix: el KPI "Ingresos hoy"/"Egresos hoy" de Caja (y el desglose de "Cerrar caja") también duplicaban el monto de una venta editada el mismo día, y mostraban su reversión como si fuera un egreso real. Mismo criterio del fix anterior, aplicado acá.
      v18.22 — Fix importante: editar una venta duplicaba (a veces triplicaba) su monto en Calendario Financiero, Gráficos y Análisis — cada edición dejaba un ingreso viejo "fantasma" sumado junto con el nuevo. Ahora solo cuenta el cobro vigente de cada venta.
      v18.21 — Perfil de cliente › Documentos: ahora se pueden ver en pantalla (imágenes y PDF se previsualizan en un modal), no solo descargar.
      v18.20 — Fix: el botón de contraer/expandir el menú lateral siempre decía "Contraer", incluso ya colapsado; ahora el texto cambia según el estado.
@@ -1471,7 +1472,7 @@ const DB_VERSION = 24; // Se agrega store 'socios' (catálogo de socios, para at
      v18.17 — Backup automático: ahora corre 2 veces por día (10:00 y 19:50 hora Argentina), cada uno con su propio archivo y control de "ya se hizo hoy".
      v18.16 — Retiros de socios (nuevo submódulo dentro de Caja) + versión visible en la app.
      v18.15 — punto de partida de este historial. */
-const APP_VERSION = 'v18.22';
+const APP_VERSION = 'v18.23';
 const SESSION_KEY = 'cs_session';
 const REMEMBER_KEY = 'cs_remember_user';
 const THEME_KEY = 'cs_theme';
@@ -13178,8 +13179,24 @@ async function calcularResumenPeriodoAbierto(){
   const desde = await ultimaFechaCierre();
   const movs = await DB.getAll('caja');
   const periodoMovs = desde ? movs.filter(m=> new Date(m.fecha) > new Date(desde)) : movs;
+  // Igual que en el KPI de Ingresos/Egresos de Caja: si una venta o un gasto
+  // se editó (o se anuló/reactivó) dentro del período abierto, puede haber
+  // más de un movimiento con la misma referencia — para que el desglose por
+  // medio de pago (el que se ve al cerrar caja) no quede inflado, se cuenta
+  // solo el último movimiento de cada uno. El "efectivo esperado" ya daba
+  // bien de por sí (es un neto ingreso−egreso, así que el par de reversión
+  // ya se cancelaba solo); esto prolija el desglose, no el total.
+  const ultimoVentaPeriodo = ultimoMovimientoPorReferencia(periodoMovs, 'venta');
+  const ultimoGastoPeriodo = ultimoMovimientoPorReferencia(periodoMovs, 'gasto');
+  const periodoMovsVigentes = periodoMovs.filter(m=>{
+    const ref = referenciaEntidad(m);
+    if(!ref) return true;
+    if(ref.tipo==='venta'){ const u = ultimoVentaPeriodo[ref.id]; return !!u && u.id===m.id; }
+    if(ref.tipo==='gasto'){ const u = ultimoGastoPeriodo[ref.id]; return !!u && u.id===m.id; }
+    return true;
+  });
   const porMedio = {};
-  periodoMovs.forEach(m=>{
+  periodoMovsVigentes.forEach(m=>{
     if(!porMedio[m.medioPago]) porMedio[m.medioPago] = { ingreso:0, egreso:0 };
     porMedio[m.medioPago][m.tipo] += m.monto;
   });
@@ -14793,8 +14810,27 @@ async function viewCajaList(){
   const movimientos = (await DB.getAll('caja')).sort((a,b)=> new Date(b.fecha)-new Date(a.fecha));
   const hoyStr = Utils.hoyLocal();
   const hoy = movimientos.filter(m=>Utils.fechaLocalYMD(m.fecha)===hoyStr);
-  const ingresosHoy = hoy.filter(m=>m.tipo==='ingreso').reduce((acc,m)=>acc+m.monto,0);
-  const egresosHoy = hoy.filter(m=>m.tipo==='egreso').reduce((acc,m)=>acc+m.monto,0);
+  // Si una venta o un gasto se editó (o se anuló/reactivó) hoy, hay más de
+  // un movimiento de Caja con la misma referencia en el día (el original,
+  // la reversión que lo anula, y el nuevo) — sumarlos todos infla "Ingresos
+  // hoy"/"Egresos hoy" con algo que en la práctica fue un solo evento neto.
+  // Acá NO importa si la venta/gasto sigue vigente (eso es cosa de otros
+  // reportes) — para el KPI del día alcanza con quedarse, de cada uno, con
+  // el ÚLTIMO movimiento de hoy; el resto ya quedó superado dentro del
+  // mismo día. El resto de los movimientos (manuales, ajuste de saldo,
+  // retiros de socios, cobros de service) no tiene este patrón de reversión
+  // y se cuenta como siempre, uno por uno.
+  const ultimoVentaHoy = ultimoMovimientoPorReferencia(hoy, 'venta');
+  const ultimoGastoHoy = ultimoMovimientoPorReferencia(hoy, 'gasto');
+  const hoyVigenteDelDia = hoy.filter(m=>{
+    const ref = referenciaEntidad(m);
+    if(!ref) return true;
+    if(ref.tipo==='venta'){ const u = ultimoVentaHoy[ref.id]; return !!u && u.id===m.id; }
+    if(ref.tipo==='gasto'){ const u = ultimoGastoHoy[ref.id]; return !!u && u.id===m.id; }
+    return true;
+  });
+  const ingresosHoy = hoyVigenteDelDia.filter(m=>m.tipo==='ingreso').reduce((acc,m)=>acc+m.monto,0);
+  const egresosHoy = hoyVigenteDelDia.filter(m=>m.tipo==='egreso').reduce((acc,m)=>acc+m.monto,0);
   const saldoActual = await cajaSaldoActual();
   const saldoPorMedio = await cajaSaldoPorMedio();
   const desdeUltimoCierre = await ultimaFechaCierre();
