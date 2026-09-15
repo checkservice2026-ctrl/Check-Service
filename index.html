@@ -1463,6 +1463,7 @@ const DB_VERSION = 24; // Se agrega store 'socios' (catálogo de socios, para at
    una línea abajo) cada vez que se entrega una nueva versión, para tener
    registro de qué se cambió y cuándo sin depender del nombre del archivo.
    Historial:
+     v18.22 — Fix importante: editar una venta duplicaba (a veces triplicaba) su monto en Calendario Financiero, Gráficos y Análisis — cada edición dejaba un ingreso viejo "fantasma" sumado junto con el nuevo. Ahora solo cuenta el cobro vigente de cada venta.
      v18.21 — Perfil de cliente › Documentos: ahora se pueden ver en pantalla (imágenes y PDF se previsualizan en un modal), no solo descargar.
      v18.20 — Fix: el botón de contraer/expandir el menú lateral siempre decía "Contraer", incluso ya colapsado; ahora el texto cambia según el estado.
      v18.19 — Fix: los gastos anulados/eliminados ya no quedan "fantasma" en Calendario Financiero y Gráficos (se excluyen del todo si el gasto ya no existe); si un gasto se editó más de una vez, solo cuenta el último monto, no cada versión histórica.
@@ -1470,7 +1471,7 @@ const DB_VERSION = 24; // Se agrega store 'socios' (catálogo de socios, para at
      v18.17 — Backup automático: ahora corre 2 veces por día (10:00 y 19:50 hora Argentina), cada uno con su propio archivo y control de "ya se hizo hoy".
      v18.16 — Retiros de socios (nuevo submódulo dentro de Caja) + versión visible en la app.
      v18.15 — punto de partida de este historial. */
-const APP_VERSION = 'v18.21';
+const APP_VERSION = 'v18.22';
 const SESSION_KEY = 'cs_session';
 const REMEMBER_KEY = 'cs_remember_user';
 const THEME_KEY = 'cs_theme';
@@ -19345,25 +19346,38 @@ function referenciaEntidad(m){
   }
   return null;
 }
-/* Al editar un gasto (ver editarGasto) se revierte el egreso anterior con un
-   ingreso de anulación y se registra un egreso nuevo con la misma
-   referencia "gasto:ID" — así puede haber varios egresos históricos para
-   un mismo gasto si se editó más de una vez. Para no duplicar el total en
-   los reportes, solo debe contar el más reciente (el de mayor id, que es
-   el que refleja el monto/fecha actual del gasto); los anteriores y sus
-   ingresos de anulación son puro historial contable. */
-function idsUltimoEgresoPorGasto(movs){
+/* Al editar un gasto (ver editarGasto) o una venta (ver openVentaEditarModal)
+   se revierte el egreso/ingreso anterior con un movimiento de anulación y
+   se registra uno nuevo con la misma referencia ("gasto:ID" / "venta:ID")
+   — así puede haber varios movimientos históricos para una misma entidad si
+   se editó más de una vez (o se anuló y reactivó). Para no duplicar el
+   total en los reportes, de cada grupo solo debe contar el más reciente (el
+   de mayor id, que es el que refleja el estado actual); los anteriores y
+   sus anulaciones son puro historial contable. */
+/* Al editar un gasto (ver editarGasto) o una venta (ver openVentaEditarModal)
+   se revierte el egreso/ingreso anterior con un movimiento de anulación y
+   se registra uno nuevo con la misma referencia ("gasto:ID" / "venta:ID")
+   — así puede haber varios movimientos históricos para una misma entidad si
+   se editó más de una vez (o se anuló y reactivó). Para no duplicar el
+   total en los reportes, de cada grupo solo debe contar el ÚLTIMO
+   movimiento (el de mayor id, que refleja el estado actual de Caja para
+   esa entidad) — y solo si ese último movimiento es del tipo esperado
+   (ingreso para una venta, egreso para un gasto). Si el último movimiento
+   es en cambio la reversión (p.ej. una venta que se editó y pasó a cobrarse
+   por Cuenta Corriente, dejando en Caja solo el egreso que anula el cobro
+   anterior), no debe quedar nada contando en Caja para esa entidad. */
+function ultimoMovimientoPorReferencia(movs, refTipo){
   const ultimo = {};
   movs.forEach(m=>{
-    if(m.tipo!=='egreso') return;
     const ref = referenciaEntidad(m);
-    if(!ref || ref.tipo!=='gasto') return;
-    if(!ultimo[ref.id] || m.id > ultimo[ref.id]) ultimo[ref.id] = m.id;
+    if(!ref || ref.tipo!==refTipo) return;
+    if(!ultimo[ref.id] || m.id > ultimo[ref.id].id) ultimo[ref.id] = m;
   });
   return ultimo;
 }
 function excluirMovimientosDeVentasNoVigentes(movs, idsVentasVigentes, idsHistorialVigentes, notasCredito, idsGastos){
-  const ultimoEgresoPorGasto = idsUltimoEgresoPorGasto(movs);
+  const ultimoMovPorGasto = ultimoMovimientoPorReferencia(movs, 'gasto');
+  const ultimoMovPorVenta = ultimoMovimientoPorReferencia(movs, 'venta');
   return movs.filter(m=>{
     // Un ajuste manual de saldo (ver "Ajustar saldo" en Caja) es una
     // corrección contable del total acumulado, no facturación ni un gasto
@@ -19377,7 +19391,15 @@ function excluirMovimientosDeVentasNoVigentes(movs, idsVentasVigentes, idsHistor
     if(typeof m.referencia==='string' && m.referencia.startsWith('retiro_socio:')) return false;
     const ref = referenciaEntidad(m);
     if(!ref) return true; // no está ligado a una venta, service o nota de crédito puntual: no se toca
-    if(ref.tipo==='venta') return idsVentasVigentes.has(ref.id);
+    if(ref.tipo==='venta'){
+      if(!idsVentasVigentes.has(ref.id)) return false; // venta anulada o eliminada: nada de lo que generó cuenta
+      // De todos los movimientos históricos de esta venta en Caja (puede
+      // haber varios si se editó, o se anuló y reactivó), solo cuenta el
+      // más reciente — y solo si es un ingreso (si terminó en un egreso de
+      // reversión, es porque el cobro actual ya no pasa por Caja).
+      const ultimo = ultimoMovPorVenta[ref.id];
+      return !!ultimo && ultimo.id===m.id && ultimo.tipo==='ingreso';
+    }
     if(ref.tipo==='historial') return idsHistorialVigentes.has(ref.id);
     if(ref.tipo==='notacredito'){
       const nc = notasCredito ? notasCredito[ref.id] : null;
@@ -19386,15 +19408,15 @@ function excluirMovimientosDeVentasNoVigentes(movs, idsVentasVigentes, idsHistor
     }
     if(ref.tipo==='gasto'){
       // Un gasto eliminado (ver eliminarGasto) ya no existe en el catálogo:
-      // ni su egreso original ni la reversión de anulación deben seguir
-      // contando — quedaron huérfanos, igual que con venta/historial.
+      // nada de lo que generó en Caja debe seguir contando — quedó
+      // huérfano, igual que con venta/historial.
       if(!idsGastos || !idsGastos.has(ref.id)) return false;
-      // El ingreso de anulación (edición o eliminación) nunca es facturación
-      // real, no debe contarse jamás.
-      if(m.tipo==='ingreso') return false;
-      // De los egresos históricos de este gasto (puede haber más de uno si
-      // se editó varias veces), solo cuenta el más reciente.
-      return ultimoEgresoPorGasto[ref.id] === m.id;
+      // Mismo criterio que con ventas: de los movimientos históricos de
+      // este gasto, solo el más reciente — y solo si es un egreso (si
+      // terminó en un ingreso de anulación es porque ya no hay nada
+      // vigente en Caja para ese gasto).
+      const ultimo = ultimoMovPorGasto[ref.id];
+      return !!ultimo && ultimo.id===m.id && ultimo.tipo==='egreso';
     }
     return true;
   });
