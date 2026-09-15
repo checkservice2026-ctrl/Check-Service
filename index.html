@@ -1463,12 +1463,13 @@ const DB_VERSION = 24; // Se agrega store 'socios' (catálogo de socios, para at
    una línea abajo) cada vez que se entrega una nueva versión, para tener
    registro de qué se cambió y cuándo sin depender del nombre del archivo.
    Historial:
+     v18.20 — Fix: el botón de contraer/expandir el menú lateral siempre decía "Contraer", incluso ya colapsado; ahora el texto cambia según el estado.
      v18.19 — Fix: los gastos anulados/eliminados ya no quedan "fantasma" en Calendario Financiero y Gráficos (se excluyen del todo si el gasto ya no existe); si un gasto se editó más de una vez, solo cuenta el último monto, no cada versión histórica.
      v18.18 — Fix: los retiros de socios se excluyen de "Gastos" en Calendario Financiero y demás reportes financieros (reducen la Caja real, pero no son un gasto operativo).
      v18.17 — Backup automático: ahora corre 2 veces por día (10:00 y 19:50 hora Argentina), cada uno con su propio archivo y control de "ya se hizo hoy".
      v18.16 — Retiros de socios (nuevo submódulo dentro de Caja) + versión visible en la app.
      v18.15 — punto de partida de este historial. */
-const APP_VERSION = 'v18.19';
+const APP_VERSION = 'v18.20';
 const SESSION_KEY = 'cs_session';
 const REMEMBER_KEY = 'cs_remember_user';
 const THEME_KEY = 'cs_theme';
@@ -20669,7 +20670,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Shell
   document.getElementById('btn-theme-app').addEventListener('click', () => ThemeMgr.toggle());
   document.getElementById('btn-collapse-sidebar').addEventListener('click', () => {
-    document.getElementById('sidebar').classList.toggle('collapsed');
+    const sidebar = document.getElementById('sidebar');
+    const colapsado = sidebar.classList.toggle('collapsed');
+    document.querySelector('#btn-collapse-sidebar .collapse-label').textContent = colapsado ? 'Expandir' : 'Contraer';
   });
   document.getElementById('btn-mobile-menu').addEventListener('click', () => {
     document.getElementById('sidebar').classList.add('mobile-open');
