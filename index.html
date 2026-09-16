@@ -1463,6 +1463,9 @@ const DB_VERSION = 24; // Se agrega store 'socios' (catálogo de socios, para at
    una línea abajo) cada vez que se entrega una nueva versión, para tener
    registro de qué se cambió y cuándo sin depender del nombre del archivo.
    Historial:
+     v18.26 — Fix: en el módulo Análisis, unos insights y rankings insertaban nombre de producto/categoría directo en el HTML sin Utils.escapeHTML — si el nombre tenía `<` o `"` podía romper el render de esa sección. Corregido en los 4 lugares (insight de categoría principal x2, ranking de categorías, tabla de productos más vendidos).
+     v18.25 — Unificación: los 8 lugares que quedaban calculando una fecha con `.toISOString().slice(0,10)` (límite de mes en Análisis/Gráficos/Estado de Resultados, e inicio/suma de semana en el gráfico de Facturación) ahora usan Utils.fechaLocalYMD(), igual que el resto de la app. No afecta datos guardados: estas funciones solo calculan rangos de fecha en memoria para filtrar, no escriben nada en la base.
+     v18.24 — Fix: en Estado de Resultados, Análisis y el gráfico Facturación vs Gastos, un lavadero "Completado" pero sin cobrar (t.pagado=false) se sumaba igual como ingreso — inconsistente con el resto de la app, donde un lavado solo cuenta como ingreso/visita si está Completado Y pagado. Ahora se exige t.pagado en los tres lugares. También: el gráfico de Historial de precios de un producto usaba mal Utils.fmtFechaSolo (no existe esa propiedad en Utils, es una función global aparte) y por eso el formateo de fechas caía siempre al fallback genérico; corregido para usar Utils_fmtFechaSolo directamente.
      v18.23 — Fix: el KPI "Ingresos hoy"/"Egresos hoy" de Caja (y el desglose de "Cerrar caja") también duplicaban el monto de una venta editada el mismo día, y mostraban su reversión como si fuera un egreso real. Mismo criterio del fix anterior, aplicado acá.
      v18.22 — Fix importante: editar una venta duplicaba (a veces triplicaba) su monto en Calendario Financiero, Gráficos y Análisis — cada edición dejaba un ingreso viejo "fantasma" sumado junto con el nuevo. Ahora solo cuenta el cobro vigente de cada venta.
      v18.21 — Perfil de cliente › Documentos: ahora se pueden ver en pantalla (imágenes y PDF se previsualizan en un modal), no solo descargar.
@@ -1472,7 +1475,7 @@ const DB_VERSION = 24; // Se agrega store 'socios' (catálogo de socios, para at
      v18.17 — Backup automático: ahora corre 2 veces por día (10:00 y 19:50 hora Argentina), cada uno con su propio archivo y control de "ya se hizo hoy".
      v18.16 — Retiros de socios (nuevo submódulo dentro de Caja) + versión visible en la app.
      v18.15 — punto de partida de este historial. */
-const APP_VERSION = 'v18.23';
+const APP_VERSION = 'v18.26';
 const SESSION_KEY = 'cs_session';
 const REMEMBER_KEY = 'cs_remember_user';
 const THEME_KEY = 'cs_theme';
@@ -9651,7 +9654,7 @@ function histEstMensualHTML(){
   for(let i=11;i>=0;i--){ const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()-i); meses.push(d.toISOString().slice(0,7)); }
   const desde = meses[0]+'-01';
   const [ay,am] = meses[meses.length-1].split('-').map(Number);
-  const hasta = new Date(ay, am, 0).toISOString().slice(0,10);
+  const hasta = Utils.fechaLocalYMD(new Date(ay, am, 0));
   const porDia = contarServiciosPorDia(histEstPeriodoHistorial, desde, hasta);
   const porMes = {};
   Object.entries(porDia).forEach(([f,c])=>{ const m=f.slice(0,7); porMes[m]=(porMes[m]||0)+c; });
@@ -12221,7 +12224,7 @@ async function historialPreciosTabHTML(producto){
   const pctVenta = pctAumento(ventaInicial, ventaActual);
   const ultimoCambio = historial[historial.length-1];
 
-  const labels = historial.map(h => Utils.fmtFechaSolo ? Utils.fmtFechaSolo(h.fecha) : new Date(h.fecha).toLocaleDateString('es-AR'));
+  const labels = historial.map(h => Utils_fmtFechaSolo(h.fecha));
   const costos = historial.map(h => h.precioCostoNuevo);
   const ventas = historial.map(h => h.precioVentaNuevo);
   // El último punto de la serie es siempre el precio ACTUAL del producto (por si
@@ -15943,7 +15946,7 @@ async function renderGastosMes(){
 
   const [ay, am] = gastosMesSeleccionado.split('-').map(Number);
   const desde = `${gastosMesSeleccionado}-01`;
-  const hasta = new Date(ay, am, 0).toISOString().slice(0,10);
+  const hasta = Utils.fechaLocalYMD(new Date(ay, am, 0));
   const mesAnteriorDate = new Date(ay, am-2, 1);
   const mesAnteriorKey = mesAnteriorDate.toISOString().slice(0,7);
 
@@ -16773,7 +16776,7 @@ async function calcularEstadoResultados(desde, hasta){
   const ingresosServicios = serviciosPeriodo.reduce((acc,h)=>acc+(h.precio||0), 0);
   const costoServicios = serviciosPeriodo.reduce((acc,h)=>acc+(h.costo||0), 0);
 
-  const lavadosPeriodo = turnos.filter(t=>t.estado==='Completado' && enRango(t.fechaCompletado||t.fecha));
+  const lavadosPeriodo = turnos.filter(t=>t.estado==='Completado' && t.pagado && enRango(t.fechaCompletado||t.fecha));
   const ingresosLavados = lavadosPeriodo.reduce((acc,t)=>acc+(t.precio||0), 0);
 
   const notasCreditoPeriodo = notasCredito.filter(nc=>enRango(nc.fecha));
@@ -16816,7 +16819,7 @@ async function calcularAnalisisPeriodo(desde, hasta){
   function calcularBloque(d, h){
     const ventasP = ventas.filter(v=>v.estado!=='anulada' && enRango(v.fecha,d,h));
     const serviciosP = historial.filter(x=>enRango(x.fecha,d,h));
-    const lavadosP = turnos.filter(t=>t.estado==='Completado' && enRango(t.fechaCompletado||t.fecha,d,h));
+    const lavadosP = turnos.filter(t=>t.estado==='Completado' && t.pagado && enRango(t.fechaCompletado||t.fecha,d,h));
     const notasP = notasCredito.filter(n=>enRango(n.fecha,d,h));
     const gastosP = gastos.filter(g=>enRango(g.fecha,d,h));
 
@@ -16965,9 +16968,9 @@ function generarInsightsAnalisis(a){
   ].filter(c=>c.valor>0.009).sort((x,y)=>y.valor-x.valor);
   if(categorias.length>1){
     const pctCat = categorias[0].valor/A.totalIngresos*100;
-    insights.push({ tipo:'info', texto: `<b>${categorias[0].nombre}</b> fue tu principal fuente de ingresos: representó el <b>${pctCat.toFixed(0)}%</b> de lo facturado en el período.` });
+    insights.push({ tipo:'info', texto: `<b>${Utils.escapeHTML(categorias[0].nombre)}</b> fue tu principal fuente de ingresos: representó el <b>${pctCat.toFixed(0)}%</b> de lo facturado en el período.` });
   }else if(categorias.length===1){
-    insights.push({ tipo:'atencion', texto: `Toda la facturación del período vino de <b>${categorias[0].nombre}</b> — las otras dos áreas no tuvieron movimiento.` });
+    insights.push({ tipo:'atencion', texto: `Toda la facturación del período vino de <b>${Utils.escapeHTML(categorias[0].nombre)}</b> — las otras dos áreas no tuvieron movimiento.` });
   }
 
   // 3) Ticket promedio
@@ -17050,7 +17053,7 @@ async function calcularComparativaFinanciera(mesesAtras=6){
   const facturacion = meses.map(m=>{
     const v = ventas.filter(x=>x.estado!=='anulada' && enMes(x.fecha,m)).reduce((a,x)=>a+(x.total||0),0);
     const s = historial.filter(h=>enMes(h.fecha,m)).reduce((a,h)=>a+(h.precio||0),0);
-    const l = turnos.filter(t=>t.estado==='Completado' && enMes(t.fechaCompletado||t.fecha,m)).reduce((a,t)=>a+(t.precio||0),0);
+    const l = turnos.filter(t=>t.estado==='Completado' && t.pagado && enMes(t.fechaCompletado||t.fecha,m)).reduce((a,t)=>a+(t.precio||0),0);
     const nc = notasCredito.filter(n=>enMes(n.fecha,m)).reduce((a,n)=>a+(n.monto||0),0);
     return Math.max(0, v+s+l-nc);
   });
@@ -17304,7 +17307,7 @@ function analisisImprimirHTML(data, insights, desde, hasta){
         <tr><td style="padding:5px 4px; color:#555;">Cobrado en Caja (período)</td><td style="padding:5px 4px; text-align:right; font-family:'Consolas',monospace; color:#555;">${money(data.cobradoCaja)}</td></tr>
       </table>
 
-      ${data.topProductos.length?`<div style="font-size:12.5px; font-weight:700; margin-bottom:6px;">Productos más vendidos</div><table style="width:100%; border-collapse:collapse; font-size:11px; margin-bottom:14px;">${data.topProductos.map(p=>fila(`${p.nombre} (x${p.cantidad})`, p.importe)).join('')}</table>`:''}
+      ${data.topProductos.length?`<div style="font-size:12.5px; font-weight:700; margin-bottom:6px;">Productos más vendidos</div><table style="width:100%; border-collapse:collapse; font-size:11px; margin-bottom:14px;">${data.topProductos.map(p=>fila(`${Utils.escapeHTML(p.nombre)} (x${p.cantidad})`, p.importe)).join('')}</table>`:''}
       ${data.topClientes.length?`<div style="font-size:12.5px; font-weight:700; margin-bottom:6px;">Clientes que más gastaron</div><table style="width:100%; border-collapse:collapse; font-size:11px; margin-bottom:14px;">${data.topClientes.map(c=>fila(c.nombre, c.monto)).join('')}</table>`:''}
       ${cfg.pieComprobantes?`<div style="margin-top:20px; font-size:10.5px; color:#666; text-align:center;">${Utils.escapeHTML(cfg.pieComprobantes)}</div>`:''}
     </div>`;
@@ -17380,7 +17383,7 @@ async function bindAnalisisEvents(){
         <div style="display:flex; gap:24px; flex-wrap:wrap; align-items:center; margin-top:12px;">
           <div class="chart-canvas-box" style="height:220px; flex:1; min-width:240px;"><canvas id="an-categoria-chart"></canvas></div>
           <div style="flex:1; min-width:220px;">
-            ${categorias.map(c=>`<div class="an-rank-row"><span class="an-rank-pos" style="background:${hexToRgba(c.color,.18)}; color:${c.color};">●</span><span class="an-rank-name">${c.nombre} <span style="color:var(--text-muted); font-weight:400;">(${c.cant})</span></span><span class="an-rank-value">${A.totalIngresos>0.009?(c.valor/A.totalIngresos*100).toFixed(0):'0'}% · ${money(c.valor)}</span></div>`).join('')}
+            ${categorias.map(c=>`<div class="an-rank-row"><span class="an-rank-pos" style="background:${hexToRgba(c.color,.18)}; color:${c.color};">●</span><span class="an-rank-name">${Utils.escapeHTML(c.nombre)} <span style="color:var(--text-muted); font-weight:400;">(${c.cant})</span></span><span class="an-rank-value">${A.totalIngresos>0.009?(c.valor/A.totalIngresos*100).toFixed(0):'0'}% · ${money(c.valor)}</span></div>`).join('')}
           </div>
         </div>
       </div>
@@ -19325,12 +19328,12 @@ function inicioDeSemana(fechaISO){
   const d = new Date(fechaISO+'T00:00:00');
   const dia = (d.getDay()+6)%7; // lunes=0 ... domingo=6
   d.setDate(d.getDate()-dia);
-  return d.toISOString().slice(0,10);
+  return Utils.fechaLocalYMD(d);
 }
 function sumarDias(fechaISO, dias){
   const d = new Date(fechaISO+'T00:00:00');
   d.setDate(d.getDate()+dias);
-  return d.toISOString().slice(0,10);
+  return Utils.fechaLocalYMD(d);
 }
 function calcularMediaMovil(valores, ventana){
   return valores.map((v,i)=>{
@@ -19950,7 +19953,7 @@ async function graficosMensualHTML(){
   for(let i=11;i>=0;i--){ const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()-i); meses.push(d.toISOString().slice(0,7)); }
   const desde = meses[0]+'-01';
   const [ay,am] = meses[meses.length-1].split('-').map(Number);
-  const hasta = new Date(ay, am, 0).toISOString().slice(0,10);
+  const hasta = Utils.fechaLocalYMD(new Date(ay, am, 0));
   const ingresos = await obtenerIngresosCajaEnRango(desde, hasta);
   const valores = meses.map(m=> ingresos.filter(x=>Utils.fechaLocalYMD(x.fecha).slice(0,7)===m).reduce((a,x)=>a+x.monto,0));
   const labels = meses.map(m=> new Date(m+'-01T00:00:00').toLocaleDateString('es-AR',{ month:'short', year:'2-digit' }));
@@ -20034,7 +20037,7 @@ function objetivoTotalDeRegistro(o){
 async function calcularProyeccionMensual(mesSel){
   const [ay,am] = mesSel.split('-').map(Number);
   const diasDelMes = new Date(ay,am,0).getDate();
-  const desde = `${mesSel}-01`, hasta = new Date(ay,am,0).toISOString().slice(0,10);
+  const desde = `${mesSel}-01`, hasta = Utils.fechaLocalYMD(new Date(ay,am,0));
   const ingresosMes = await obtenerIngresosCajaEnRango(desde, hasta);
 
   const hoyYMD = Utils.hoyLocal();
@@ -20079,7 +20082,7 @@ async function graficosObjetivosHTML(){
   const objetivoTotal = objVentas+objServicios+objLavados;
 
   const [ay,am] = mesSel.split('-').map(Number);
-  const desde = `${mesSel}-01`, hasta = new Date(ay,am,0).toISOString().slice(0,10);
+  const desde = `${mesSel}-01`, hasta = Utils.fechaLocalYMD(new Date(ay,am,0));
   const realPorCategoria = await obtenerIngresosCajaPorCategoriaEnRango(desde, hasta);
   const realTotal = realPorCategoria.Ventas+realPorCategoria.Servicios+realPorCategoria.Lavados+realPorCategoria.Otros;
 
@@ -20114,7 +20117,7 @@ async function graficosObjetivosHTML(){
   for(let i=5;i>=0;i--){ const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()-i); meses.push(d.toISOString().slice(0,7)); }
   const desdeTotal = meses[0]+'-01';
   const [by,bm] = meses[meses.length-1].split('-').map(Number);
-  const hastaTotal = new Date(by,bm,0).toISOString().slice(0,10);
+  const hastaTotal = Utils.fechaLocalYMD(new Date(by,bm,0));
   const ingresosRango = await obtenerIngresosCajaEnRango(desdeTotal, hastaTotal);
   const realesPorMes = meses.map(m=> ingresosRango.filter(x=>Utils.fechaLocalYMD(x.fecha).slice(0,7)===m).reduce((a,x)=>a+x.monto,0));
   const objetivosPorMes = meses.map(m=> objetivoTotalDeRegistro(objById[m]));
