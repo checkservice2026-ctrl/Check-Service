@@ -546,6 +546,7 @@ table.data-table thead th{
 table.data-table tbody td{ padding:11px 12px; border-bottom:1px solid var(--border-soft); vertical-align:middle; }
 table.data-table tbody tr:hover{ background:var(--bg-panel-alt); }
 table.data-table tbody tr.row-selected{ background:var(--accent-dim); box-shadow:inset 3px 0 0 var(--accent); }
+.pos-cartfull-item.row-selected{ background:var(--accent-dim); box-shadow:inset 3px 0 0 var(--accent); border-radius:8px; }
 .badge{ display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:20px; font-size:11px; font-weight:700; }
 .badge-ok{ background:var(--teal-dim); color:var(--teal); }
 .badge-warn{ background:var(--warning-dim); color:var(--warning); }
@@ -1463,6 +1464,12 @@ const DB_VERSION = 24; // Se agrega store 'socios' (catálogo de socios, para at
    una línea abajo) cada vez que se entrega una nueva versión, para tener
    registro de qué se cambió y cuándo sin depender del nombre del archivo.
    Historial:
+     v18.32 — POS: tecla Supr con un ítem del carrito seleccionado (↑/↓) lo elimina, previa confirmación. Al confirmar, queda seleccionado el ítem que ocupó su lugar.
+     v18.31 — POS: las flechas ↑/↓ ahora también recorren los ítems del carrito (mismo mecanismo que ya usaban las tablas de listados), resaltando el ítem seleccionado.
+     v18.30 — POS: se saca el botón extra "+ Agregar producto" agregado en v18.28 (no era lo pedido) y en su lugar la tecla "+" (numpad o Shift+=) hace lo mismo que tocar "Agregar artículos" (al lado de "Vaciar carrito"), desde cualquier parte del carrito, salvo con un campo de texto enfocado o un modal abierto.
+     v18.29 — Fix: el botón "+ Agregar producto" del carrito POS (v18.28) quedaba oculto mientras el carrito estuviera vacío, así que tocarlo antes de cargar el primer ítem no hacía nada. Ahora está siempre visible, arriba de la lista de ítems, funcione o no el carrito.
+     v18.28 — POS: en el carrito, nuevo botón "+ Agregar otro producto" que abre un buscador rápido en modal (sin salir del carrito ni ir a la pantalla completa del picker) — busca por nombre/código, muestra favoritos por defecto, y al hacer click agrega y refresca el total en el momento. Además, cada línea del carrito ahora muestra la imagen del producto (si tiene) o un ícono placeholder, igual que en el picker.
+     v18.27 — UX: modal de cotización (al finalizar) tenía 5 botones desordenados por wrap en flex-end. Reordenado con jerarquía clara: Cerrar fijo a la izquierda, WhatsApp/PDF agrupados chicos a la derecha, Imprimir como acción principal ancho completo, y Convertir a service/venta separados abajo con divisor como "siguiente paso". Además: tecla ESC ahora cierra cualquier modal activo (antes solo la X funcionaba).
      v18.26 — Fix: en el módulo Análisis, unos insights y rankings insertaban nombre de producto/categoría directo en el HTML sin Utils.escapeHTML — si el nombre tenía `<` o `"` podía romper el render de esa sección. Corregido en los 4 lugares (insight de categoría principal x2, ranking de categorías, tabla de productos más vendidos).
      v18.25 — Unificación: los 8 lugares que quedaban calculando una fecha con `.toISOString().slice(0,10)` (límite de mes en Análisis/Gráficos/Estado de Resultados, e inicio/suma de semana en el gráfico de Facturación) ahora usan Utils.fechaLocalYMD(), igual que el resto de la app. No afecta datos guardados: estas funciones solo calculan rangos de fecha en memoria para filtrar, no escriben nada en la base.
      v18.24 — Fix: en Estado de Resultados, Análisis y el gráfico Facturación vs Gastos, un lavadero "Completado" pero sin cobrar (t.pagado=false) se sumaba igual como ingreso — inconsistente con el resto de la app, donde un lavado solo cuenta como ingreso/visita si está Completado Y pagado. Ahora se exige t.pagado en los tres lugares. También: el gráfico de Historial de precios de un producto usaba mal Utils.fmtFechaSolo (no existe esa propiedad en Utils, es una función global aparte) y por eso el formateo de fechas caía siempre al fallback genérico; corregido para usar Utils_fmtFechaSolo directamente.
@@ -1475,7 +1482,7 @@ const DB_VERSION = 24; // Se agrega store 'socios' (catálogo de socios, para at
      v18.17 — Backup automático: ahora corre 2 veces por día (10:00 y 19:50 hora Argentina), cada uno con su propio archivo y control de "ya se hizo hoy".
      v18.16 — Retiros de socios (nuevo submódulo dentro de Caja) + versión visible en la app.
      v18.15 — punto de partida de este historial. */
-const APP_VERSION = 'v18.26';
+const APP_VERSION = 'v18.32';
 const SESSION_KEY = 'cs_session';
 const REMEMBER_KEY = 'cs_remember_user';
 const THEME_KEY = 'cs_theme';
@@ -2330,6 +2337,18 @@ const Modal = {
     if(opts.closeOnOverlay){
       backdrop.addEventListener('mousedown', (e)=>{ if(e.target===backdrop) this.close(); });
     }
+    // Tecla ESC cierra el modal activo (mismo criterio que la X: siempre
+    // disponible, incluso en modales "persistent"). El listener se registra
+    // una única vez a nivel documento y en cada Escape chequea si hay un
+    // modal abierto, así que no se acumulan listeners entre aperturas.
+    if(!this._escListenerAdded){
+      document.addEventListener('keydown', (e) => {
+        if(e.key === 'Escape' && document.getElementById('active-modal')){
+          Modal.close();
+        }
+      });
+      this._escListenerAdded = true;
+    }
   },
   close(){
     const m = document.getElementById('active-modal');
@@ -3129,7 +3148,11 @@ const TeclasNav = {
   filas(){
     // Excluye la fila de "no hay datos" (no tiene data-id) para no
     // resaltar un placeholder vacío.
-    return Array.from(document.querySelectorAll('#view-outlet table.data-table tbody tr[data-id]'));
+    const filasTabla = Array.from(document.querySelectorAll('#view-outlet table.data-table tbody tr[data-id]'));
+    if(filasTabla.length) return filasTabla;
+    // Fuera de las tablas, el carrito del POS también se puede recorrer
+    // con las flechas (mismo mecanismo, distinto contenedor).
+    return Array.from(document.querySelectorAll('#view-outlet .pos-cartfull-item[data-itemid]'));
   },
   limpiar(){
     this.filas().forEach(tr=>tr.classList.remove('row-selected'));
@@ -3204,6 +3227,38 @@ document.addEventListener('keydown', (e) => {
     if(!TeclasNav.filas().length) return; // esta vista no tiene un listado con tabla
     e.preventDefault();
     TeclasNav.mover(e.key==='ArrowDown' ? 1 : -1);
+  }
+
+  // Atajo: tecla "+" (numpad o Shift+=) en el carrito del POS = mismo botón
+  // "Agregar artículos" que está al lado de "Vaciar carrito" (o el botón
+  // grande equivalente cuando el carrito todavía está vacío).
+  if((e.key === '+' || e.code === 'NumpadAdd') && !enCampoEditable && !hayModalAbierto){
+    const btnAgregar = document.getElementById('btn-agregar-articulos') || document.getElementById('btn-agregar-articulos-empty');
+    if(btnAgregar){ e.preventDefault(); btnAgregar.click(); }
+  }
+
+  // Atajo: tecla Supr con un ítem del carrito seleccionado (con ↑/↓) lo
+  // quita, pidiendo confirmación antes (a diferencia del tacho de basura
+  // de cada fila, que hoy borra directo sin preguntar).
+  if(e.key === 'Delete' && !enCampoEditable && !hayModalAbierto){
+    const filas = TeclasNav.filas();
+    const fila = filas[TeclasNav.filaSeleccionada];
+    if(fila && fila.matches('.pos-cartfull-item[data-itemid]')){
+      e.preventDefault();
+      const itemId = fila.dataset.itemid;
+      const item = posCart.find(i=>i.itemId===itemId);
+      if(item && confirm(`¿Eliminar "${item.nombre}" del carrito?`)){
+        posCart = posCart.filter(i=>i.itemId!==itemId);
+        renderPOSCart();
+        const filasNuevas = TeclasNav.filas();
+        if(filasNuevas.length){
+          TeclasNav.filaSeleccionada = Math.max(0, Math.min(TeclasNav.filaSeleccionada, filasNuevas.length-1));
+          filasNuevas[TeclasNav.filaSeleccionada].classList.add('row-selected');
+        }else{
+          TeclasNav.filaSeleccionada = -1;
+        }
+      }
+    }
   }
 });
 
@@ -12439,6 +12494,7 @@ function posCartRowsHTML(){
   }
   return posCart.map(item => `
     <div class="pos-cartfull-item" data-itemid="${item.itemId}">
+      <div class="pos-product-img" style="width:44px; height:44px;">${item.imagen?`<img src="${item.imagen}">`:svgIcon('productos')}</div>
       <div class="pos-cartfull-item-info">
         <div class="pos-cartfull-item-name">${Utils.escapeHTML(item.nombre)}${!item.productoId?'<span class="pci-libre-tag">LIBRE</span>':''}</div>
         <div class="pos-cartfull-item-price-row">
@@ -12671,7 +12727,7 @@ async function posAddToCart(productoId){
     if(!continuar) return;
   }
   if(existente) existente.cantidad++;
-  else posCart.push({ itemId:'p'+productoId, productoId, nombre:producto.nombre, precioUnitario:producto.precioVenta, cantidad:1, stockDisponible:producto.stockActual });
+  else posCart.push({ itemId:'p'+productoId, productoId, nombre:producto.nombre, precioUnitario:producto.precioVenta, cantidad:1, stockDisponible:producto.stockActual, imagen:producto.imagen||null });
   Toast.show('success', producto.nombre, 'Agregado al carrito');
   // Refresca el badge "En carrito" del picker sin perder la posición de scroll ni el foco de búsqueda
   const card = document.querySelector(`.pos-product-card[data-id="${productoId}"]`);
@@ -12685,6 +12741,61 @@ async function posAddToCart(productoId){
     }
   }
 }
+/* Atajo desde el carrito: buscar y agregar un producto sin salir de la
+   pantalla del carrito (sin navegar a la vista de picker a pantalla
+   completa). Reutiliza posAddToCart, así que respeta stock, equivalentes
+   no aplican acá (búsqueda simple por nombre/código), y al agregar se
+   refresca el carrito de fondo para que el total quede al día. */
+function posQuickAddModal(){
+  Modal.open(
+    'Agregar producto',
+    `
+    <div class="toolbar-search" style="margin-bottom:12px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input type="text" id="pqa-search" placeholder="Buscar por nombre o código...">
+    </div>
+    <div id="pqa-results" style="max-height:360px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;"></div>
+    <div class="modal-actions"><button class="btn btn-ghost" id="pqa-cerrar">Cerrar</button></div>
+    `,
+    { width:'420px', closeOnOverlay:true }
+  );
+  document.getElementById('pqa-cerrar').onclick = () => { Modal.close(); renderPOSCart(); };
+  const input = document.getElementById('pqa-search');
+  const resultsCont = document.getElementById('pqa-results');
+  let productosCache = null;
+
+  async function renderResultados(query){
+    if(!productosCache) productosCache = (await DB.getAll('productos')).filter(p=>p.activo!==false);
+    const q = (query||'').toLowerCase().trim();
+    const filtrados = q
+      ? productosCache.filter(p=> (p.nombre+' '+p.codigo+' '+(p.codigoBarras||'')).toLowerCase().includes(q))
+      : productosCache.filter(p=>p.favorito).slice(0,20);
+    resultsCont.innerHTML = filtrados.length ? filtrados.map(p=>{
+      const enCarrito = posCart.find(i=>i.productoId===p.id);
+      const sinStock = p.stockActual<=0;
+      return `<div class="pos-product-card pqa-item ${sinStock?'sin-stock':''}" data-id="${p.id}" style="padding:8px 10px;">
+        <div class="pos-product-img" style="width:38px; height:38px;">${p.imagen?`<img src="${p.imagen}">`:svgIcon('productos')}</div>
+        <div class="pos-product-info">
+          <div class="pos-product-name" style="font-size:13px;">${p.favorito?'★ ':''}${Utils.escapeHTML(p.nombre)}</div>
+          <div class="pos-product-stock" style="font-size:11px;">${Utils.escapeHTML(p.codigo)} · ${sinStock?'Sin stock':p.stockActual+' '+p.unidad+' disp.'}</div>
+        </div>
+        ${enCarrito?`<span class="badge badge-ok" style="margin-right:4px;">En carrito: ${enCarrito.cantidad}</span>`:''}
+        <div class="pos-product-price" style="font-size:13px;">$${Number(p.precioVenta||0).toLocaleString('es-AR')}</div>
+      </div>`;
+    }).join('') : `<p style="text-align:center; color:var(--text-muted); font-size:12.5px; padding:20px 0;">${q?'Sin resultados':'Empezá a escribir para buscar, o elegí un favorito ★'}</p>`;
+    resultsCont.querySelectorAll('.pqa-item').forEach(el=>{
+      el.onclick = async () => {
+        await posAddToCart(Number(el.dataset.id));
+        renderPOSCart();
+        renderResultados(input.value);
+      };
+    });
+  }
+  input.oninput = () => renderResultados(input.value);
+  input.focus();
+  renderResultados('');
+}
+
 function posAddFreeItem(){
   Modal.open(
     'Ítem libre',
@@ -17655,9 +17766,10 @@ async function convertirCotizacionAVenta(cotizacion){
   const items = [];
   for(const it of cotizacion.items){
     let stockDisponible = null;
+    let imagen = null;
     if(it.productoId){
       const producto = await DB.get('productos', it.productoId);
-      if(producto) stockDisponible = producto.stockActual;
+      if(producto){ stockDisponible = producto.stockActual; imagen = producto.imagen || null; }
     }
     items.push({
       itemId: (it.productoId?'p'+it.productoId:'libre')+'-'+Date.now()+Math.random().toString(16).slice(2),
@@ -17665,7 +17777,8 @@ async function convertirCotizacionAVenta(cotizacion){
       nombre: it.descripcion,
       precioUnitario: it.precioUnitario,
       cantidad: it.cantidad,
-      stockDisponible
+      stockDisponible,
+      imagen
     });
   }
   posPendingImport = {
@@ -18302,15 +18415,20 @@ async function openCotizacionTicketModal(c){
     <div id="print-ticket-area">${cotizacionTicketHTML(c, cfg, mostrarItems)}</div>
     ${!whatsappDestino?`<p style="font-size:11px; color:var(--text-muted); text-align:center; margin-top:8px;">Este cliente no tiene WhatsApp cargado — el botón de envío queda deshabilitado.</p>`:''}
     ${c.ventaGeneradaNumero?`<p style="font-size:11px; color:var(--teal); text-align:center; margin-top:8px;">✓ Ya se convirtió en la venta #${c.ventaGeneradaNumero}</p>`:''}
-    <div class="modal-actions" style="flex-wrap:wrap;">
+    <div class="modal-actions" style="justify-content:space-between; align-items:center; margin-top:20px;">
       <button class="btn btn-ghost" id="cot-cerrar">Cerrar</button>
-      <button class="btn btn-ghost" id="cot-whatsapp" ${!whatsappDestino?'disabled':''}>Enviar por WhatsApp</button>
-      <button class="btn btn-ghost" id="cot-pdf-a4">Exportar PDF (A4)</button>
-      <button class="btn btn-accent" id="cot-imprimir">Imprimir (térmica 80mm)</button>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-ghost btn-sm" id="cot-whatsapp" ${!whatsappDestino?'disabled':''}>Enviar por WhatsApp</button>
+        <button class="btn btn-ghost btn-sm" id="cot-pdf-a4">Exportar PDF (A4)</button>
+      </div>
     </div>
-    <div class="modal-actions" style="flex-wrap:wrap; margin-top:0;">
-      <button class="btn btn-ghost" id="cot-a-service">🔧 Convertir a service</button>
-      <button class="btn btn-accent" id="cot-a-venta">🛒 Convertir a venta (POS)</button>
+    <button class="btn btn-accent" id="cot-imprimir" style="width:100%; justify-content:center; margin-top:10px;">Imprimir (térmica 80mm)</button>
+    <div style="border-top:1px solid var(--border); margin-top:16px; padding-top:14px;">
+      <div style="font-size:11px; color:var(--text-muted); text-align:center; margin-bottom:8px;">Siguiente paso con esta cotización</div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-ghost" id="cot-a-service" style="flex:1; justify-content:center;">🔧 A service</button>
+        <button class="btn btn-accent" id="cot-a-venta" style="flex:1; justify-content:center;">🛒 A venta (POS)</button>
+      </div>
     </div>
     `,
     { width:'380px', persistent:true }
