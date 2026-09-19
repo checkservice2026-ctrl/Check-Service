@@ -1464,6 +1464,7 @@ const DB_VERSION = 24; // Se agrega store 'socios' (catálogo de socios, para at
    una línea abajo) cada vez que se entrega una nueva versión, para tener
    registro de qué se cambió y cuándo sin depender del nombre del archivo.
    Historial:
+     v18.33 — Gráficos: el botón "Enviar informe" por WhatsApp ahora también funciona en la pestaña "Planificación de ventas" — arma un informe con el mes que esté seleccionado ahí (metas vs. facturado real por categoría, meta total, desviación, y proyección a fin de mes si es el mes en curso).
      v18.32 — POS: tecla Supr con un ítem del carrito seleccionado (↑/↓) lo elimina, previa confirmación. Al confirmar, queda seleccionado el ítem que ocupó su lugar.
      v18.31 — POS: las flechas ↑/↓ ahora también recorren los ítems del carrito (mismo mecanismo que ya usaban las tablas de listados), resaltando el ítem seleccionado.
      v18.30 — POS: se saca el botón extra "+ Agregar producto" agregado en v18.28 (no era lo pedido) y en su lugar la tecla "+" (numpad o Shift+=) hace lo mismo que tocar "Agregar artículos" (al lado de "Vaciar carrito"), desde cualquier parte del carrito, salvo con un campo de texto enfocado o un modal abierto.
@@ -1482,7 +1483,7 @@ const DB_VERSION = 24; // Se agrega store 'socios' (catálogo de socios, para at
      v18.17 — Backup automático: ahora corre 2 veces por día (10:00 y 19:50 hora Argentina), cada uno con su propio archivo y control de "ya se hizo hoy".
      v18.16 — Retiros de socios (nuevo submódulo dentro de Caja) + versión visible en la app.
      v18.15 — punto de partida de este historial. */
-const APP_VERSION = 'v18.32';
+const APP_VERSION = 'v18.33';
 const SESSION_KEY = 'cs_session';
 const REMEMBER_KEY = 'cs_remember_user';
 const THEME_KEY = 'cs_theme';
@@ -19953,6 +19954,35 @@ async function renderGraficosTab(){
    graficosChartData, sin volver a consultar la base. */
 function enviarInformeGraficosWhatsApp(){
   const tab = graficosTab;
+  const cfg = Config.cache || {};
+
+  if(tab==='objetivos'){
+    const r = graficosChartData.objetivosResumen;
+    if(!r){ Toast.show('error','Sin datos','Todavía no se cargó la Planificación de ventas.'); return; }
+    const nombreMes = new Date(r.mesSel+'-01T00:00:00').toLocaleDateString('es-AR', { month:'long', year:'numeric' });
+    const pct = (real, obj) => obj>0 ? ` (${(real/obj*100).toFixed(0)}%)` : '';
+
+    let texto = `*Planificación de ventas — ${nombreMes[0].toUpperCase()+nombreMes.slice(1)}*\n`;
+    texto += `${cfg.nombreEmpresa || 'Check Service'}\n\n`;
+    texto += `Ventas: $${Math.round(r.realPorCategoria.Ventas).toLocaleString('es-AR')} / meta $${r.objVentas?r.objVentas.toLocaleString('es-AR'):'sin definir'}${r.objVentas?pct(r.realPorCategoria.Ventas,r.objVentas):''}\n`;
+    texto += `Servicios: $${Math.round(r.realPorCategoria.Servicios).toLocaleString('es-AR')} / meta $${r.objServicios?r.objServicios.toLocaleString('es-AR'):'sin definir'}${r.objServicios?pct(r.realPorCategoria.Servicios,r.objServicios):''}\n`;
+    texto += `Lavados: $${Math.round(r.realPorCategoria.Lavados).toLocaleString('es-AR')} / meta $${r.objLavados?r.objLavados.toLocaleString('es-AR'):'sin definir'}${r.objLavados?pct(r.realPorCategoria.Lavados,r.objLavados):''}\n`;
+    if(r.realPorCategoria.Otros>0.009) texto += `Sin categorizar: $${Math.round(r.realPorCategoria.Otros).toLocaleString('es-AR')}\n`;
+    texto += '\n';
+    texto += `✅ *Meta total:* ${r.objetivoTotal?'$'+r.objetivoTotal.toLocaleString('es-AR'):'Sin definir'}\n`;
+    texto += `✅ *Facturado real:* $${Math.round(r.realTotal).toLocaleString('es-AR')}\n`;
+    if(r.objetivoTotal>0){
+      texto += `${r.desviacion>=0?'✅':'⚠️'} *Desviación:* ${r.desviacion>=0?'+':''}$${Math.round(r.desviacion).toLocaleString('es-AR')} (${(r.realTotal/r.objetivoTotal*100).toFixed(1)}% del objetivo)\n`;
+      if(r.esMesActual){
+        const proyectado = r.realTotal*r.factorProyeccion;
+        texto += `📈 *Proyección a fin de mes:* $${Math.round(proyectado).toLocaleString('es-AR')} ${proyectado>=r.objetivoTotal?'✅':'⚠️'}\n`;
+      }
+    }
+
+    abrirWhatsAppInforme(texto);
+    return;
+  }
+
   const d = graficosChartData[tab];
   if(!d || !d.valores || !d.valores.length){ Toast.show('error','Sin datos','Todavía no se generó el gráfico de este período.'); return; }
 
@@ -19968,13 +19998,12 @@ function enviarInformeGraficosWhatsApp(){
   } else if(tab==='anual'){
     titulo = 'Anual';
   } else {
-    Toast.show('info','No disponible','El informe por WhatsApp está disponible para Semana, Últimas semanas, Mensual y Anual.');
+    Toast.show('info','No disponible','El informe por WhatsApp está disponible para Semana, Últimas semanas, Mensual, Anual y Planificación de ventas.');
     return;
   }
 
   const total = d.valores.reduce((a,b)=>a+b,0);
   const promedio = total / d.valores.length;
-  const cfg = Config.cache || {};
 
   let texto = `*Informe de facturación — ${titulo}*\n`;
   texto += `${cfg.nombreEmpresa || 'Check Service'}\n`;
@@ -20243,6 +20272,10 @@ async function graficosObjetivosHTML(){
   graficosChartData.objetivos = { labels:labelsMeses, valores:realesPorMes, linea:objetivosPorMes };
 
   const desviacion = realTotal - objetivoTotal;
+  // Se guarda aparte (no pisa graficosChartData.objetivos, que es la serie
+  // de 6 meses para el gráfico) para que enviarInformeGraficosWhatsApp
+  // pueda armar el informe del mes puntual que esté seleccionado.
+  graficosChartData.objetivosResumen = { mesSel, objVentas, objServicios, objLavados, objetivoTotal, realPorCategoria, realTotal, desviacion, esMesActual, factorProyeccion };
 
   return `
     <div class="toolbar-filters">
