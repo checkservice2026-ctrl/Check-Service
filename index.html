@@ -1464,6 +1464,7 @@ const DB_VERSION = 24; // Se agrega store 'socios' (catálogo de socios, para at
    una línea abajo) cada vez que se entrega una nueva versión, para tener
    registro de qué se cambió y cuándo sin depender del nombre del archivo.
    Historial:
+     v18.34 — Planificación de ventas: los pagos a cuenta de cuenta corriente (sin factura puntual) ya no quedan "sin categorizar". Al registrar el pago, si sobra monto después de cubrir las facturas, aparece un selector Ventas/Servicios/Lavados (sugerido según el historial del cliente) y el cobro cuenta en esa meta. Para cobros ya cargados, botón "Asignar categoría" junto a la nota de "sin categorizar" en Gráficos › Planificación de ventas.
      v18.33 — Gráficos: el botón "Enviar informe" por WhatsApp ahora también funciona en la pestaña "Planificación de ventas" — arma un informe con el mes que esté seleccionado ahí (metas vs. facturado real por categoría, meta total, desviación, y proyección a fin de mes si es el mes en curso).
      v18.32 — POS: tecla Supr con un ítem del carrito seleccionado (↑/↓) lo elimina, previa confirmación. Al confirmar, queda seleccionado el ítem que ocupó su lugar.
      v18.31 — POS: las flechas ↑/↓ ahora también recorren los ítems del carrito (mismo mecanismo que ya usaban las tablas de listados), resaltando el ítem seleccionado.
@@ -1483,7 +1484,7 @@ const DB_VERSION = 24; // Se agrega store 'socios' (catálogo de socios, para at
      v18.17 — Backup automático: ahora corre 2 veces por día (10:00 y 19:50 hora Argentina), cada uno con su propio archivo y control de "ya se hizo hoy".
      v18.16 — Retiros de socios (nuevo submódulo dentro de Caja) + versión visible en la app.
      v18.15 — punto de partida de este historial. */
-const APP_VERSION = 'v18.33';
+const APP_VERSION = 'v18.34';
 const SESSION_KEY = 'cs_session';
 const REMEMBER_KEY = 'cs_remember_user';
 const THEME_KEY = 'cs_theme';
@@ -13327,14 +13328,19 @@ async function calcularResumenPeriodoAbierto(){
 
   return { desde, porMedio, efectivoEsperado, ctaCteCargos, cantidadMovimientos: periodoMovs.length };
 }
-async function registrarMovimientoCaja({ tipo, concepto, monto, medioPago, referencia, fecha }){
+async function registrarMovimientoCaja({ tipo, concepto, monto, medioPago, referencia, fecha, categoriaMeta }){
   const saldoAnterior = await cajaSaldoActual();
   const saldoResultante = tipo==='ingreso' ? saldoAnterior+monto : saldoAnterior-monto;
   const session = Session.get();
-  await DB.add('caja', {
+  const mov = {
     fecha: fecha || Utils.nowISO(), tipo, concepto, monto, medioPago: medioPago||'—', referencia: referencia||'manual',
     saldoResultante, usuarioId: session.usuarioId, usuarioNombre: session.nombre
-  });
+  };
+  // categoriaMeta (opcional): 'Ventas' | 'Servicios' | 'Lavados'. Solo se usa para atribuir
+  // ingresos sin factura puntual (p. ej. pago a cuenta de cuenta corriente) a una meta
+  // en Gráficos › Planificación de ventas. No altera la referencia ni ningún otro cálculo.
+  if(categoriaMeta) mov.categoriaMeta = categoriaMeta;
+  await DB.add('caja', mov);
   return saldoResultante;
 }
 async function saldoCuentaCorriente(clienteId){
@@ -16487,10 +16493,27 @@ async function cargosPendientesCliente(clienteId){
    queda vinculado a la venta/service/lavado de origen (por ejemplo, para
    que el margen de ganancia del Dashboard pueda atribuirse a la fecha real
    del cobro). */
+/* Categoría sugerida para un pago a cuenta sin factura puntual: la que más
+   pesa en los cargos históricos de ese cliente (ventas / services / lavados).
+   Es solo el valor inicial del selector — se puede cambiar antes de confirmar. */
+async function categoriaSugeridaCtaCte(clienteId){
+  const movs = await DB.getAllByIndex('cuentasCorrientes','clienteId', clienteId);
+  const MAPA = { venta:'Ventas', historial:'Servicios', turno:'Lavados' };
+  const tot = { Ventas:0, Servicios:0, Lavados:0 };
+  movs.filter(m=>m.tipo==='cargo').forEach(m=>{
+    const c = MAPA[(m.referencia||'').split(':')[0]];
+    if(c) tot[c] += m.monto;
+  });
+  const mejor = Object.entries(tot).sort((a,b)=>b[1]-a[1])[0];
+  return mejor[1] > 0 ? mejor[0] : 'Ventas';
+}
+
 async function openRegistrarPagoClienteModal(clienteId){
   const cliente = await DB.get('clientes', clienteId);
   const pendientes = await cargosPendientesCliente(clienteId);
   const saldoTotal = await saldoCuentaCorriente(clienteId);
+  const totalPendienteFacturas = pendientes.reduce((a,c)=>a+c.saldo,0);
+  const catSugerida = await categoriaSugeridaCtaCte(clienteId);
 
   const filasHTML = pendientes.length ? `
     <div style="font-size:12px; color:var(--text-muted); margin-bottom:6px;">Elegí qué facturas cobrar (opcional). Si no elegís ninguna, el pago se registra como pago a cuenta y se aplica automáticamente a las más viejas primero.</div>
@@ -16519,6 +16542,11 @@ async function openRegistrarPagoClienteModal(clienteId){
     ${filasHTML}
     <div class="field"><label>Monto a cobrar</label><input type="number" min="0.01" step="0.01" id="rpc-monto" value="0"></div>
     <div id="rpc-hint" style="font-size:11.5px; color:var(--text-muted); margin:-8px 0 14px;"></div>
+    <div class="field" id="rpc-cat-wrap" style="display:none;">
+      <label id="rpc-cat-label">Pago a cuenta — ¿a qué corresponde?</label>
+      <select class="select-input" id="rpc-cat">${CATEGORIAS_ASIGNABLES.map(c=>`<option value="${c}" ${c===catSugerida?'selected':''}>${c}</option>`).join('')}</select>
+      <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Define en qué meta cuenta este cobro en Gráficos › Planificación de ventas.</div>
+    </div>
     <div class="field"><label>Medio de pago</label><select class="select-input" id="rpc-medio">${MEDIOS_PAGO.filter(m=>m!=='Cuenta corriente').map(m=>`<option value="${m}">${m}</option>`).join('')}</select></div>
     <div class="field"><label>Fecha del pago</label><input type="date" id="rpc-fecha" value="${Utils.hoyLocal()}" max="${Utils.hoyLocal()}"></div>
     <div class="modal-actions"><button class="btn btn-ghost" id="rpc-cancel">Cancelar</button><button class="btn btn-accent" id="rpc-save">Confirmar cobro</button></div>
@@ -16544,8 +16572,22 @@ async function openRegistrarPagoClienteModal(clienteId){
       hint.textContent = pendientes.length ? 'Pago a cuenta: se va a aplicar a las facturas más viejas primero.' : 'Pago a cuenta.';
     }
   }
-  checks().forEach(ch => ch.addEventListener('change', actualizarSeleccion));
+  // Si el monto supera lo que se puede aplicar a facturas puntuales, el excedente
+  // queda como "pago a cuenta": se pide a qué categoría (Ventas/Servicios/Lavados) corresponde.
+  function actualizarCategoriaPagoACuenta(){
+    const excedente = Number(inputMonto.value||0) - totalPendienteFacturas;
+    const wrap = document.getElementById('rpc-cat-wrap');
+    if(excedente > 0.009){
+      wrap.style.display = '';
+      document.getElementById('rpc-cat-label').textContent = `Pago a cuenta de $${excedente.toLocaleString('es-AR',{maximumFractionDigits:2})} — ¿a qué corresponde?`;
+    } else {
+      wrap.style.display = 'none';
+    }
+  }
+  inputMonto.addEventListener('input', actualizarCategoriaPagoACuenta);
+  checks().forEach(ch => ch.addEventListener('change', ()=>{ actualizarSeleccion(); actualizarCategoriaPagoACuenta(); }));
   actualizarSeleccion();
+  actualizarCategoriaPagoACuenta();
 
   document.getElementById('rpc-cancel').onclick = () => Modal.close();
   document.getElementById('rpc-save').onclick = async () => {
@@ -16583,10 +16625,12 @@ async function openRegistrarPagoClienteModal(clienteId){
 
     if(restante > 0.009){
       // No quedan facturas puntuales a las que aplicar el resto: queda
-      // como pago a cuenta (no vinculado a una factura específica).
+      // como pago a cuenta (no vinculado a una factura específica), pero se
+      // guarda la categoría elegida para que cuente en la meta que corresponde.
+      const catPagoACuenta = document.getElementById('rpc-cat').value;
       await registrarMovimientoCtaCte(clienteId, { tipo:'pago', concepto:'Pago a cuenta', monto:restante, referencia:'manual', fecha:fechaISO });
-      await registrarMovimientoCaja({ tipo:'ingreso', concepto:`Cobro cuenta corriente — ${clienteNombreCompleto(cliente)} (pago a cuenta)`, monto:restante, medioPago, referencia:`ctacte:${clienteId}`, fecha:fechaISO });
-      detalleAplicado.push(`Pago a cuenta: $${restante.toLocaleString('es-AR')}`);
+      await registrarMovimientoCaja({ tipo:'ingreso', concepto:`Cobro cuenta corriente — ${clienteNombreCompleto(cliente)} (pago a cuenta · ${catPagoACuenta})`, monto:restante, medioPago, referencia:`ctacte:${clienteId}`, fecha:fechaISO, categoriaMeta:catPagoACuenta });
+      detalleAplicado.push(`Pago a cuenta (${catPagoACuenta}): $${restante.toLocaleString('es-AR')}`);
     }
 
     await Audit.log('ctacte_pago_registrado', `Pago de $${monto.toLocaleString('es-AR')} recibido de ${clienteNombreCompleto(cliente)}. ${detalleAplicado.join(' · ')}`);
@@ -20157,13 +20201,16 @@ function drawGraficosAnualChart(){
    cargado directo en Caja) van a "Otros" — se siguen sumando al total
    para que "Facturado real" sea siempre exacto, pero no se les puede
    asignar una categoría con certeza. */
+const CATEGORIAS_ASIGNABLES = ['Ventas','Servicios','Lavados'];
 async function obtenerIngresosCajaPorCategoriaEnRango(desde, hasta){
   const ingresos = await obtenerIngresosCajaEnRango(desde, hasta);
   const CATEGORIAS_META = { venta:'Ventas', historial:'Servicios', turno:'Lavados' };
   const porCategoria = { Ventas:0, Servicios:0, Lavados:0, Otros:0 };
   ingresos.forEach(m=>{
     const prefijo = (m.referencia||'').split(':')[0];
-    const cat = CATEGORIAS_META[prefijo] || 'Otros';
+    // Si el ingreso tiene una categoría asignada a mano (pago a cuenta o cobro
+    // sin factura puntual), esa manda; si no, se deduce del prefijo de la referencia.
+    const cat = CATEGORIAS_ASIGNABLES.includes(m.categoriaMeta) ? m.categoriaMeta : (CATEGORIAS_META[prefijo] || 'Otros');
     porCategoria[cat] += m.monto;
   });
   return porCategoria;
@@ -20292,13 +20339,66 @@ async function graficosObjetivosHTML(){
       <div class="kpi-card" style="--kpi-color:var(--teal)"><div class="kpi-label">Facturado real (total)</div><div class="kpi-value">$${realTotal.toLocaleString('es-AR')}</div>${realPorCategoria.Otros>0.009?`<div class="kpi-sub">incluye $${realPorCategoria.Otros.toLocaleString('es-AR')} sin categorizar</div>`:''}</div>
       <div class="kpi-card" style="--kpi-color:${desviacion>=0?'var(--teal)':'var(--danger)'}"><div class="kpi-label">Desviación</div><div class="kpi-value" style="font-size:19px;">${desviacion>=0?'+':''}$${desviacion.toLocaleString('es-AR')}</div><div class="kpi-sub">${objetivoTotal>0?(realTotal/objetivoTotal*100).toFixed(1)+'% del objetivo':'Definí metas para comparar'}</div></div>
     </div>
-    ${realPorCategoria.Otros>0.009?`<p style="font-size:11px; color:var(--text-muted); margin:-10px 0 16px;">"Facturado real" incluye $${realPorCategoria.Otros.toLocaleString('es-AR')} en cobros que no se pudieron asignar a Ventas/Servicios/Lavados — típicamente "pagos a cuenta" de cuenta corriente sin factura puntual seleccionada, o movimientos cargados manualmente en Caja. Por eso la suma de las 3 tarjetas de arriba puede ser menor que este total.</p>`:''}
+    ${realPorCategoria.Otros>0.009?`<p style="font-size:11px; color:var(--text-muted); margin:-10px 0 16px;">"Facturado real" incluye $${realPorCategoria.Otros.toLocaleString('es-AR')} en cobros sin categoría (Ventas/Servicios/Lavados) — típicamente pagos a cuenta de cuenta corriente anteriores a esta versión, o movimientos cargados manualmente en Caja. <button class="btn btn-ghost btn-sm" id="gr-obj-asignar" style="margin-left:6px;">Asignar categoría</button></p>`:''}
     <div class="report-chart-wrap"><div class="chart-canvas-box" style="height:280px;"><canvas id="gr-chart-objetivos"></canvas></div></div>
     <p style="font-size:11px; color:var(--text-muted); margin-top:8px;">Barras: total facturado real por mes (ventas + servicios + lavados). Línea: suma de las metas por categoría definidas para cada mes.</p>
   `;
 }
+/* Asignar categoría a ingresos de Caja del mes que no se pudieron atribuir a
+   Ventas/Servicios/Lavados (pagos a cuenta ya cargados, movimientos manuales).
+   Solo agrega el campo categoriaMeta al movimiento: no toca monto, fecha,
+   referencia ni saldo de Caja. */
+async function openAsignarCategoriaIngresosModal(mesSel){
+  const [ay,am] = mesSel.split('-').map(Number);
+  const desde = `${mesSel}-01`, hasta = Utils.fechaLocalYMD(new Date(ay,am,0));
+  const PREFIJOS = ['venta','historial','turno'];
+  const ingresos = (await obtenerIngresosCajaEnRango(desde, hasta))
+    .filter(m=> !CATEGORIAS_ASIGNABLES.includes(m.categoriaMeta) && !PREFIJOS.includes((m.referencia||'').split(':')[0]))
+    .sort((a,b)=> new Date(a.fecha)-new Date(b.fecha));
+  if(!ingresos.length){ Toast.show('info','Nada para asignar','No hay cobros sin categoría en este mes.'); return; }
+  Modal.open(
+    'Asignar categoría a cobros',
+    `
+    <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">Elegí a qué corresponde cada cobro (Ventas, Servicios o Lavados) para que cuente en su meta. Los que dejes sin elegir siguen como "sin categorizar".</p>
+    <div style="max-height:340px; overflow-y:auto; border:1px solid var(--border-soft); border-radius:10px;">
+      ${ingresos.map(m=>`
+        <div style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-bottom:1px solid var(--border-soft);">
+          <div style="flex:1; min-width:0;">
+            <div style="font-size:12.5px; overflow-wrap:anywhere;">${Utils.escapeHTML(m.concepto||'')}</div>
+            <div style="font-size:11px; color:var(--text-muted);">${Utils.fmtFecha(m.fecha)} · ${Utils.escapeHTML(m.medioPago||'—')}</div>
+          </div>
+          <span class="font-mono" style="font-weight:600;">$${m.monto.toLocaleString('es-AR')}</span>
+          <select class="select-input aci-sel" data-id="${m.id}" style="width:130px;">
+            <option value="">Sin categoría</option>
+            ${CATEGORIAS_ASIGNABLES.map(c=>`<option value="${c}">${c}</option>`).join('')}
+          </select>
+        </div>`).join('')}
+    </div>
+    <div class="modal-actions"><button class="btn btn-ghost" id="aci-cancel">Cancelar</button><button class="btn btn-accent" id="aci-save">Guardar</button></div>
+    `,
+    { width:'640px' }
+  );
+  document.getElementById('aci-cancel').onclick = () => Modal.close();
+  document.getElementById('aci-save').onclick = async () => {
+    const elegidos = Array.from(document.querySelectorAll('.aci-sel')).filter(sel=>sel.value);
+    if(!elegidos.length){ Toast.show('info','Sin cambios','No elegiste ninguna categoría.'); return; }
+    const detalle = [];
+    for(const sel of elegidos){
+      const mov = ingresos.find(m=>m.id===Number(sel.dataset.id));
+      if(!mov) continue;
+      await DB.put('caja', { ...mov, categoriaMeta: sel.value });
+      detalle.push(`${mov.concepto} ($${mov.monto.toLocaleString('es-AR')}) → ${sel.value}`);
+    }
+    await Audit.log('caja_categoria_asignada', `Categoría asignada a ${detalle.length} cobro(s) de ${mesSel}: ${detalle.join(' · ')}`);
+    Toast.show('success','Categorías asignadas', `${detalle.length} cobro(s)`);
+    Modal.close();
+    renderGraficosTab();
+  };
+}
 function bindGraficosObjetivosEvents(){
   document.getElementById('gr-obj-mes').onchange = (e)=>{ graficosObjetivoMes = e.target.value; renderGraficosTab(); };
+  const btnAsignar = document.getElementById('gr-obj-asignar');
+  if(btnAsignar) btnAsignar.onclick = () => openAsignarCategoriaIngresosModal(graficosObjetivoMes);
   document.getElementById('gr-obj-guardar').onclick = async () => {
     const mes = document.getElementById('gr-obj-mes').value;
     if(!mes){ Toast.show('error','Elegí un mes',''); return; }
