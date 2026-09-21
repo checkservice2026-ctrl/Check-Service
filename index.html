@@ -1464,6 +1464,8 @@ const DB_VERSION = 25; // v25: store 'gastosPlanificados' (planificación de gas
    una línea abajo) cada vez que se entrega una nueva versión, para tener
    registro de qué se cambió y cuándo sin depender del nombre del archivo.
    Historial:
+     v18.37 — Fix importante (introducido en v18.35): la Planificación de gastos declaraba una función `diasEntreFechas` con el mismo nombre que la que ya usaba la Planificación de cambio de aceite (vehículos/CRM). La nueva pisaba a la original y daba vuelta el cálculo de días, por eso todos los services aparecían como vencidos. Se renombró la de gastos (diasDesdeHoyGastoPlan); la original vuelve a funcionar igual que en v18.33. Chequeado: no quedan otras funciones duplicadas en el archivo.
+     v18.36 — Fix: Gastos › Planificación y alertas del Dashboard marcaban como "vencidos" gastos planificados que ya se habían pagado cargándolos a mano en Gastos (sin usar "Registrar" del plan). Ahora, si hay un gasto libre de la misma categoría en ese mes (o el siguiente, por pagos tardíos) por al menos la mitad del monto estimado, la ocurrencia se da por cumplida y se aclara "pago detectado en Gastos". Cada gasto se usa una sola vez.
      v18.35 — Gastos: nueva pestaña "Planificación" para proyectar gastos a futuro. Se cargan gastos planificados (categoría, monto estimado, frecuencia única/mensual/bimestral/trimestral/semestral/anual, día del mes, vigencia) y se puede navegar a cualquier mes futuro para ver el total proyectado (fijos/variables), por categoría y a 6 meses. Las categorías variables sin plan se estiman por el promedio de los últimos 3 meses (con botón "Planificar" para fijarlas). Cada gasto planificado se puede "Registrar" (crea el gasto real prellenado y lo marca Cumplido) u "Omitir este mes"; no toca Caja hasta registrarlo. Dashboard: nueva tarjeta "Gastos planificados por vencer" (vencidos o dentro de 7 días). Nuevo store gastosPlanificados (DB v25).
      v18.34 — Planificación de ventas: los pagos a cuenta de cuenta corriente (sin factura puntual) ya no quedan "sin categorizar". Al registrar el pago, si sobra monto después de cubrir las facturas, aparece un selector Ventas/Servicios/Lavados (sugerido según el historial del cliente) y el cobro cuenta en esa meta. Para cobros ya cargados, botón "Asignar categoría" junto a la nota de "sin categorizar" en Gráficos › Planificación de ventas.
      v18.33 — Gráficos: el botón "Enviar informe" por WhatsApp ahora también funciona en la pestaña "Planificación de ventas" — arma un informe con el mes que esté seleccionado ahí (metas vs. facturado real por categoría, meta total, desviación, y proyección a fin de mes si es el mes en curso).
@@ -1485,7 +1487,7 @@ const DB_VERSION = 25; // v25: store 'gastosPlanificados' (planificación de gas
      v18.17 — Backup automático: ahora corre 2 veces por día (10:00 y 19:50 hora Argentina), cada uno con su propio archivo y control de "ya se hizo hoy".
      v18.16 — Retiros de socios (nuevo submódulo dentro de Caja) + versión visible en la app.
      v18.15 — punto de partida de este historial. */
-const APP_VERSION = 'v18.35';
+const APP_VERSION = 'v18.37';
 const SESSION_KEY = 'cs_session';
 const REMEMBER_KEY = 'cs_remember_user';
 const THEME_KEY = 'cs_theme';
@@ -16108,19 +16110,21 @@ function diferenciaEnMeses(desdeKey, hastaKey){
 function mesKeyLabel(mesKey, opts){
   return new Date(mesKey+'-01T00:00:00').toLocaleDateString('es-AR', opts || { month:'long', year:'numeric' });
 }
-function diasEntreFechas(fechaYMD, hastaYMD){
-  return Math.round((parsearFechaSegura(fechaYMD) - parsearFechaSegura(hastaYMD)) / 86400000);
+function diasDesdeHoyGastoPlan(fechaYMD, hoyYMD){ // días de hoy hasta fechaYMD (negativo = ya pasó)
+  return Math.round((parsearFechaSegura(fechaYMD) - parsearFechaSegura(hoyYMD)) / 86400000);
 }
 
 /* Fecha (YYYY-MM-DD) en la que "toca" un plan dentro de un mes, o null si no
    corresponde ese mes (pausado, antes de que exista, fuera de frecuencia o
    pasado su "hasta"). Si el día no existe en el mes (31 en un mes de 30), cae
    en el último día. */
+function mesInicioVisiblePlan(plan){
+  const mesCreacion = plan.fechaCreacion ? Utils.fechaLocalYMD(plan.fechaCreacion).slice(0,7) : plan.mesInicio;
+  return mesCreacion > plan.mesInicio ? mesCreacion : plan.mesInicio;
+}
 function ocurrenciaPlanEnMes(plan, mesKey){
   if(plan.activo===false) return null;
-  const mesCreacion = plan.fechaCreacion ? Utils.fechaLocalYMD(plan.fechaCreacion).slice(0,7) : plan.mesInicio;
-  const desdeVisible = mesCreacion > plan.mesInicio ? mesCreacion : plan.mesInicio;
-  if(mesKey < desdeVisible) return null;
+  if(mesKey < mesInicioVisiblePlan(plan)) return null;
   const dif = diferenciaEnMeses(plan.mesInicio, mesKey);
   if(dif < 0) return null;
   const f = FRECUENCIAS_GASTO_PLAN[plan.frecuencia] || FRECUENCIAS_GASTO_PLAN.mensual;
@@ -16131,6 +16135,40 @@ function ocurrenciaPlanEnMes(plan, mesKey){
   const ultimoDia = new Date(y, m, 0).getDate();
   const dia = Math.min(Math.max(1, Number(plan.diaDelMes)||1), ultimoDia);
   return `${mesKey}-${String(dia).padStart(2,'0')}`;
+}
+
+/* Detecta pagos que ya se cargaron a mano en Gastos (sin usar "Registrar" del plan)
+   y los da por cumplidos, para no mostrar como vencido un gasto ya pagado.
+   Una ocurrencia del plan sin gasto vinculado toma el primer gasto libre (sin plan)
+   de su misma categoría, con fecha entre el inicio de ese mes y el fin del mes siguiente
+   (por si se paga tarde) y monto de al menos la mitad del estimado. Cada gasto se usa
+   una sola vez y se asigna en orden cronológico. El resultado se guarda en el contexto. */
+function calcularClaimsAutoPlanes(ctx){
+  if(ctx._autoClaims) return ctx._autoClaims;
+  const claims = {};
+  const ids = new Map();
+  const planes = ctx.planes.filter(p=>p.activo!==false).sort((a,b)=>a.id-b.id);
+  const mesActual = Utils.hoyLocal().slice(0,7);
+  if(planes.length){
+    const libres = ctx.gastos.filter(g=>!g.planId).sort((a,b)=>a.fecha.localeCompare(b.fecha));
+    const usados = new Set();
+    const minMes = planes.reduce((min,p)=>{ const v = mesInicioVisiblePlan(p); return v < min ? v : min; }, '9999-99');
+    for(let m = minMes; m <= mesActual; m = mesKeyDesplazado(m,1)){
+      const finVentana = `${mesKeyDesplazado(m,1)}-31`;
+      planes.forEach(plan=>{
+        if(!ocurrenciaPlanEnMes(plan, m)) return;
+        if((plan.mesesOmitidos||[]).includes(m)) return;
+        if(ctx.gastos.some(g=>g.planId===plan.id && g.planMes===m)) return;
+        const estimado = Number(plan.montoEstimado)||0;
+        const cand = libres.find(g=> !usados.has(g.id) && g.categoriaId===plan.categoriaId
+          && g.fecha >= `${m}-01` && g.fecha <= finVentana && g.monto >= estimado*0.5);
+        if(cand){ usados.add(cand.id); claims[`${plan.id}|${m}`] = [cand]; ids.set(cand.id, m); }
+      });
+    }
+  }
+  ctx._autoClaims = claims;
+  ctx._autoIds = ids;
+  return claims;
 }
 
 async function cargarContextoPlanGastos(){
@@ -16156,6 +16194,7 @@ function calcularProyeccionGastosMes(mesKey, ctx){
   const lineas = [];
   const idsUsados = new Set();
   const catsConPlan = new Set(ctx.planes.filter(p=>p.activo!==false).map(p=>p.categoriaId));
+  const autoClaims = calcularClaimsAutoPlanes(ctx);
 
   // 1) Ocurrencias de planes
   ctx.planes.forEach(plan=>{
@@ -16164,7 +16203,10 @@ function calcularProyeccionGastosMes(mesKey, ctx){
     const cat = ctx.catById[plan.categoriaId];
     const categoriaNombre = cat ? cat.nombre : plan.categoriaNombre;
     const tipo = cat ? cat.tipo : plan.tipo;
-    const ligados = ctx.gastos.filter(g=>g.planId===plan.id && g.planMes===mesKey);
+    const explicitos = ctx.gastos.filter(g=>g.planId===plan.id && g.planMes===mesKey);
+    const detectados = explicitos.length ? [] : (autoClaims[`${plan.id}|${mesKey}`] || []);
+    const ligados = explicitos.length ? explicitos : detectados;
+    const autoDetectado = detectados.length > 0;
     let estado, real = null, dias = null;
     if(ligados.length){
       estado = 'cumplido';
@@ -16173,13 +16215,13 @@ function calcularProyeccionGastosMes(mesKey, ctx){
     } else if((plan.mesesOmitidos||[]).includes(mesKey)){
       estado = 'omitido';
     } else {
-      dias = diasEntreFechas(fecha, hoyYMD);
+      dias = diasDesdeHoyGastoPlan(fecha, hoyYMD);
       estado = dias < 0 ? 'vencido' : (dias <= DIAS_ALERTA_GASTO_PLAN ? 'porVencer' : 'pendiente');
     }
     const estimado = Number(plan.montoEstimado)||0;
     lineas.push({
       tipoLinea:'plan', plan, fecha, categoriaId:plan.categoriaId, categoriaNombre, tipo,
-      concepto: plan.concepto || categoriaNombre, estimado, real, estado, dias,
+      concepto: plan.concepto || categoriaNombre, estimado, real, estado, dias, autoDetectado,
       proyectado: estado==='cumplido' ? real : (estado==='omitido' ? 0 : estimado)
     });
   });
@@ -16219,6 +16261,9 @@ function calcularProyeccionGastosMes(mesKey, ctx){
       if(idsUsados.has(g.id)) return;
       // vinculado a la ocurrencia de OTRO mes (se pagó tarde/adelantado): ya cuenta allá
       if(g.planId && g.planMes && g.planMes!==mesKey && ctx.planesById[g.planId]) return;
+      // detectado como pago de la ocurrencia de otro mes: ya cuenta allá
+      const mesReclamo = ctx._autoIds.get(g.id);
+      if(mesReclamo && mesReclamo!==mesKey) return;
       const clave = g.categoriaId;
       if(!sinPlan[clave]) sinPlan[clave] = { categoriaId:g.categoriaId, categoriaNombre:g.categoriaNombre, tipo:g.tipo, real:0, n:0 };
       sinPlan[clave].real += g.monto; sinPlan[clave].n++;
@@ -16348,7 +16393,7 @@ async function renderGastosPlanificacion(){
     if(l.tipoLinea==='plan'){
       fechaTxt = parsearFechaSegura(l.fecha).toLocaleDateString('es-AR');
       const f = FRECUENCIAS_GASTO_PLAN[l.plan.frecuencia];
-      detalle = `${l.categoriaNombre}${f?' · '+f.label:''}`;
+      detalle = `${l.categoriaNombre}${f?' · '+f.label:''}${l.autoDetectado?' · pago detectado en Gastos':''}`;
     }
     let acc = '';
     if(l.tipoLinea==='plan'){
