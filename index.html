@@ -1457,13 +1457,14 @@ var qrcode=function(){var qrcode=function(t,r){var e=t,n=c[r],o=null,i=0,a=null,
    0. CONSTANTES GLOBALES
 ----------------------------------------------------------------------- */
 const DB_NAME = 'CheckServiceDB';
-const DB_VERSION = 24; // Se agrega store 'socios' (catálogo de socios, para atribuir retiros de Caja)
+const DB_VERSION = 25; // v25: store 'gastosPlanificados' (planificación de gastos a futuro). v24: 'socios' (catálogo de socios, para atribuir retiros de Caja)
 
 /* Versión visible de la app — se muestra en el pie del menú lateral y en
    Configuración › Información del sistema. Actualizar este número (y sumar
    una línea abajo) cada vez que se entrega una nueva versión, para tener
    registro de qué se cambió y cuándo sin depender del nombre del archivo.
    Historial:
+     v18.35 — Gastos: nueva pestaña "Planificación" para proyectar gastos a futuro. Se cargan gastos planificados (categoría, monto estimado, frecuencia única/mensual/bimestral/trimestral/semestral/anual, día del mes, vigencia) y se puede navegar a cualquier mes futuro para ver el total proyectado (fijos/variables), por categoría y a 6 meses. Las categorías variables sin plan se estiman por el promedio de los últimos 3 meses (con botón "Planificar" para fijarlas). Cada gasto planificado se puede "Registrar" (crea el gasto real prellenado y lo marca Cumplido) u "Omitir este mes"; no toca Caja hasta registrarlo. Dashboard: nueva tarjeta "Gastos planificados por vencer" (vencidos o dentro de 7 días). Nuevo store gastosPlanificados (DB v25).
      v18.34 — Planificación de ventas: los pagos a cuenta de cuenta corriente (sin factura puntual) ya no quedan "sin categorizar". Al registrar el pago, si sobra monto después de cubrir las facturas, aparece un selector Ventas/Servicios/Lavados (sugerido según el historial del cliente) y el cobro cuenta en esa meta. Para cobros ya cargados, botón "Asignar categoría" junto a la nota de "sin categorizar" en Gráficos › Planificación de ventas.
      v18.33 — Gráficos: el botón "Enviar informe" por WhatsApp ahora también funciona en la pestaña "Planificación de ventas" — arma un informe con el mes que esté seleccionado ahí (metas vs. facturado real por categoría, meta total, desviación, y proyección a fin de mes si es el mes en curso).
      v18.32 — POS: tecla Supr con un ítem del carrito seleccionado (↑/↓) lo elimina, previa confirmación. Al confirmar, queda seleccionado el ítem que ocupó su lugar.
@@ -1484,7 +1485,7 @@ const DB_VERSION = 24; // Se agrega store 'socios' (catálogo de socios, para at
      v18.17 — Backup automático: ahora corre 2 veces por día (10:00 y 19:50 hora Argentina), cada uno con su propio archivo y control de "ya se hizo hoy".
      v18.16 — Retiros de socios (nuevo submódulo dentro de Caja) + versión visible en la app.
      v18.15 — punto de partida de este historial. */
-const APP_VERSION = 'v18.34';
+const APP_VERSION = 'v18.35';
 const SESSION_KEY = 'cs_session';
 const REMEMBER_KEY = 'cs_remember_user';
 const THEME_KEY = 'cs_theme';
@@ -1885,6 +1886,13 @@ const DB = (() => {
           // del módulo Caja). Separado de 'empleados' y de 'usuarios': un
           // socio no necesariamente factura ni tiene login al sistema.
           const st = db.createObjectStore('socios', { keyPath:'id', autoIncrement:true });
+          st.createIndex('activo', 'activo');
+        }
+        if(!db.objectStoreNames.contains('gastosPlanificados')){
+          // Gastos planificados a futuro (alquiler, luz, sueldos, etc.), con
+          // frecuencia y monto estimado. No generan movimientos de Caja: solo
+          // al "Registrar" una ocurrencia se crea el gasto real (en 'gastos').
+          const st = db.createObjectStore('gastosPlanificados', { keyPath:'id', autoIncrement:true });
           st.createIndex('activo', 'activo');
         }
       };
@@ -3104,6 +3112,12 @@ async function router(){
       break;
     case 'gastos':
       if(!canManageGastos(Session.get().rol)){ outlet.innerHTML = viewNoPermiso(); return; }
+      // #/gastos/planificacion (link de las alertas del Dashboard) abre esa pestaña; se
+      // limpia el hash para que un router() posterior no vuelva a forzarla.
+      if(param === 'planificacion'){
+        gastosVistaTab = 'planificacion';
+        try{ history.replaceState(null, '', '#/gastos'); }catch(e){}
+      }
       outlet.innerHTML = await viewGastosList(); await bindGastosListEvents();
       break;
     case 'cuentascorrientes':
@@ -3359,7 +3373,7 @@ async function viewDashboard(){
 
   // KPIs de negocio ahora reales gracias a Compras/Caja/Cuentas Corrientes (Fase 6)
   const verFinanzas = canSeeCosto(session.rol);
-  let gananciaMes = 0, rentabilidadPct = 0, saldoCajaActual = 0, facturasCompraPorVencer = [];
+  let gananciaMes = 0, rentabilidadPct = 0, saldoCajaActual = 0, facturasCompraPorVencer = [], gastosPlanPorVencer = [];
   if(verFinanzas){
     const productosById = {}; productos.forEach(p=>productosById[p.id]=p);
     const costoPorProductoDash = {}; productos.forEach(p=>costoPorProductoDash[p.id]=p.precioCosto||0);
@@ -3380,6 +3394,7 @@ async function viewDashboard(){
     rentabilidadPct = costoTotalMes>0 ? (gananciaMes/costoTotalMes*100) : 0;
     saldoCajaActual = await cajaSaldoActual();
     facturasCompraPorVencer = await obtenerFacturasCompraPorVencer();
+    gastosPlanPorVencer = await obtenerGastosPlanificadosPorVencer();
     var proveedoresById = {}; (await DB.getAll('proveedores')).forEach(p=>proveedoresById[p.id]=p);
   }
 
@@ -3561,6 +3576,21 @@ async function viewDashboard(){
           const prov = proveedoresById[c.proveedorId];
           const texto = dias<0 ? `venció hace ${Math.abs(dias)} día${Math.abs(dias)===1?'':'s'}` : dias===0 ? 'vence hoy' : `vence en ${dias} día${dias===1?'':'s'}`;
           return `<a href="#/compras" class="crm-alerts-item"><span class="crm-alerts-dot" style="background:${dias<0?'var(--danger)':'var(--warning)'};"></span><span class="txt">Factura <b>${Utils.escapeHTML(c.numeroFactura||'s/n')}</b> de ${prov?Utils.escapeHTML(prov.nombre):'(proveedor eliminado)'} — $${c.total.toLocaleString('es-AR')} · ${texto}</span></a>`;
+        }).join('')}
+      </div>
+    </div>
+    ` : ''}
+
+    ${(verFinanzas && gastosPlanPorVencer.length) ? `
+    <div class="card" style="margin-top:22px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+        <h3 style="font-size:14px;">Gastos planificados por vencer</h3>
+        <a href="#/gastos/planificacion" class="btn btn-ghost btn-sm">Ver planificación</a>
+      </div>
+      <div class="crm-alerts-card">
+        ${gastosPlanPorVencer.slice(0,6).map(l => {
+          const texto = l.dias<0 ? `venció hace ${Math.abs(l.dias)} día${Math.abs(l.dias)===1?'':'s'}` : l.dias===0 ? 'vence hoy' : `vence en ${l.dias} día${l.dias===1?'':'s'}`;
+          return `<a href="#/gastos/planificacion" class="crm-alerts-item"><span class="crm-alerts-dot" style="background:${l.dias<0?'var(--danger)':'var(--warning)'};"></span><span class="txt"><b>${Utils.escapeHTML(l.concepto)}</b> — aprox. $${Math.round(l.estimado).toLocaleString('es-AR')} · ${texto}</span></a>`;
         }).join('')}
       </div>
     </div>
@@ -15914,15 +15944,19 @@ async function openCategoriasGastosModal(){
 }
 
 /* ---------- Registro de gastos ---------- */
-async function registrarGasto({ categoriaId, fecha, monto, medioPago, concepto, observaciones }){
+async function registrarGasto({ categoriaId, fecha, monto, medioPago, concepto, observaciones, planId, planMes }){
   const categoria = await DB.get('categoriasGastos', categoriaId);
   const session = Session.get();
   const conceptoFinal = concepto || categoria.nombre;
-  const gastoId = await DB.add('gastos', {
+  const registro = {
     categoriaId, categoriaNombre: categoria.nombre, tipo: categoria.tipo,
     fecha, monto, medioPago, concepto: conceptoFinal, observaciones: observaciones||'',
     fechaCreacion: Utils.nowISO(), usuarioId: session.usuarioId, usuarioNombre: session.nombre
-  });
+  };
+  // Si el gasto se registró desde un gasto planificado, queda vinculado a esa
+  // ocurrencia (plan + mes) para marcarla como "Cumplida" en la Planificación.
+  if(planId){ registro.planId = planId; registro.planMes = planMes; }
+  const gastoId = await DB.add('gastos', registro);
   await registrarMovimientoCaja({
     tipo:'egreso',
     concepto: `Gasto ${categoria.tipo.toLowerCase()} — ${categoria.nombre}: ${conceptoFinal}`,
@@ -15981,13 +16015,16 @@ async function editarGasto(gastoId, { categoriaId, fecha, monto, medioPago, conc
   await Audit.log('gasto_editado', `Gasto editado — ${categoria.nombre} (${categoria.tipo}): $${monto.toLocaleString('es-AR')}.`);
 }
 
-async function openGastoModal(gasto=null){
+async function openGastoModal(gasto=null, prefill=null){
+  // prefill (opcional): datos iniciales para registrar un gasto desde la Planificación
+  // ({ planId, planMes, categoriaId, fecha, monto, medioPago, concepto, observaciones }).
+  const base = gasto || prefill;
   const categorias = await DB.getAll('categoriasGastos');
   let categoriasActivas = categorias.filter(c=>c.activo!==false).sort((a,b)=>a.nombre.localeCompare(b.nombre));
   // Si estamos editando un gasto cuya categoría fue dada de baja, la incluimos
   // igual en la lista (si no, no se podría guardar la edición sin cambiarla).
-  if(gasto && !categoriasActivas.some(c=>c.id===gasto.categoriaId)){
-    const catDelGasto = categorias.find(c=>c.id===gasto.categoriaId);
+  if(base && !categoriasActivas.some(c=>c.id===base.categoriaId)){
+    const catDelGasto = categorias.find(c=>c.id===base.categoriaId);
     if(catDelGasto) categoriasActivas = [...categoriasActivas, catDelGasto].sort((a,b)=>a.nombre.localeCompare(b.nombre));
   }
   if(!categoriasActivas.length){
@@ -15995,21 +16032,21 @@ async function openGastoModal(gasto=null){
     return;
   }
   Modal.open(
-    gasto ? 'Editar gasto' : 'Nuevo gasto',
+    gasto ? 'Editar gasto' : (prefill ? 'Registrar gasto planificado' : 'Nuevo gasto'),
     `
     <div class="field"><label>Categoría</label>
       <select class="select-input" id="gf-categoria">
-        <optgroup label="Fijos">${categoriasActivas.filter(c=>c.tipo==='Fijo').map(c=>`<option value="${c.id}" ${gasto&&gasto.categoriaId===c.id?'selected':''}>${Utils.escapeHTML(c.nombre)}</option>`).join('')}</optgroup>
-        <optgroup label="Variables">${categoriasActivas.filter(c=>c.tipo==='Variable').map(c=>`<option value="${c.id}" ${gasto&&gasto.categoriaId===c.id?'selected':''}>${Utils.escapeHTML(c.nombre)}</option>`).join('')}</optgroup>
+        <optgroup label="Fijos">${categoriasActivas.filter(c=>c.tipo==='Fijo').map(c=>`<option value="${c.id}" ${base&&base.categoriaId===c.id?'selected':''}>${Utils.escapeHTML(c.nombre)}</option>`).join('')}</optgroup>
+        <optgroup label="Variables">${categoriasActivas.filter(c=>c.tipo==='Variable').map(c=>`<option value="${c.id}" ${base&&base.categoriaId===c.id?'selected':''}>${Utils.escapeHTML(c.nombre)}</option>`).join('')}</optgroup>
       </select>
     </div>
     <div class="field-row">
-      <div class="field"><label>Fecha</label><input type="date" id="gf-fecha" value="${gasto?gasto.fecha:Utils.hoyLocal()}" max="${Utils.hoyLocal()}"></div>
-      <div class="field"><label>Monto</label><input type="number" min="0.01" step="0.01" id="gf-monto" placeholder="0.00" value="${gasto?gasto.monto:''}"></div>
+      <div class="field"><label>Fecha</label><input type="date" id="gf-fecha" value="${base?base.fecha:Utils.hoyLocal()}" max="${Utils.hoyLocal()}"></div>
+      <div class="field"><label>Monto</label><input type="number" min="0.01" step="0.01" id="gf-monto" placeholder="0.00" value="${base?base.monto:''}"></div>
     </div>
-    <div class="field"><label>Medio de pago</label><select class="select-input" id="gf-medio">${MEDIOS_PAGO.filter(m=>m!=='Cuenta corriente').map(m=>`<option value="${m}" ${gasto&&gasto.medioPago===m?'selected':''}>${m}</option>`).join('')}</select></div>
-    <div class="field"><label>Concepto / detalle</label><input type="text" id="gf-concepto" placeholder="Ej: Alquiler agosto, factura de luz..." value="${gasto?Utils.escapeHTML(gasto.concepto):''}"></div>
-    <div class="field"><label>Observaciones (opcional)</label><textarea class="textarea-input" id="gf-observaciones">${gasto?Utils.escapeHTML(gasto.observaciones||''):''}</textarea></div>
+    <div class="field"><label>Medio de pago</label><select class="select-input" id="gf-medio">${MEDIOS_PAGO.filter(m=>m!=='Cuenta corriente').map(m=>`<option value="${m}" ${base&&base.medioPago===m?'selected':''}>${m}</option>`).join('')}</select></div>
+    <div class="field"><label>Concepto / detalle</label><input type="text" id="gf-concepto" placeholder="Ej: Alquiler agosto, factura de luz..." value="${base?Utils.escapeHTML(base.concepto||''):''}"></div>
+    <div class="field"><label>Observaciones (opcional)</label><textarea class="textarea-input" id="gf-observaciones">${base?Utils.escapeHTML(base.observaciones||''):''}</textarea></div>
     <div class="modal-actions"><button class="btn btn-ghost" id="gf-cancel">Cancelar</button><button class="btn btn-accent" id="gf-save">${gasto?'Guardar cambios':'Registrar gasto'}</button></div>
     `,
     { width:'440px' }
@@ -16028,11 +16065,559 @@ async function openGastoModal(gasto=null){
       await editarGasto(gasto.id, { categoriaId, fecha, monto, medioPago, concepto, observaciones });
       Toast.show('success','Gasto actualizado', `$${monto.toLocaleString('es-AR')}`);
     } else {
-      await registrarGasto({ categoriaId, fecha, monto, medioPago, concepto, observaciones });
+      await registrarGasto({ categoriaId, fecha, monto, medioPago, concepto, observaciones, planId: prefill?prefill.planId:undefined, planMes: prefill?prefill.planMes:undefined });
       Toast.show('success','Gasto registrado', `$${monto.toLocaleString('es-AR')}`);
     }
     Modal.close();
     router();
+  };
+}
+
+/* ===========================================================================
+   PLANIFICACIÓN DE GASTOS A FUTURO
+   - Un "gasto planificado" (store gastosPlanificados) describe un gasto esperado:
+     categoría, monto estimado, frecuencia (una vez, mensual, bimestral, etc.)
+     y día del mes. NO toca Caja: solo al "Registrar" una ocurrencia se crea el
+     gasto real (con planId + planMes para marcarla como cumplida).
+   - Para cada mes se arman "líneas": ocurrencias de los planes + estimación
+     por promedio (últimos 3 meses) de las categorías variables sin plan.
+   - Una ocurrencia se puede "omitir" en un mes puntual (mesesOmitidos).
+   - Las ocurrencias solo existen desde el mes en que se creó el plan (o su mes de
+     inicio, si es posterior): no se generan pendientes retroactivos.
+   =========================================================================== */
+const FRECUENCIAS_GASTO_PLAN = {
+  unica:      { label:'Una sola vez', meses:0 },
+  mensual:    { label:'Mensual',      meses:1 },
+  bimestral:  { label:'Bimestral',    meses:2 },
+  trimestral: { label:'Trimestral',   meses:3 },
+  semestral:  { label:'Semestral',    meses:6 },
+  anual:      { label:'Anual',        meses:12 }
+};
+const DIAS_ALERTA_GASTO_PLAN = 7;
+let gastosVistaTab = 'registrados'; // 'registrados' | 'planificacion'
+
+function mesKeyDesplazado(mesKey, delta){
+  const [y,m] = mesKey.split('-').map(Number);
+  return Utils.fechaLocalYMD(new Date(y, m-1+delta, 1)).slice(0,7);
+}
+function diferenciaEnMeses(desdeKey, hastaKey){
+  const [ay,am] = desdeKey.split('-').map(Number);
+  const [by,bm] = hastaKey.split('-').map(Number);
+  return (by-ay)*12 + (bm-am);
+}
+function mesKeyLabel(mesKey, opts){
+  return new Date(mesKey+'-01T00:00:00').toLocaleDateString('es-AR', opts || { month:'long', year:'numeric' });
+}
+function diasEntreFechas(fechaYMD, hastaYMD){
+  return Math.round((parsearFechaSegura(fechaYMD) - parsearFechaSegura(hastaYMD)) / 86400000);
+}
+
+/* Fecha (YYYY-MM-DD) en la que "toca" un plan dentro de un mes, o null si no
+   corresponde ese mes (pausado, antes de que exista, fuera de frecuencia o
+   pasado su "hasta"). Si el día no existe en el mes (31 en un mes de 30), cae
+   en el último día. */
+function ocurrenciaPlanEnMes(plan, mesKey){
+  if(plan.activo===false) return null;
+  const mesCreacion = plan.fechaCreacion ? Utils.fechaLocalYMD(plan.fechaCreacion).slice(0,7) : plan.mesInicio;
+  const desdeVisible = mesCreacion > plan.mesInicio ? mesCreacion : plan.mesInicio;
+  if(mesKey < desdeVisible) return null;
+  const dif = diferenciaEnMeses(plan.mesInicio, mesKey);
+  if(dif < 0) return null;
+  const f = FRECUENCIAS_GASTO_PLAN[plan.frecuencia] || FRECUENCIAS_GASTO_PLAN.mensual;
+  if(f.meses === 0){ if(dif !== 0) return null; }
+  else if(dif % f.meses !== 0) return null;
+  if(plan.mesFin && mesKey > plan.mesFin) return null;
+  const [y,m] = mesKey.split('-').map(Number);
+  const ultimoDia = new Date(y, m, 0).getDate();
+  const dia = Math.min(Math.max(1, Number(plan.diaDelMes)||1), ultimoDia);
+  return `${mesKey}-${String(dia).padStart(2,'0')}`;
+}
+
+async function cargarContextoPlanGastos(){
+  const [planes, categorias, gastos] = await Promise.all([
+    DB.getAll('gastosPlanificados'), DB.getAll('categoriasGastos'), DB.getAll('gastos')
+  ]);
+  const catById = {}; categorias.forEach(c=>catById[c.id]=c);
+  const planesById = {}; planes.forEach(p=>planesById[p.id]=p);
+  return { planes, planesById, categorias, catById, gastos };
+}
+
+/* Proyección de un mes: líneas (planes + promedios + gastos reales sin planificar)
+   y totales. Criterio de "proyectado" por línea:
+   - plan cumplido → lo real; omitido → 0; pendiente → lo estimado.
+   - promedio de variables → estimado (mes futuro), el mayor entre estimado y real
+     (mes actual), o lo real (mes ya cerrado).
+   - gasto real sin planificar → lo real. */
+function calcularProyeccionGastosMes(mesKey, ctx){
+  const hoyYMD = Utils.hoyLocal();
+  const mesActual = hoyYMD.slice(0,7);
+  const hayReales = mesKey <= mesActual;
+  const gastosMes = ctx.gastos.filter(g=>g.fecha.slice(0,7)===mesKey);
+  const lineas = [];
+  const idsUsados = new Set();
+  const catsConPlan = new Set(ctx.planes.filter(p=>p.activo!==false).map(p=>p.categoriaId));
+
+  // 1) Ocurrencias de planes
+  ctx.planes.forEach(plan=>{
+    const fecha = ocurrenciaPlanEnMes(plan, mesKey);
+    if(!fecha) return;
+    const cat = ctx.catById[plan.categoriaId];
+    const categoriaNombre = cat ? cat.nombre : plan.categoriaNombre;
+    const tipo = cat ? cat.tipo : plan.tipo;
+    const ligados = ctx.gastos.filter(g=>g.planId===plan.id && g.planMes===mesKey);
+    let estado, real = null, dias = null;
+    if(ligados.length){
+      estado = 'cumplido';
+      real = ligados.reduce((a,g)=>a+g.monto,0);
+      ligados.forEach(g=>idsUsados.add(g.id));
+    } else if((plan.mesesOmitidos||[]).includes(mesKey)){
+      estado = 'omitido';
+    } else {
+      dias = diasEntreFechas(fecha, hoyYMD);
+      estado = dias < 0 ? 'vencido' : (dias <= DIAS_ALERTA_GASTO_PLAN ? 'porVencer' : 'pendiente');
+    }
+    const estimado = Number(plan.montoEstimado)||0;
+    lineas.push({
+      tipoLinea:'plan', plan, fecha, categoriaId:plan.categoriaId, categoriaNombre, tipo,
+      concepto: plan.concepto || categoriaNombre, estimado, real, estado, dias,
+      proyectado: estado==='cumplido' ? real : (estado==='omitido' ? 0 : estimado)
+    });
+  });
+
+  // 2) Promedio de los últimos 3 meses completos para categorías variables sin plan.
+  //    Para un mes futuro se toma la ventana anterior al mes actual (no hay datos más nuevos).
+  const mesRef = mesKey < mesActual ? mesKey : mesActual;
+  const primerMes = ctx.gastos.reduce((min,g)=> g.fecha.slice(0,7) < min ? g.fecha.slice(0,7) : min, '9999-99');
+  const ventana = [1,2,3].map(i=>mesKeyDesplazado(mesRef,-i)).filter(m=> m >= primerMes);
+  const mesesVentana = ventana.length;
+  const promedioDe = (catId)=>{
+    if(!mesesVentana) return 0;
+    const suma = ctx.gastos.filter(g=>g.categoriaId===catId && ventana.includes(g.fecha.slice(0,7))).reduce((a,g)=>a+g.monto,0);
+    return suma / mesesVentana;
+  };
+  ctx.categorias.filter(c=>c.activo!==false && c.tipo==='Variable' && !catsConPlan.has(c.id)).forEach(c=>{
+    const estimado = promedioDe(c.id);
+    const reales = gastosMes.filter(g=>g.categoriaId===c.id && !g.planId);
+    const real = reales.reduce((a,g)=>a+g.monto,0);
+    if(estimado < 0.009 && real < 0.009) return;
+    reales.forEach(g=>idsUsados.add(g.id));
+    let proyectado;
+    if(mesKey > mesActual) proyectado = estimado;
+    else if(mesKey === mesActual) proyectado = Math.max(estimado, real);
+    else proyectado = real;
+    lineas.push({
+      tipoLinea:'promedio', categoriaId:c.id, categoriaNombre:c.nombre, tipo:'Variable',
+      concepto: c.nombre, detalle: mesesVentana ? `Promedio de ${mesesVentana} mes${mesesVentana===1?'':'es'}` : 'Sin historial para promediar',
+      estimado, real: hayReales ? real : null, estado:'estimado', dias:null, proyectado
+    });
+  });
+
+  // 3) Gastos reales del mes que no pertenecen a ninguna línea anterior
+  if(hayReales){
+    const sinPlan = {};
+    gastosMes.forEach(g=>{
+      if(idsUsados.has(g.id)) return;
+      // vinculado a la ocurrencia de OTRO mes (se pagó tarde/adelantado): ya cuenta allá
+      if(g.planId && g.planMes && g.planMes!==mesKey && ctx.planesById[g.planId]) return;
+      const clave = g.categoriaId;
+      if(!sinPlan[clave]) sinPlan[clave] = { categoriaId:g.categoriaId, categoriaNombre:g.categoriaNombre, tipo:g.tipo, real:0, n:0 };
+      sinPlan[clave].real += g.monto; sinPlan[clave].n++;
+    });
+    Object.values(sinPlan).forEach(x=>{
+      lineas.push({
+        tipoLinea:'sinplan', categoriaId:x.categoriaId, categoriaNombre:x.categoriaNombre, tipo:x.tipo,
+        concepto:x.categoriaNombre, detalle:`${x.n} gasto${x.n===1?'':'s'} registrado${x.n===1?'':'s'} sin planificar`,
+        estimado:null, real:x.real, estado:'sinplan', dias:null, proyectado:x.real
+      });
+    });
+  }
+
+  const orden = { plan:0, promedio:1, sinplan:2 };
+  lineas.sort((a,b)=>{
+    if(orden[a.tipoLinea]!==orden[b.tipoLinea]) return orden[a.tipoLinea]-orden[b.tipoLinea];
+    if(a.tipoLinea==='plan') return a.fecha.localeCompare(b.fecha);
+    return a.categoriaNombre.localeCompare(b.categoriaNombre);
+  });
+
+  // Categorías fijas con gasto reciente pero sin plan: no entran en la proyección.
+  const fijosSinPlan = [];
+  ctx.categorias.filter(c=>c.activo!==false && c.tipo==='Fijo' && !catsConPlan.has(c.id)).forEach(c=>{
+    const prom = promedioDe(c.id);
+    if(prom > 0.009) fijosSinPlan.push({ nombre:c.nombre, promedio:prom });
+  });
+
+  const suma = (arr)=>arr.reduce((a,l)=>a+l.proyectado,0);
+  const totales = {
+    proyectado: suma(lineas),
+    fijos: suma(lineas.filter(l=>l.tipo==='Fijo')),
+    variables: suma(lineas.filter(l=>l.tipo!=='Fijo')),
+    real: gastosMes.reduce((a,g)=>a+g.monto,0),
+    pendiente: lineas.filter(l=>l.tipoLinea==='plan' && ['pendiente','porVencer','vencido'].includes(l.estado)).reduce((a,l)=>a+l.estimado,0)
+  };
+  return { mesKey, lineas, totales, fijosSinPlan, hayReales, mesesVentana };
+}
+
+/* Ocurrencias de planes vencidas o por vencer (para el Dashboard). Mira el
+   mes anterior, el actual y el siguiente. */
+async function obtenerGastosPlanificadosPorVencer(){
+  try{
+    const ctx = await cargarContextoPlanGastos();
+    if(!ctx.planes.length) return [];
+    const mesActual = Utils.hoyLocal().slice(0,7);
+    const salida = [];
+    [-2,-1,0,1].forEach(off=>{
+      const proy = calcularProyeccionGastosMes(mesKeyDesplazado(mesActual, off), ctx);
+      proy.lineas.filter(l=>l.tipoLinea==='plan' && (l.estado==='vencido' || l.estado==='porVencer')).forEach(l=>salida.push(l));
+    });
+    return salida.sort((a,b)=>a.dias-b.dias);
+  }catch(e){
+    console.error('Error al calcular gastos planificados por vencer:', e);
+    return [];
+  }
+}
+
+function gastoPlanEstadoBadge(l){
+  if(l.estado==='cumplido') return `<span class="badge badge-pago-pagada">Cumplido</span>`;
+  if(l.estado==='omitido') return `<span class="badge badge-neutral">Omitido</span>`;
+  if(l.estado==='vencido') return `<span class="badge badge-pago-pendiente">Vencido hace ${Math.abs(l.dias)} día${Math.abs(l.dias)===1?'':'s'}</span>`;
+  if(l.estado==='porVencer') return `<span class="badge badge-pago-parcial">${l.dias===0?'Vence hoy':'Vence en '+l.dias+' día'+(l.dias===1?'':'s')}</span>`;
+  if(l.estado==='pendiente') return `<span class="badge badge-neutral">Pendiente</span>`;
+  if(l.estado==='estimado') return `<span class="badge badge-neutral">Estimado por promedio</span>`;
+  return `<span class="badge badge-neutral">Sin planificar</span>`;
+}
+
+/* Barras apiladas Fijos/Variables proyectados, mes a mes. */
+function drawGastosProyeccionChart(canvas, labels, fijos, variables){
+  if(!canvas) return;
+  destroyChartOn(canvas);
+  const theme = chartThemeColors();
+  new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label:'Fijos', data:fijos, backgroundColor:'#FF8C1A', borderRadius:5, maxBarThickness:38 },
+        { label:'Variables', data:variables, backgroundColor:'#17B8A6', borderRadius:5, maxBarThickness:38 }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 650, easing: 'easeOutQuart' },
+      plugins: {
+        legend: { position:'bottom', labels:{ color: theme.muted, boxWidth:12, boxHeight:12, font:{ size:11 }, usePointStyle:true, pointStyle:'circle' } },
+        tooltip: {
+          backgroundColor: theme.panel, titleColor: theme.text, bodyColor: theme.text,
+          borderColor: theme.grid, borderWidth: 1, padding: 10, cornerRadius: 8,
+          callbacks: { label: (item) => `${item.dataset.label}: $${Math.round(item.parsed.y).toLocaleString('es-AR')}` }
+        }
+      },
+      scales: {
+        x: { stacked:true, grid:{ display:false }, ticks:{ color: theme.muted, font:{ size:10.5 } } },
+        y: { stacked:true, grid:{ color: theme.grid }, ticks:{ color: theme.muted, font:{ size:10.5 }, callback:(v)=> '$'+v.toLocaleString('es-AR') } }
+      }
+    }
+  });
+}
+
+/* ---------- Pestaña "Planificación" de Gastos ---------- */
+async function renderGastosPlanificacion(){
+  const cont = document.getElementById('gastos-mes-content');
+  if(!cont) return;
+  const ctx = await cargarContextoPlanGastos();
+  const mesKey = gastosMesSeleccionado;
+  const mesActual = Utils.hoyLocal().slice(0,7);
+  const puedeGestionar = canGestionarCategoriasGastos(Session.get().rol);
+  const fmt = (n)=> '$'+Math.round(n).toLocaleString('es-AR');
+  const proy = calcularProyeccionGastosMes(mesKey, ctx);
+  const t = proy.totales;
+
+  const meses6 = [0,1,2,3,4,5].map(i=>mesKeyDesplazado(mesKey,i));
+  const proy6 = meses6.map(m=> m===mesKey ? proy : calcularProyeccionGastosMes(m, ctx));
+  const hayGraficoMeses = proy6.some(p=>p.totales.proyectado>0.009);
+
+  const porCat = {};
+  proy.lineas.forEach(l=>{ if(l.proyectado>0.009) porCat[l.categoriaNombre] = (porCat[l.categoriaNombre]||0) + l.proyectado; });
+  const topCats = Object.entries(porCat).sort((a,b)=>b[1]-a[1]).slice(0,8);
+
+  const subTotal = mesKey>mesActual ? 'según planes y promedios' : (mesKey===mesActual ? 'registrado + lo que falta' : 'cierre del mes');
+  const chipTipo = (tipo)=>`<span class="tag-chip">${tipo}</span>`;
+
+  const filaLinea = (l)=>{
+    let fechaTxt = '—', detalle = l.detalle || '';
+    if(l.tipoLinea==='plan'){
+      fechaTxt = parsearFechaSegura(l.fecha).toLocaleDateString('es-AR');
+      const f = FRECUENCIAS_GASTO_PLAN[l.plan.frecuencia];
+      detalle = `${l.categoriaNombre}${f?' · '+f.label:''}`;
+    }
+    let acc = '';
+    if(l.tipoLinea==='plan'){
+      const d = `data-plan="${l.plan.id}" data-mes="${mesKey}"`;
+      if(['pendiente','porVencer','vencido'].includes(l.estado)){
+        acc += `<button class="btn btn-ghost btn-sm btn-gp-registrar" ${d}>Registrar gasto</button><button class="btn btn-ghost btn-sm btn-gp-omitir" ${d}>Omitir este mes</button>`;
+      }
+      if(l.estado==='omitido') acc += `<button class="btn btn-ghost btn-sm btn-gp-reincluir" ${d}>Volver a incluir este mes</button>`;
+      if(puedeGestionar) acc += `<button class="btn btn-ghost btn-sm btn-gp-editar" data-plan="${l.plan.id}">Editar plan</button>`;
+    } else if(l.tipoLinea==='promedio' && puedeGestionar){
+      acc += `<button class="btn btn-ghost btn-sm btn-gp-planificar" data-cat="${l.categoriaId}" data-monto="${Math.round(l.estimado)}">Planificar</button>`;
+    }
+    return `<tr>
+      <td class="font-mono" style="font-size:12px;">${fechaTxt}</td>
+      <td>${Utils.escapeHTML(l.concepto)}<div style="font-size:11px; color:var(--text-muted);">${Utils.escapeHTML(detalle)}</div></td>
+      <td>${chipTipo(l.tipo)}</td>
+      <td class="font-mono">${l.estimado!=null && l.estimado>0.009 ? fmt(l.estimado) : '—'}</td>
+      <td class="font-mono">${l.real!=null ? fmt(l.real) : '—'}</td>
+      <td>${gastoPlanEstadoBadge(l)}</td>
+      <td style="text-align:right;">${accionesFilaHTML(acc)}</td>
+    </tr>`;
+  };
+
+  const planesOrdenados = [...ctx.planes].sort((a,b)=> (a.concepto||a.categoriaNombre||'').localeCompare(b.concepto||b.categoriaNombre||''));
+  const filaPlan = (p)=>{
+    const cat = ctx.catById[p.categoriaId];
+    const categoriaNombre = cat ? cat.nombre : p.categoriaNombre;
+    const tipo = cat ? cat.tipo : p.tipo;
+    const f = FRECUENCIAS_GASTO_PLAN[p.frecuencia] || FRECUENCIAS_GASTO_PLAN.mensual;
+    const activo = p.activo !== false;
+    const hasta = p.frecuencia==='unica' ? '—' : (p.mesFin ? mesKeyLabel(p.mesFin,{month:'short',year:'numeric'}) : 'Sin fin');
+    const acc = puedeGestionar ? `<button class="btn btn-ghost btn-sm btn-gp-editar" data-plan="${p.id}">Editar</button><button class="btn btn-ghost btn-sm btn-gp-pausar" data-plan="${p.id}">${activo?'Pausar':'Reactivar'}</button><button class="btn btn-danger-ghost btn-sm btn-gp-eliminar" data-plan="${p.id}">Eliminar</button>` : '';
+    return `<tr>
+      <td>${Utils.escapeHTML(p.concepto||categoriaNombre)}</td>
+      <td>${Utils.escapeHTML(categoriaNombre)}</td>
+      <td>${chipTipo(tipo)}</td>
+      <td>${f.label}</td>
+      <td class="font-mono">${p.diaDelMes}</td>
+      <td style="font-size:12px;">${mesKeyLabel(p.mesInicio,{month:'short',year:'numeric'})} → ${hasta}</td>
+      <td class="font-mono">${fmt(p.montoEstimado||0)}</td>
+      <td>${activo?'<span class="badge badge-pago-pagada">Activo</span>':'<span class="badge badge-neutral">Pausado</span>'}</td>
+      <td style="text-align:right;">${accionesFilaHTML(acc)}</td>
+    </tr>`;
+  };
+
+  cont.innerHTML = `
+    <div class="toolbar-filters" style="align-items:center;">
+      <button class="btn btn-ghost btn-sm" id="gplan-mes-anterior">‹</button>
+      <div style="font-weight:700; text-transform:capitalize; min-width:160px; text-align:center;">${mesKeyLabel(mesKey)}</div>
+      <button class="btn btn-ghost btn-sm" id="gplan-mes-siguiente">›</button>
+      <button class="btn btn-ghost btn-sm" id="gplan-mes-actual">Mes actual</button>
+      ${puedeGestionar ? `<button class="btn btn-accent btn-sm" id="gplan-nuevo" style="margin-left:auto;">+ Nuevo gasto planificado</button>` : ''}
+    </div>
+
+    <div class="grid-kpi">
+      <div class="kpi-card" style="--kpi-color:var(--danger)"><div class="kpi-label">Total proyectado</div><div class="kpi-value">${fmt(t.proyectado)}</div><div class="kpi-sub">${subTotal}</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--accent)"><div class="kpi-label">Fijos proyectados</div><div class="kpi-value">${fmt(t.fijos)}</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--teal)"><div class="kpi-label">Variables proyectados</div><div class="kpi-value">${fmt(t.variables)}</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--info)"><div class="kpi-label">Ya registrado</div><div class="kpi-value">${fmt(mesKey<=mesActual ? t.real : 0)}</div><div class="kpi-sub">gastos cargados en el mes</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--warning)"><div class="kpi-label">Falta pagar</div><div class="kpi-value">${fmt(t.pendiente)}</div><div class="kpi-sub">planificados pendientes</div></div>
+    </div>
+
+    ${hayGraficoMeses ? `
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:18px; margin-top:4px;">
+      <div class="report-chart-wrap" style="margin-bottom:0;">
+        <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">Proyección — 6 meses desde ${mesKeyLabel(mesKey,{month:'long',year:'numeric'})}</div>
+        <div class="chart-canvas-box" style="height:240px;"><canvas id="gplan-chart-meses"></canvas></div>
+      </div>
+      <div class="report-chart-wrap" style="margin-bottom:0;">
+        <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">Proyectado por categoría</div>
+        <div class="chart-canvas-box" style="height:240px;"><canvas id="gplan-chart-categorias"></canvas></div>
+      </div>
+    </div>` : ''}
+
+    <div style="font-size:13px; font-weight:700; margin:20px 0 8px;">Gastos del mes</div>
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table class="data-table">
+        <thead><tr><th>Fecha</th><th>Concepto</th><th>Tipo</th><th>Estimado</th><th>Real</th><th>Estado</th><th style="text-align:right;">Acciones</th></tr></thead>
+        <tbody>
+          ${proy.lineas.length ? proy.lineas.map(filaLinea).join('') : `<tr><td colspan="7"><div class="empty-state">${svgIcon('gastos')}<h3>Nada planificado para este mes</h3><p>${ctx.planes.length?'Ningún gasto planificado cae en este mes.':'Cargá tu primer gasto planificado con "+ Nuevo gasto planificado".'}</p></div></td></tr>`}
+        </tbody>
+      </table>
+    </div>
+    ${(mesKey>=mesActual && proy.fijosSinPlan.length) ? `<p style="font-size:11.5px; color:var(--text-muted); margin-top:8px;">Fijos con gasto reciente pero sin planificar (no están en esta proyección): ${proy.fijosSinPlan.map(f=>`<b>${Utils.escapeHTML(f.nombre)}</b> (~${fmt(f.promedio)}/mes)`).join(', ')}.</p>` : ''}
+
+    <div style="font-size:13px; font-weight:700; margin:24px 0 8px;">Gastos planificados cargados (${ctx.planes.length})</div>
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table class="data-table">
+        <thead><tr><th>Concepto</th><th>Categoría</th><th>Tipo</th><th>Frecuencia</th><th>Día</th><th>Vigencia</th><th>Monto estimado</th><th>Estado</th><th style="text-align:right;">Acciones</th></tr></thead>
+        <tbody>
+          ${planesOrdenados.length ? planesOrdenados.map(filaPlan).join('') : `<tr><td colspan="9"><div class="empty-state"><h3>Sin gastos planificados</h3></div></td></tr>`}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  // Navegación de mes (sin tope hacia adelante)
+  document.getElementById('gplan-mes-anterior').onclick = () => { gastosMesSeleccionado = mesKeyDesplazado(mesKey,-1); renderGastosPlanificacion(); };
+  document.getElementById('gplan-mes-siguiente').onclick = () => { gastosMesSeleccionado = mesKeyDesplazado(mesKey,1); renderGastosPlanificacion(); };
+  document.getElementById('gplan-mes-actual').onclick = () => { gastosMesSeleccionado = mesActual; renderGastosPlanificacion(); };
+  const btnNuevo = document.getElementById('gplan-nuevo');
+  if(btnNuevo) btnNuevo.onclick = () => openGastoPlanModal(null, { mesInicio: mesKey });
+  bindAccionesFilaButtons();
+
+  document.querySelectorAll('.btn-gp-registrar').forEach(btn=>{
+    btn.onclick = async () => {
+      const plan = await DB.get('gastosPlanificados', Number(btn.dataset.plan));
+      if(!plan) return;
+      const mes = btn.dataset.mes;
+      const hoy = Utils.hoyLocal();
+      const fechaOc = ocurrenciaPlanEnMes(plan, mes) || hoy;
+      const cat = await DB.get('categoriasGastos', plan.categoriaId);
+      const base = plan.concepto || (cat ? cat.nombre : plan.categoriaNombre) || '';
+      await openGastoModal(null, {
+        planId: plan.id, planMes: mes, categoriaId: plan.categoriaId,
+        fecha: fechaOc > hoy ? hoy : fechaOc, monto: plan.montoEstimado, medioPago: plan.medioPago,
+        concepto: `${base} — ${mesKeyLabel(mes)}`, observaciones: plan.observaciones || ''
+      });
+    };
+  });
+  document.querySelectorAll('.btn-gp-omitir').forEach(btn=>{
+    btn.onclick = async () => {
+      const plan = await DB.get('gastosPlanificados', Number(btn.dataset.plan));
+      if(!plan) return;
+      const mes = btn.dataset.mes;
+      plan.mesesOmitidos = [...new Set([...(plan.mesesOmitidos||[]), mes])];
+      await DB.put('gastosPlanificados', plan);
+      await Audit.log('gasto_planificado_omitido', `Gasto planificado omitido en ${mes}: ${plan.concepto||plan.categoriaNombre}.`);
+      renderGastosPlanificacion();
+    };
+  });
+  document.querySelectorAll('.btn-gp-reincluir').forEach(btn=>{
+    btn.onclick = async () => {
+      const plan = await DB.get('gastosPlanificados', Number(btn.dataset.plan));
+      if(!plan) return;
+      plan.mesesOmitidos = (plan.mesesOmitidos||[]).filter(m=>m!==btn.dataset.mes);
+      await DB.put('gastosPlanificados', plan);
+      renderGastosPlanificacion();
+    };
+  });
+  document.querySelectorAll('.btn-gp-editar').forEach(btn=>{
+    btn.onclick = async () => {
+      const plan = await DB.get('gastosPlanificados', Number(btn.dataset.plan));
+      if(plan) await openGastoPlanModal(plan);
+    };
+  });
+  document.querySelectorAll('.btn-gp-planificar').forEach(btn=>{
+    btn.onclick = () => openGastoPlanModal(null, { categoriaId: Number(btn.dataset.cat), montoEstimado: Number(btn.dataset.monto)||'', mesInicio: mesKey, frecuencia:'mensual' });
+  });
+  document.querySelectorAll('.btn-gp-pausar').forEach(btn=>{
+    btn.onclick = async () => {
+      const plan = await DB.get('gastosPlanificados', Number(btn.dataset.plan));
+      if(!plan) return;
+      plan.activo = plan.activo === false;
+      await DB.put('gastosPlanificados', plan);
+      await Audit.log('gasto_planificado_estado', `Gasto planificado ${plan.activo?'reactivado':'pausado'}: ${plan.concepto||plan.categoriaNombre}.`);
+      renderGastosPlanificacion();
+    };
+  });
+  document.querySelectorAll('.btn-gp-eliminar').forEach(btn=>{
+    btn.onclick = async () => {
+      const plan = await DB.get('gastosPlanificados', Number(btn.dataset.plan));
+      if(!plan) return;
+      if(!confirm('¿Eliminar este gasto planificado? Los gastos ya registrados no se modifican.')) return;
+      await DB.del('gastosPlanificados', plan.id);
+      await Audit.log('gasto_planificado_eliminado', `Gasto planificado eliminado: ${plan.concepto||plan.categoriaNombre} ($${(plan.montoEstimado||0).toLocaleString('es-AR')}).`);
+      Toast.show('success','Gasto planificado eliminado','');
+      renderGastosPlanificacion();
+    };
+  });
+
+  if(hayGraficoMeses){
+    drawGastosProyeccionChart(
+      document.getElementById('gplan-chart-meses'),
+      meses6.map(m=>mesKeyLabel(m,{month:'short',year:'2-digit'})),
+      proy6.map(p=>Math.round(p.totales.fijos)),
+      proy6.map(p=>Math.round(p.totales.variables))
+    );
+    if(topCats.length) drawHorizontalBarChart(document.getElementById('gplan-chart-categorias'), topCats.map(c=>c[0]), topCats.map(c=>Math.round(c[1])), '#D6393E', 'Proyectado');
+  }
+}
+
+/* Alta / edición de un gasto planificado. `prefill` completa datos iniciales
+   (por ejemplo al convertir un promedio en plan). */
+async function openGastoPlanModal(plan=null, prefill=null){
+  const categorias = await DB.getAll('categoriasGastos');
+  let cats = categorias.filter(c=>c.activo!==false).sort((a,b)=>a.nombre.localeCompare(b.nombre));
+  if(plan && !cats.some(c=>c.id===plan.categoriaId)){
+    const c = categorias.find(x=>x.id===plan.categoriaId);
+    if(c) cats = [...cats, c].sort((a,b)=>a.nombre.localeCompare(b.nombre));
+  }
+  if(!cats.length){
+    Toast.show('error','Sin categorías','Primero creá al menos una categoría de gasto (botón "Categorías").');
+    return;
+  }
+  const base = plan || prefill || {};
+  const frec = base.frecuencia || 'mensual';
+  const mesInicio = base.mesInicio || Utils.hoyLocal().slice(0,7);
+  const opcCat = (tipo)=> cats.filter(c=>c.tipo===tipo).map(c=>`<option value="${c.id}" ${base.categoriaId===c.id?'selected':''}>${Utils.escapeHTML(c.nombre)}</option>`).join('');
+
+  Modal.open(
+    plan ? 'Editar gasto planificado' : 'Nuevo gasto planificado',
+    `
+    <div class="field"><label>Categoría</label>
+      <select class="select-input" id="gp-categoria">
+        <optgroup label="Fijos">${opcCat('Fijo')}</optgroup>
+        <optgroup label="Variables">${opcCat('Variable')}</optgroup>
+      </select>
+    </div>
+    <div class="field"><label>Concepto (opcional)</label><input type="text" id="gp-concepto" placeholder="Ej: Alquiler del local, Sueldo Juan..." value="${Utils.escapeHTML(base.concepto||'')}"></div>
+    <div class="field-row">
+      <div class="field"><label>Monto estimado</label><input type="number" min="0.01" step="0.01" id="gp-monto" placeholder="0.00" value="${base.montoEstimado||''}"></div>
+      <div class="field"><label>Medio de pago</label><select class="select-input" id="gp-medio">${MEDIOS_PAGO.filter(m=>m!=='Cuenta corriente').map(m=>`<option value="${m}" ${base.medioPago===m?'selected':''}>${m}</option>`).join('')}</select></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Frecuencia</label><select class="select-input" id="gp-frecuencia">${Object.entries(FRECUENCIAS_GASTO_PLAN).map(([k,v])=>`<option value="${k}" ${k===frec?'selected':''}>${v.label}</option>`).join('')}</select></div>
+      <div class="field"><label>Día del mes</label><input type="number" min="1" max="31" step="1" id="gp-dia" value="${base.diaDelMes||10}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Desde (mes)</label><input type="month" id="gp-mes-inicio" value="${mesInicio}"></div>
+      <div class="field" id="gp-mes-fin-wrap"><label>Hasta (opcional)</label><input type="month" id="gp-mes-fin" value="${base.mesFin||''}"></div>
+    </div>
+    <p style="font-size:11.5px; color:var(--text-muted); margin:-4px 0 12px;">Si el gasto de este mes ya lo registraste a mano, elegí el mes siguiente en "Desde" o usá "Omitir este mes" desde la lista. Las frecuencias bimestral, trimestral, etc. se cuentan a partir del mes "Desde".</p>
+    <div class="field"><label>Observaciones (opcional)</label><textarea class="textarea-input" id="gp-observaciones">${Utils.escapeHTML(base.observaciones||'')}</textarea></div>
+    <div class="modal-actions"><button class="btn btn-ghost" id="gp-cancel">Cancelar</button><button class="btn btn-accent" id="gp-save">${plan?'Guardar cambios':'Guardar gasto planificado'}</button></div>
+    `,
+    { width:'480px' }
+  );
+
+  const selFrec = document.getElementById('gp-frecuencia');
+  const actualizarFin = () => { document.getElementById('gp-mes-fin-wrap').style.display = selFrec.value==='unica' ? 'none' : ''; };
+  selFrec.onchange = actualizarFin;
+  actualizarFin();
+
+  document.getElementById('gp-cancel').onclick = () => Modal.close();
+  document.getElementById('gp-save').onclick = async () => {
+    const categoriaId = Number(document.getElementById('gp-categoria').value);
+    const concepto = document.getElementById('gp-concepto').value.trim();
+    const montoEstimado = Number(document.getElementById('gp-monto').value);
+    const medioPago = document.getElementById('gp-medio').value;
+    const frecuencia = selFrec.value;
+    const diaDelMes = Math.floor(Number(document.getElementById('gp-dia').value));
+    const mesIni = document.getElementById('gp-mes-inicio').value;
+    const mesFinInput = document.getElementById('gp-mes-fin').value;
+    const observaciones = document.getElementById('gp-observaciones').value.trim();
+    const categoria = categorias.find(c=>c.id===categoriaId);
+    if(!categoria){ Toast.show('error','Elegí una categoría',''); return; }
+    if(!montoEstimado || montoEstimado<=0){ Toast.show('error','Monto inválido',''); return; }
+    if(!diaDelMes || diaDelMes<1 || diaDelMes>31){ Toast.show('error','Día inválido','Ingresá un día entre 1 y 31.'); return; }
+    if(!mesIni){ Toast.show('error','Falta el mes de inicio',''); return; }
+    const mesFin = frecuencia==='unica' ? null : (mesFinInput || null);
+    if(mesFin && mesFin < mesIni){ Toast.show('error','Rango inválido','"Hasta" no puede ser anterior a "Desde".'); return; }
+
+    const payload = {
+      categoriaId, categoriaNombre: categoria.nombre, tipo: categoria.tipo,
+      concepto, montoEstimado, medioPago, frecuencia, diaDelMes, mesInicio: mesIni, mesFin, observaciones
+    };
+    const session = Session.get();
+    if(plan){
+      await DB.put('gastosPlanificados', { ...plan, ...payload, fechaEdicion: Utils.nowISO() });
+      await Audit.log('gasto_planificado_editado', `Gasto planificado editado — ${concepto||categoria.nombre}: $${montoEstimado.toLocaleString('es-AR')} (${FRECUENCIAS_GASTO_PLAN[frecuencia].label}).`);
+      Toast.show('success','Gasto planificado actualizado', `$${montoEstimado.toLocaleString('es-AR')}`);
+    } else {
+      await DB.add('gastosPlanificados', { ...payload, activo:true, mesesOmitidos:[], fechaCreacion: Utils.nowISO(), usuarioId: session.usuarioId, usuarioNombre: session.nombre });
+      await Audit.log('gasto_planificado_creado', `Gasto planificado creado — ${concepto||categoria.nombre}: $${montoEstimado.toLocaleString('es-AR')} (${FRECUENCIAS_GASTO_PLAN[frecuencia].label}).`);
+      Toast.show('success','Gasto planificado guardado', `$${montoEstimado.toLocaleString('es-AR')}`);
+    }
+    Modal.close();
+    renderGastosVista();
   };
 }
 
@@ -16047,6 +16632,10 @@ async function viewGastosList(){
         <button class="btn btn-accent" id="btn-nuevo-gasto">${svgIcon('gastos')} Nuevo gasto</button>
       </div>
     </div>
+    <div class="cfg-tabs" style="flex-direction:row; flex-wrap:wrap; width:auto; margin-bottom:16px;" id="gastos-tabs">
+      <button class="cfg-tab" data-tab="registrados">Gastos del mes</button>
+      <button class="cfg-tab" data-tab="planificacion">Planificación</button>
+    </div>
     <div id="gastos-mes-content"></div>
   `;
 }
@@ -16055,7 +16644,24 @@ async function bindGastosListEvents(){
   document.getElementById('btn-nuevo-gasto').onclick = () => openGastoModal();
   const btnCat = document.getElementById('btn-categorias-gastos');
   if(btnCat) btnCat.onclick = () => openCategoriasGastosModal();
-  await renderGastosMes();
+  document.querySelectorAll('#gastos-tabs .cfg-tab').forEach(btn=>{
+    btn.onclick = () => { gastosVistaTab = btn.dataset.tab; renderGastosVista(); };
+  });
+  await renderGastosVista();
+}
+
+/* Elige qué se muestra en Gastos: el listado del mes (registrados) o la
+   Planificación a futuro. El mes seleccionado se comparte entre ambas
+   pestañas; el listado de registrados no puede pasar del mes actual. */
+async function renderGastosVista(){
+  document.querySelectorAll('#gastos-tabs .cfg-tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===gastosVistaTab));
+  if(gastosVistaTab==='planificacion'){
+    await renderGastosPlanificacion();
+  } else {
+    const mesActual = Utils.hoyLocal().slice(0,7);
+    if(gastosMesSeleccionado > mesActual) gastosMesSeleccionado = mesActual;
+    await renderGastosMes();
+  }
 }
 
 async function renderGastosMes(){
