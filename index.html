@@ -1183,6 +1183,96 @@ details[open] > summary > .apl-tree-arrow{ transform:rotate(90deg); }
   select, textarea{ font-size:16px; }
 }
 .lock-card{ max-width:92vw; }
+
+/* ============================================================================
+   APLICACIONES v18.38 — kit del vehículo, consulta rápida, formulario ampliado
+   ============================================================================ */
+.apl-muted{ color:var(--text-muted); }
+.apl-auto{ font-size:9.5px; font-weight:800; color:var(--info); background:var(--info-dim); border-radius:20px; padding:1px 6px; margin-left:4px; vertical-align:middle; }
+.apl-dot{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; flex-shrink:0; vertical-align:middle; }
+.apl-count{ font-size:12px; color:var(--text-muted); margin:10px 2px 0; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.apl-msg{ border-radius:9px; padding:9px 12px; font-size:12.5px; border:1px solid var(--border); background:var(--bg-panel-alt); color:var(--text-secondary); }
+.apl-msg-ok{ border-color:transparent; background:var(--teal-dim); color:var(--teal); font-weight:600; }
+.apl-msg-warn{ border-color:transparent; background:var(--warning-dim); color:var(--warning); font-weight:600; }
+
+/* Cabecera ordenable de la tabla */
+.apl-th-sort{ display:inline-flex; align-items:center; gap:5px; font:inherit; color:inherit; text-transform:inherit; letter-spacing:inherit; font-weight:700; padding:0; cursor:pointer; }
+.apl-th-sort:hover, .apl-th-sort.active{ color:var(--accent); }
+.apl-th-arrow{ font-size:8px; min-width:8px; }
+
+/* Consulta rápida */
+.apl-finder{ display:flex; flex-direction:column; gap:14px; }
+.apl-finder-form{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; align-items:end; background:var(--bg-panel); border:1px solid var(--border); border-radius:14px; padding:14px 16px; }
+.apl-finder-form .field{ margin-bottom:0; }
+.apl-finder-plate{ display:flex; gap:6px; }
+.apl-finder-plate input{ text-transform:uppercase; min-width:0; flex:1; }
+.apl-veh-chips{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.apl-veh-chips:empty{ display:none; }
+.apl-veh-chip{ cursor:pointer; }
+.apl-veh-chip:hover{ border-color:var(--accent); color:var(--accent); }
+.apl-msg-slot:empty{ display:none; }
+.apl-eq-row{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+.apl-eq-chip{ cursor:pointer; }
+.apl-eq-chip:hover{ border-color:var(--accent); color:var(--accent); }
+
+/* Kit del vehículo */
+.apl-kit{ background:var(--bg-panel); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+.apl-kit + .apl-kit{ margin-top:12px; }
+.apl-kit-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; padding:13px 16px; border-bottom:1px solid var(--border-soft); background:var(--bg-panel-alt); flex-wrap:wrap; }
+.apl-kit-title{ font-weight:800; font-size:14.5px; }
+.apl-kit-sub{ font-size:12px; color:var(--text-muted); margin-top:2px; }
+.apl-kit-body{ padding:4px 16px 12px; }
+.apl-kit-group{ padding:11px 0; border-bottom:1px dashed var(--border-soft); }
+.apl-kit-group:last-child{ border-bottom:none; }
+.apl-kit-tipo{ display:flex; align-items:center; gap:8px; font-size:12px; font-weight:800; color:var(--text-secondary); margin-bottom:8px; }
+.apl-kit-tipo::before{ content:''; width:8px; height:8px; border-radius:50%; background:var(--tipo-color,var(--accent)); }
+.apl-kit-aceite{ font-size:13px; margin-bottom:8px; color:var(--text-primary); }
+.apl-kit-opt{ display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid var(--border); border-radius:9px; background:var(--bg-panel-alt); }
+.apl-kit-optwrap{ margin-bottom:6px; }
+.apl-kit-opt.is-sug{ border-color:var(--accent-ring); background:var(--accent-dim); }
+.apl-kit-opt.is-sin{ opacity:.78; }
+.apl-kit-opt-main{ flex:1; min-width:0; }
+.apl-kit-opt-top{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:12.5px; }
+.apl-kit-code{ font-weight:800; }
+.apl-kit-marca{ color:var(--text-secondary); }
+.apl-kit-cal{ font-size:10.5px; font-weight:700; color:var(--text-muted); border:1px solid var(--border); border-radius:20px; padding:1px 8px; }
+.apl-kit-sug{ font-size:10.5px; font-weight:800; color:var(--accent); }
+.apl-kit-opt-prod{ font-size:12px; color:var(--text-muted); margin-top:3px; }
+.apl-kit-opt-side{ display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end; }
+.apl-kit-check{ width:17px; height:17px; accent-color:var(--accent); flex-shrink:0; cursor:pointer; }
+.apl-kit-eq{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin:4px 0 0 18px; padding:6px 10px; border-left:2px solid var(--teal); background:var(--teal-dim); border-radius:0 8px 8px 0; font-size:12px; }
+.apl-kit-alert{ margin-top:6px; padding:8px 10px; border-radius:8px; background:var(--danger-dim); color:var(--danger); font-size:12px; font-weight:600; }
+.apl-kit-obs{ margin-top:8px; font-size:12px; color:var(--text-muted); font-style:italic; }
+.apl-kit-more{ font-size:12px; color:var(--text-muted); margin:10px 2px 0; }
+.apl-kit-footer{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:12px 16px; background:var(--bg-panel); border:1px solid var(--border); border-radius:14px; position:sticky; bottom:8px; box-shadow:var(--shadow-lift); font-size:12.5px; color:var(--text-secondary); }
+.apl-kit-empty{ text-align:center; padding:34px 20px; color:var(--text-muted); background:var(--bg-panel); border:1px dashed var(--border); border-radius:14px; }
+.apl-kit-empty svg{ width:42px; height:42px; margin-bottom:10px; opacity:.5; }
+.apl-kit-empty h3{ color:var(--text-secondary); font-size:14.5px; margin-bottom:6px; }
+.apl-kit-empty p{ font-size:12.5px; max-width:420px; margin:0 auto; }
+
+/* Panel plegable dentro de formularios (Servicios / Cotizaciones) */
+.apl-panel{ border:1px solid var(--border); border-radius:12px; background:var(--bg-panel); margin-bottom:14px; }
+.apl-panel > summary{ cursor:pointer; list-style:none; display:flex; align-items:center; gap:9px; padding:10px 13px; font-size:12.5px; font-weight:700; color:var(--text-secondary); }
+.apl-panel > summary::-webkit-details-marker{ display:none; }
+.apl-panel > summary svg{ width:15px; height:15px; color:var(--accent); flex-shrink:0; }
+.apl-panel-body{ padding:0 12px 12px; }
+.apl-panel .apl-kit{ border-radius:10px; }
+.apl-panel .apl-kit-head{ padding:10px 12px; }
+.apl-panel .apl-kit-body{ padding:2px 12px 10px; }
+
+/* Formulario de aplicación: fila de repuesto */
+.apl-row{ display:grid; grid-template-columns:150px 118px minmax(90px,1fr) 130px auto; gap:6px; align-items:center; padding:6px 8px; border:1px solid var(--border-soft); border-radius:9px; background:var(--bg-panel-alt); margin-bottom:6px; }
+.apl-row select, .apl-row input[type="text"]{ min-width:0; width:100%; background:var(--bg-panel); border:1px solid var(--border); border-radius:6px; padding:6px 8px; font-size:12px; color:var(--text-primary); }
+.apl-row-codigo{ font-family:'SFMono-Regular',Consolas,Menlo,monospace; font-weight:700; }
+.apl-row-btns{ display:flex; align-items:center; gap:6px; justify-content:flex-end; }
+@media (max-width:720px){
+  .apl-row{ grid-template-columns:1fr 1fr; }
+  .apl-row-codigo, .apl-row-marca{ grid-column:span 1; }
+  .apl-row-btns{ grid-column:span 2; }
+  .apl-finder-form{ grid-template-columns:1fr 1fr; }
+  .apl-kit-opt{ flex-wrap:wrap; }
+  .apl-kit-opt-side{ width:100%; justify-content:space-between; }
+}
 </style>
 <!-- ApexCharts (CDN) — usado como prueba piloto para modernizar el gráfico
      de Margen del Dashboard. Requiere internet: si falla la carga (por
@@ -1464,6 +1554,7 @@ const DB_VERSION = 25; // v25: store 'gastosPlanificados' (planificación de gas
    una línea abajo) cada vez que se entrega una nueva versión, para tener
    registro de qué se cambió y cuándo sin depender del nombre del archivo.
    Historial:
+     v18.38 — Aplicaciones: deja de ser una isla. Nueva pestaña "Consulta rápida" (patente o marca/modelo/año → filtros, lubricante y stock), motor de coincidencias vehículo→aplicación, y el kit de repuestos aparece en la ficha del Vehículo, en Servicios, en Cotizaciones y en el POS (botón "Repuestos por vehículo"). Cada repuesto muestra stock/precio del producto vinculado (por vínculo, código o nombre), alerta de reposición y equivalentes. Nuevos tipos (bujías, pastillas, correas, batería), lubricante con viscosidad/capacidad/especificación, varios códigos por tipo (Original/Alternativo/Económico) con equivalencias entre marcas. Búsqueda por palabras sueltas, sin tildes y por año; filtros por marca/tipo/stock, orden por columna, duplicar aplicación y pestaña Reposición.
      v18.37 — Fix importante (introducido en v18.35): la Planificación de gastos declaraba una función `diasEntreFechas` con el mismo nombre que la que ya usaba la Planificación de cambio de aceite (vehículos/CRM). La nueva pisaba a la original y daba vuelta el cálculo de días, por eso todos los services aparecían como vencidos. Se renombró la de gastos (diasDesdeHoyGastoPlan); la original vuelve a funcionar igual que en v18.33. Chequeado: no quedan otras funciones duplicadas en el archivo.
      v18.36 — Fix: Gastos › Planificación y alertas del Dashboard marcaban como "vencidos" gastos planificados que ya se habían pagado cargándolos a mano en Gastos (sin usar "Registrar" del plan). Ahora, si hay un gasto libre de la misma categoría en ese mes (o el siguiente, por pagos tardíos) por al menos la mitad del monto estimado, la ocurrencia se da por cumplida y se aclara "pago detectado en Gastos". Cada gasto se usa una sola vez.
      v18.35 — Gastos: nueva pestaña "Planificación" para proyectar gastos a futuro. Se cargan gastos planificados (categoría, monto estimado, frecuencia única/mensual/bimestral/trimestral/semestral/anual, día del mes, vigencia) y se puede navegar a cualquier mes futuro para ver el total proyectado (fijos/variables), por categoría y a 6 meses. Las categorías variables sin plan se estiman por el promedio de los últimos 3 meses (con botón "Planificar" para fijarlas). Cada gasto planificado se puede "Registrar" (crea el gasto real prellenado y lo marca Cumplido) u "Omitir este mes"; no toca Caja hasta registrarlo. Dashboard: nueva tarjeta "Gastos planificados por vencer" (vencidos o dentro de 7 días). Nuevo store gastosPlanificados (DB v25).
@@ -1487,7 +1578,7 @@ const DB_VERSION = 25; // v25: store 'gastosPlanificados' (planificación de gas
      v18.17 — Backup automático: ahora corre 2 veces por día (10:00 y 19:50 hora Argentina), cada uno con su propio archivo y control de "ya se hizo hoy".
      v18.16 — Retiros de socios (nuevo submódulo dentro de Caja) + versión visible en la app.
      v18.15 — punto de partida de este historial. */
-const APP_VERSION = 'v18.37';
+const APP_VERSION = 'v18.38';
 const SESSION_KEY = 'cs_session';
 const REMEMBER_KEY = 'cs_remember_user';
 const THEME_KEY = 'cs_theme';
@@ -8623,6 +8714,15 @@ async function viewVehiculoDetalle(id){
       ${(vehiculo.fotos&&vehiculo.fotos.length)?`<div class="photo-grid" style="margin-top:14px;">${vehiculo.fotos.map(f=>`<div class="photo-thumb"><img src="${f}"></div>`).join('')}</div>`:''}
     </div>
 
+    <div class="card" style="margin-bottom:18px;" id="vd-apl-card">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+        <div class="cfg-section-title" style="font-size:13px; margin-bottom:0;">Repuestos y lubricante recomendados</div>
+        <a href="#/aplicaciones" class="btn btn-ghost btn-sm" id="vd-apl-catalogo">Ver catálogo</a>
+      </div>
+      <div id="vd-apl-body"><p class="apl-muted" style="font-size:12px;">Buscando en el catálogo de Aplicaciones…</p></div>
+      <div id="vd-apl-footer"></div>
+    </div>
+
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
       <div class="cfg-section-title" style="margin-bottom:0;">Historial de servicios <span class="badge badge-neutral">${historial.length}</span></div>
       ${puedeGestionar?`<button class="btn btn-accent btn-sm" id="btn-nuevo-service">${svgIcon('historial')} Nuevo service</button>`:''}
@@ -8679,6 +8779,7 @@ function bindVehiculoDetalleEvents(id){
   if(btnNuevo) btnNuevo.onclick = async () => openHistorialModal(null, await DB.get('vehiculos', id));
 
   bindHistorialCardEvents();
+  montarAplicacionesVehiculoDetalle(id);
 }
 
 function bindHistorialCardEvents(){
@@ -8852,6 +8953,8 @@ function historialFormHTML(h, vehiculo, empleadosActivos, verCosto, prefill){
       <input type="file" id="hf-photos-input" accept="image/*" multiple class="hidden">
     </div>
 
+    <div id="hf-apl-panel"></div>
+
     <div class="field">
       <label>Repuestos y mano de obra facturados</label>
       <div class="autocomplete-wrap">
@@ -9010,6 +9113,31 @@ async function openHistorialModal(historial, vehiculo, prefill){
         ? [{ productoId:null, descripcion:'Mano de obra / service', cantidad:1, precioUnitario:historial.precio||0, costoUnitario:historial.costo||0 }]
         : (prefill && prefill.itemsVendidos && prefill.itemsVendidos.length ? prefill.itemsVendidos.map(it=>({...it})) : []));
   renderHistorialItemsList(itemsState, verCosto);
+
+  // Sugerencias del catálogo de Aplicaciones para este vehículo (filtros, lubricante, stock y equivalentes).
+  aplMontarPanelSugerencias(document.getElementById('hf-apl-panel'), vehiculo, {
+    modo:'agregar', permitirSinStock:false, permitirLibres:false,
+    onAdd: (it) => {
+      const ex = it.productoId ? itemsState.find(x=>x.productoId===it.productoId) : null;
+      if(ex) ex.cantidad = Math.round((ex.cantidad + it.cantidad)*100)/100;
+      else itemsState.push({ productoId:it.productoId, descripcion:it.descripcion, cantidad:it.cantidad, precioUnitario:it.precioUnitario, costoUnitario:it.costoUnitario });
+      renderHistorialItemsList(itemsState, verCosto);
+      // Tilda el ítem correspondiente del checklist del service.
+      const key = it.tipo==='Lubricante' ? 'aceiteMotor' : APL_TIPO_CHECKLIST[it.tipo];
+      const chk = key ? document.querySelector(`.hf-item-check[data-key="${key}"]`) : null;
+      if(chk && !chk.checked){ chk.checked = true; chk.closest('.checklist-item').classList.add('checked'); }
+      Toast.show('success', it.descripcion, 'Agregado a los repuestos del service');
+    },
+    onCargado: ({ matches, kits }) => {
+      // Service nuevo sin datos de lubricante: se completan desde el catálogo si la coincidencia es fiable.
+      if(historial || !kits.length || !['exacta','probable'].includes(matches[0].nivel)) return;
+      const ac = kits[0].aceite;
+      if(!ac) return;
+      const selTipo = document.getElementById('hf-aceiteTipo'), inCant = document.getElementById('hf-aceiteCantidadLts');
+      if(selTipo && !selTipo.value && ac.viscosidad && Array.from(selTipo.options).some(o=>o.value===ac.viscosidad)) selTipo.value = ac.viscosidad;
+      if(inCant && !inCant.value && ac.capacidadLts) inCant.value = ac.capacidadLts;
+    }
+  });
 
   document.getElementById('hf-add-manual-item').onclick = () => {
     itemsState.push({ productoId:null, descripcion:'', cantidad:1, precioUnitario:0, costoUnitario:0 });
@@ -10104,14 +10232,39 @@ function bindProductosListEvents(){
 }
 
 /* -----------------------------------------------------------------------
-   APLICACIONES DE FILTROS — catálogo de qué filtro (aceite, aire,
-   combustible, habitáculo) lleva cada vehículo (marca + modelo + motor +
-   rango de años), consultable en ambos sentidos: por vehículo ("¿qué
-   filtros lleva este auto?") y por filtro ("¿a qué autos les sirve este
-   código?"). Cada filtro puede tener un código propio y, opcionalmente,
-   un vínculo a un producto ya cargado en Stock.
+   APLICACIONES — catálogo de qué repuestos de mantenimiento (filtros,
+   bujías, pastillas, correas, batería) y qué lubricante lleva cada
+   vehículo (marca + modelo + motor + rango de años), consultable en ambos
+   sentidos: por vehículo ("¿qué lleva este auto?") y por código ("¿a qué
+   autos les sirve este filtro?").
+
+   v18.38 — el módulo dejó de ser una isla:
+     · Motor de coincidencias (aplBuscarParaVehiculo): dado un vehículo
+       (marca/modelo/año/motor, o solo un texto libre) devuelve las
+       aplicaciones que le corresponden, ordenadas por certeza.
+     · Cada repuesto se cruza con Productos/Stock (por vínculo manual, por
+       código o por nombre) para mostrar stock, precio y equivalentes.
+     · El "kit del vehículo" se reutiliza en: ficha del Vehículo, formulario
+       de Servicios, Cotizaciones y POS.
+     · Más tipos (bujías, pastillas, correas, batería), lubricante con
+       viscosidad/capacidad, y varios códigos por tipo (Original /
+       Alternativo / Económico) — los códigos de un mismo tipo en una misma
+       aplicación se toman como equivalentes entre marcas.
+     · Búsqueda por palabras sueltas, sin tildes y con año.
 ----------------------------------------------------------------------- */
-const TIPOS_FILTRO = ['Aceite','Aire','Combustible','Habitáculo'];
+const TIPOS_FILTRO = ['Aceite','Aire','Combustible','Habitáculo']; // compatibilidad (versiones anteriores)
+const TIPOS_APLICACION = ['Aceite','Aire','Combustible','Habitáculo','Bujías','Pastillas de freno','Correa','Batería'];
+const CALIDADES_APLICACION = ['Original','Alternativo','Económico'];
+const APL_TIPO_LABEL = { Aceite:'Filtro de aceite', Aire:'Filtro de aire', Combustible:'Filtro de combustible', 'Habitáculo':'Filtro de habitáculo' };
+// Ítem del checklist de Servicios que se tilda al agregar un repuesto de cada tipo.
+const APL_TIPO_CHECKLIST = { Aceite:'filtroAceite', Aire:'filtroAire', Combustible:'filtroCombustible', 'Habitáculo':'filtroHabitaculo' };
+const APL_NIVEL_INFO = {
+  exacta:   { texto:'Coincidencia exacta', clase:'badge-ok' },
+  probable: { texto:'Probable — confirmá el motor', clase:'badge-info' },
+  posible:  { texto:'Posible — verificá modelo y motor', clase:'badge-warn' },
+  revisar:  { texto:'Año fuera de rango', clase:'badge-danger' }
+};
+const APL_COMB = { nafta:'nafta', gasolina:'nafta', diesel:'diesel', gasoil:'diesel', gnc:'gnc', electrico:'electrico', hibrido:'hibrido' };
 
 function filtroTipoEstilo(tipo){
   switch(tipo){
@@ -10119,187 +10272,939 @@ function filtroTipoEstilo(tipo){
     case 'Aire': return { color:'var(--info)', bg:'var(--info-dim)' };
     case 'Combustible': return { color:'var(--warning)', bg:'var(--warning-dim)' };
     case 'Habitáculo': return { color:'var(--teal)', bg:'var(--teal-dim)' };
+    case 'Bujías': return { color:'var(--urgente)', bg:'var(--urgente-dim)' };
+    case 'Pastillas de freno': return { color:'var(--danger)', bg:'var(--danger-dim)' };
+    case 'Correa': return { color:'#A78BFA', bg:'rgba(167,139,250,.14)' };
+    case 'Batería': return { color:'#34D399', bg:'rgba(52,211,153,.14)' };
     default: return { color:'var(--text-secondary)', bg:'var(--bg-panel-alt)' };
   }
 }
-function filtroChipHTML(f){
-  const est = filtroTipoEstilo(f.tipo);
-  return `<span class="tag-chip" style="background:${est.bg}; color:${est.color}; border-color:transparent;" title="${Utils.escapeHTML(f.marcaFiltro||'Sin marca')}">${Utils.escapeHTML(f.tipo)}: ${Utils.escapeHTML(f.codigo)}</span>`;
-}
+function aplTipoLabel(t){ return APL_TIPO_LABEL[t] || t; }
 function aplicacionAnioTexto(a){
   if(a.anioDesde && a.anioHasta) return `${a.anioDesde}–${a.anioHasta}`;
   if(a.anioDesde) return `${a.anioDesde} en adelante`;
   if(a.anioHasta) return `Hasta ${a.anioHasta}`;
   return 'Todos los años';
 }
+function aplFmtLitros(n){ return String(n).replace('.', ',') + ' L'; }
+function aplFmtPrecio(n){ return '$' + Number(n||0).toLocaleString('es-AR'); }
+function aplDebounce(fn, ms){ let t; return (...args)=>{ clearTimeout(t); t = setTimeout(()=>fn(...args), ms); }; }
 
+/* ---------- Normalización y búsqueda por palabras ---------- */
+// Minúsculas, sin tildes, solo letras/números/punto decimal (para motores tipo "1.6").
+function aplNorm(s){
+  return String(s==null?'':s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()
+    .replace(/[^a-z0-9.]+/g,' ').split(' ').map(t=>t.replace(/^\.+|\.+$/g,'')).filter(Boolean).join(' ');
+}
+function aplTokens(s){ const n = aplNorm(s); return n ? n.split(' ') : []; }
+function aplClaveCodigo(c){ return String(c==null?'':c).toUpperCase().replace(/[^A-Z0-9]/g,''); }
+function aplMarcaClave(m){ const n = aplNorm(m); return n==='vw' ? 'volkswagen' : n; }
+function aplEsAnio(t){ return /^\d{4}$/.test(t) && Number(t)>=1950 && Number(t)<=2100; }
+function aplAnioEnRango(a, y){ return (!a.anioDesde || y>=a.anioDesde) && (!a.anioHasta || y<=a.anioHasta); }
+function aplHaystackApp(a){
+  const partes = [a.marca, a.modelo, a.motor, a.observaciones];
+  if(a.aceite) partes.push(a.aceite.viscosidad, a.aceite.especificacion);
+  (a.filtros||[]).forEach(f=>partes.push(aplTipoLabel(f.tipo), f.tipo, f.codigo, f.marcaFiltro, f.calidad));
+  return aplNorm(partes.filter(Boolean).join(' '));
+}
+// Igual que aplHaystackApp pero SIN los códigos/marca de los repuestos: sirve para saber si un texto
+// describe al vehículo en sí (marca, modelo, motor), sin que "coincida" solo porque el vehículo tiene
+// entre sus repuestos un código que casualmente contiene esas letras (eso lo resuelve aplCoincideTexto).
+function aplHaystackVehiculo(a){
+  const partes = [a.marca, a.modelo, a.motor, a.observaciones];
+  if(a.aceite) partes.push(a.aceite.viscosidad, a.aceite.especificacion);
+  return aplNorm(partes.filter(Boolean).join(' '));
+}
+function aplCoincideTextoVehiculo(a, q){
+  const toks = aplTokens(q);
+  if(!toks.length) return true;
+  const h = a._hv || (a._hv = aplHaystackVehiculo(a));
+  return toks.every(t => h.includes(t) || (aplEsAnio(t) && aplAnioEnRango(a, Number(t))));
+}
+// Todas las palabras de la búsqueda deben aparecer (en cualquier orden). Un número de 4 cifras
+// entre 1950 y 2100 también coincide si el año cae dentro del rango de la aplicación.
+function aplCoincideTexto(a, q){
+  const toks = aplTokens(q);
+  if(!toks.length) return true;
+  const h = a._h || (a._h = aplHaystackApp(a));
+  return toks.every(t => h.includes(t) || (aplEsAnio(t) && aplAnioEnRango(a, Number(t))));
+}
+
+/* ---------- Motor de coincidencias vehículo → aplicación ---------- */
+function aplCombustiblesDe(tokens){
+  const out = [];
+  tokens.forEach(t=>{ const c = APL_COMB[t]; if(c && c!=='gnc' && !out.includes(c)) out.push(c); }); // GNC usa los mismos repuestos que nafta
+  return out;
+}
+function aplCompararModelo(vehTok, appTok){
+  if(!vehTok.length || !appTok.length) return 0;
+  const sv = new Set(vehTok), sa = new Set(appTok);
+  if(sv.size===sa.size && [...sa].every(t=>sv.has(t))) return 2;
+  if([...sa].every(t=>sv.has(t)) || [...sv].every(t=>sa.has(t))) return 1;
+  return 0;
+}
+/* veh: { marca, modelo, motor, combustible, anio }  ó  { texto, anio } (para cargas manuales).
+   Devuelve [{ app, nivel, modeloScore, anioEstado, motorEstado, ... }] ordenado de mejor a peor. */
+function aplBuscarParaVehiculo(veh, apps){
+  let anio = Number(veh.anio) || null;
+  const textTokens = veh.texto ? aplTokens(veh.texto) : null;
+  if(textTokens && !anio){ const ta = textTokens.find(aplEsAnio); if(ta) anio = Number(ta); }
+  const marcaV = aplMarcaClave(veh.marca), modeloV = aplTokens(veh.modelo);
+  const res = [];
+  for(const a of apps){
+    const modeloA = aplTokens(a.modelo);
+    const marcaA = aplMarcaClave(a.marca);
+    let modeloScore, motorVeh;
+    if(textTokens){
+      const marcaAT = aplTokens(marcaA);
+      const marcaOk = marcaAT.length && (marcaAT.every(t=>textTokens.includes(t)) || (marcaA==='volkswagen' && textTokens.includes('vw')));
+      if(!marcaOk) continue;
+      if(!modeloA.length || !modeloA.every(t=>textTokens.includes(t))) continue;
+      modeloScore = 2;
+      const excl = new Set([...marcaAT, ...modeloA, 'vw']);
+      motorVeh = textTokens.filter(t=>!excl.has(t) && !aplEsAnio(t));
+    }else{
+      if(!marcaV || marcaA !== marcaV) continue;
+      modeloScore = aplCompararModelo(modeloV, modeloA);
+      if(!modeloScore) continue;
+      motorVeh = aplTokens((veh.motor||'') + ' ' + (veh.combustible||''));
+    }
+    const anioEstado = (anio && (a.anioDesde || a.anioHasta) && !aplAnioEnRango(a, anio)) ? 'fuera' : 'ok';
+    const motorApp = aplTokens(a.motor);
+    const conflictoComb = (()=>{ const cv = aplCombustiblesDe(motorVeh), ca = aplCombustiblesDe(motorApp); return cv.length && ca.length && !cv.some(x=>ca.includes(x)); })();
+    const nfV = motorVeh.filter(t=>!APL_COMB[t]), nfA = motorApp.filter(t=>!APL_COMB[t]);
+    const valvV = nfV.filter(t=>/^\d{1,2}v$/.test(t)), valvA = nfA.filter(t=>/^\d{1,2}v$/.test(t));
+    const conflictoValv = valvV.length && valvA.length && !valvV.some(t=>valvA.includes(t));
+    let motorEstado, motorCommon = 0;
+    if(nfV.length && nfA.length){
+      motorCommon = nfA.filter(t=>nfV.includes(t)).length;
+      motorEstado = (motorCommon>0 && !conflictoComb && !conflictoValv) ? 'coincide' : 'distinto';
+    }else{
+      motorEstado = conflictoComb ? 'distinto' : 'sin-dato';
+    }
+    let nivel;
+    if(anioEstado==='fuera') nivel = 'revisar';
+    else if(modeloScore===2 && motorEstado==='coincide') nivel = 'exacta';
+    else if(modeloScore===2 && motorEstado==='sin-dato') nivel = 'probable';
+    else nivel = 'posible';
+    res.push({ app:a, nivel, modeloScore, anioEstado, motorEstado, motorCommon, modeloTokens:modeloA.length });
+  }
+  const orden = { exacta:0, probable:1, posible:2, revisar:3 };
+  res.sort((x,y)=> orden[x.nivel]-orden[y.nivel] || y.modeloScore-x.modeloScore || y.modeloTokens-x.modeloTokens || y.motorCommon-x.motorCommon);
+  return res;
+}
+function aplVehiculoDescripcion(veh){ return (veh.texto || ((veh.marca||'')+' '+(veh.modelo||''))).trim(); }
+function aplPrefillDesdeVehiculo(veh){
+  return {
+    marca: veh.marca||'', modelo: veh.modelo||'', motor: veh.motor||'',
+    anioDesde: veh.anio||null, anioHasta: veh.anio||null,
+    aceite: { viscosidad: veh.aceiteRecomendado||'', capacidadLts: veh.capacidadAceiteLts||null, especificacion:'' }
+  };
+}
+
+/* ---------- Cruce con Productos / Stock ---------- */
+function aplArmarContexto(apps, productos){
+  const activos = productos.filter(p=>p.activo!==false);
+  const porId = {}, porCodigo = {};
+  activos.forEach(p=>{ porId[p.id] = p; const k = aplClaveCodigo(p.codigo); if(k && !porCodigo[k]) porCodigo[k] = p; });
+  return { apps, productos:activos, porId, porCodigo, cacheNombre:{} };
+}
+async function aplCargarContexto(){
+  const [apps, productos] = await Promise.all([ DB.getAll('aplicacionesFiltros'), DB.getAll('productos') ]);
+  return aplArmarContexto(apps, productos);
+}
+function aplEstadoProducto(p){
+  const s = Number(p.stockActual)||0;
+  return s<=0 ? 'sin' : (s <= (Number(p.stockMinimo)||0) ? 'bajo' : 'ok');
+}
+/* Resuelve un repuesto del catálogo a un producto de Stock: 1) vínculo manual (productoId),
+   2) mismo código, 3) el código figura dentro del nombre del producto (marcado como "auto"). */
+function aplResolverItem(f, ctx){
+  let producto = f.productoId ? (ctx.porId[f.productoId] || null) : null;
+  let vinculo = producto ? 'manual' : null;
+  if(!producto){
+    const k = aplClaveCodigo(f.codigo);
+    if(k){
+      producto = ctx.porCodigo[k] || null;
+      if(producto) vinculo = 'codigo';
+      else if(k.length >= 4){
+        if(!(k in ctx.cacheNombre)){
+          const cand = ctx.productos.filter(p=>aplClaveCodigo(p.nombre).includes(k));
+          cand.sort((a,b)=> ((b.stockActual>0)-(a.stockActual>0)) || String(a.nombre).localeCompare(String(b.nombre)));
+          ctx.cacheNombre[k] = cand[0] || null;
+        }
+        producto = ctx.cacheNombre[k];
+        if(producto) vinculo = 'nombre';
+      }
+    }
+  }
+  let estado = 'nolink', equivalentes = [];
+  if(producto){
+    estado = aplEstadoProducto(producto);
+    if(estado!=='ok'){
+      equivalentes = (producto.equivalentes||[]).map(id=>ctx.porId[id]).filter(e=>e && e.id!==producto.id && (Number(e.stockActual)||0) > 0);
+    }
+  }
+  return { tipo:f.tipo, codigo:f.codigo, marcaFiltro:f.marcaFiltro||'', calidad:f.calidad||'Original', producto, vinculo, estado, equivalentes };
+}
+function aplPuntoStockHTML(estado, p){
+  const col = estado==='ok' ? 'var(--teal)' : estado==='bajo' ? 'var(--warning)' : estado==='sin' ? 'var(--danger)' : 'var(--text-muted)';
+  const tit = estado==='ok' ? `En stock (${p.stockActual})` : estado==='bajo' ? `Stock bajo (${p.stockActual})` : estado==='sin' ? 'Sin stock' : 'Sin producto en Stock';
+  return `<span class="apl-dot" style="background:${col};" title="${Utils.escapeHTML(tit)}"></span>`;
+}
+function aplBadgeStockHTML(estado, p){
+  if(estado==='nolink') return `<span class="badge badge-neutral" title="No hay un producto en Stock con este código">Sin producto</span>`;
+  if(estado==='sin') return `<span class="badge stock-badge-cero">Sin stock</span>`;
+  if(estado==='bajo') return `<span class="badge stock-badge-bajo">Bajo (${p.stockActual})</span>`;
+  return `<span class="badge stock-badge-ok">${p.stockActual} disp.</span>`;
+}
+function filtroChipHTML(f, ctx){
+  const est = filtroTipoEstilo(f.tipo);
+  let punto = '';
+  if(ctx){ const r = aplResolverItem(f, ctx); punto = aplPuntoStockHTML(r.estado, r.producto); }
+  const cal = (f.calidad && f.calidad!=='Original') ? ` (${Utils.escapeHTML(f.calidad.toLowerCase())})` : '';
+  return `<span class="tag-chip" style="background:${est.bg}; color:${est.color}; border-color:transparent;" title="${Utils.escapeHTML(f.marcaFiltro||'Sin marca')}">${punto}${Utils.escapeHTML(f.tipo)}: ${Utils.escapeHTML(f.codigo)}${cal}</span>`;
+}
+function aplChipLubricanteHTML(a){
+  const ac = a.aceite;
+  if(!ac || (!ac.viscosidad && !ac.capacidadLts)) return '';
+  return `<span class="tag-chip" style="background:var(--bg-panel-alt); color:var(--text-primary);">Lubricante: ${Utils.escapeHTML([ac.viscosidad, ac.capacidadLts?aplFmtLitros(ac.capacidadLts):''].filter(Boolean).join(' · '))}</span>`;
+}
+
+/* ---------- Viscosidades y lubricantes en stock ---------- */
+function aplViscosidadesDe(texto){
+  const out = [];
+  const re = /(?:^|[^0-9])(\d{1,2})\s*[wW]\s*-?\s*(\d{2,3})(?!\d)/g;
+  let m;
+  while((m = re.exec(String(texto||'')))) out.push(m[1] + 'W' + m[2]);
+  return out;
+}
+function aplAceitesEnStock(visc, ctx){
+  if(!visc) return [];
+  const vs = aplViscosidadesDe(visc);
+  const buscadas = vs.length ? vs : [aplClaveCodigo(visc)];
+  const lista = ctx.productos.filter(p=>{
+    if(p.categoria !== 'Aceites') return false;
+    const enNombre = aplViscosidadesDe(p.nombre);
+    return buscadas.some(v=>enNombre.includes(v));
+  });
+  lista.sort((a,b)=> ((b.stockActual>0)-(a.stockActual>0)) || ((a.precioVenta||0)-(b.precioVenta||0)));
+  return lista.slice(0,4);
+}
+
+/* ---------- Kit de un vehículo (aplicación + stock + equivalentes) ---------- */
+function aplArmarKit(match, ctx, veh){
+  const a = match.app;
+  const grupos = {};
+  (a.filtros||[]).forEach(f=>{
+    if(!f.codigo || !String(f.codigo).trim()) return;
+    (grupos[f.tipo] = grupos[f.tipo] || []).push(aplResolverItem(f, ctx));
+  });
+  const tipos = TIPOS_APLICACION.filter(t=>grupos[t]).concat(Object.keys(grupos).filter(t=>!TIPOS_APLICACION.includes(t)));
+  tipos.forEach(t=>{
+    grupos[t].sort((x,y)=> CALIDADES_APLICACION.indexOf(x.calidad) - CALIDADES_APLICACION.indexOf(y.calidad));
+    const sug = grupos[t].find(r=>r.estado==='ok' || r.estado==='bajo');
+    if(sug) sug.sugerido = true;
+  });
+  const base = a.aceite || {};
+  const viscosidad = (veh && veh.aceiteRecomendado) || base.viscosidad || '';
+  const capacidadLts = (veh && veh.capacidadAceiteLts) || base.capacidadLts || null;
+  const especificacion = base.especificacion || '';
+  const aceite = (viscosidad || capacidadLts || especificacion)
+    ? { viscosidad, capacidadLts, especificacion, productos: aplAceitesEnStock(viscosidad, ctx) }
+    : null;
+  return { match, grupos, tipos, aceite };
+}
+
+const aplKitRegistro = new Map();
+let aplKitSeq = 0;
+function aplKitReg(item){ const id = 'ki' + (++aplKitSeq); aplKitRegistro.set(id, item); return id; }
+function aplItemDesdeProducto(p, tipo, cantidad){
+  return { productoId:p.id, descripcion:p.nombre, precioUnitario:p.precioVenta||0, costoUnitario:p.precioCosto||0,
+    cantidad:cantidad||1, tipo, stockActual:p.stockActual, imagen:p.imagen||null, libre:false };
+}
+function aplItemLibre(r){
+  return { productoId:null, descripcion:`${aplTipoLabel(r.tipo)} ${r.codigo}${r.marcaFiltro?' ('+r.marcaFiltro+')':''}`,
+    precioUnitario:0, costoUnitario:0, cantidad:1, tipo:r.tipo, stockActual:null, imagen:null, libre:true };
+}
+
+function aplOpcionHTML(r, modo, opts){
+  const p = r.producto;
+  const item = p ? aplItemDesdeProducto(p, r.tipo, 1) : aplItemLibre(r);
+  const id = aplKitReg(item);
+  const puede = p ? (r.estado!=='sin' || !!opts.permitirSinStock) : !!opts.permitirLibres;
+  let izq = '', der = '';
+  if(modo==='seleccion' && puede) izq = `<input type="checkbox" class="apl-kit-check" data-kit-id="${id}" ${r.sugerido?'checked':''} aria-label="Incluir ${Utils.escapeHTML(r.codigo)}">`;
+  if(modo==='agregar'){
+    if(puede) der = `<button type="button" class="btn btn-accent btn-sm apl-kit-add" data-kit-id="${id}">${p?'Agregar':'Agregar libre'}</button>`;
+    else if(p) der = `<button type="button" class="btn btn-ghost btn-sm" disabled>Sin stock</button>`;
+  }
+  const linea = p
+    ? `${Utils.escapeHTML(p.nombre)} · <b>${aplFmtPrecio(p.precioVenta)}</b>${r.vinculo==='nombre'?' <span class="apl-auto" title="Producto asociado automáticamente porque el código figura en su nombre">auto</span>':''}`
+    : `<span class="apl-muted">Sin producto en Stock${opts.permitirLibres?' — se agrega como ítem libre':''}</span>`;
+  const eqs = r.equivalentes.map(e=>{
+    const eid = aplKitReg(aplItemDesdeProducto(e, r.tipo, 1));
+    let eAcc = '';
+    if(modo==='agregar') eAcc = `<button type="button" class="btn btn-ghost btn-sm apl-kit-add" data-kit-id="${eid}">Agregar este</button>`;
+    else if(modo==='seleccion') eAcc = `<input type="checkbox" class="apl-kit-check" data-kit-id="${eid}" aria-label="Incluir ${Utils.escapeHTML(e.nombre)}">`;
+    return `<div class="apl-kit-eq"><span>Equivalente con stock: <b>${Utils.escapeHTML(e.nombre)}</b> · ${aplFmtPrecio(e.precioVenta)} · ${e.stockActual} disp.</span>${eAcc}</div>`;
+  }).join('');
+  return `<div class="apl-kit-optwrap">
+    <div class="apl-kit-opt ${r.estado==='sin'?'is-sin':''} ${r.sugerido?'is-sug':''}">
+      ${izq}
+      <div class="apl-kit-opt-main">
+        <div class="apl-kit-opt-top">
+          <span class="apl-kit-cal">${Utils.escapeHTML(r.calidad)}</span>
+          <span class="font-mono apl-kit-code">${Utils.escapeHTML(r.codigo)}</span>
+          ${r.marcaFiltro?`<span class="apl-kit-marca">${Utils.escapeHTML(r.marcaFiltro)}</span>`:''}
+          ${r.sugerido?'<span class="apl-kit-sug">Sugerido</span>':''}
+        </div>
+        <div class="apl-kit-opt-prod">${linea}</div>
+      </div>
+      <div class="apl-kit-opt-side">${aplBadgeStockHTML(r.estado, p)}${der}</div>
+    </div>
+    ${eqs}
+  </div>`;
+}
+
+function aplAceiteBloqueHTML(kit, modo, opts){
+  const ac = kit.aceite;
+  if(!ac) return '';
+  const partes = [];
+  if(ac.viscosidad) partes.push(`<b>${Utils.escapeHTML(ac.viscosidad)}</b>`);
+  if(ac.capacidadLts) partes.push(aplFmtLitros(ac.capacidadLts));
+  if(ac.especificacion) partes.push(Utils.escapeHTML(ac.especificacion));
+  const filas = ac.productos.map(p=>{
+    const est = aplEstadoProducto(p);
+    const cant = (p.unidad==='Litro' && ac.capacidadLts) ? ac.capacidadLts : 1;
+    const id = aplKitReg(aplItemDesdeProducto(p, 'Lubricante', cant));
+    const puede = est!=='sin' || !!opts.permitirSinStock;
+    let izq = '', der = '';
+    if(modo==='seleccion' && puede) izq = `<input type="checkbox" class="apl-kit-check" data-kit-id="${id}" aria-label="Incluir ${Utils.escapeHTML(p.nombre)}">`;
+    if(modo==='agregar') der = puede ? `<button type="button" class="btn btn-accent btn-sm apl-kit-add" data-kit-id="${id}">Agregar${cant!==1?' '+aplFmtLitros(cant):''}</button>` : `<button type="button" class="btn btn-ghost btn-sm" disabled>Sin stock</button>`;
+    return `<div class="apl-kit-optwrap"><div class="apl-kit-opt ${est==='sin'?'is-sin':''}">
+      ${izq}
+      <div class="apl-kit-opt-main">
+        <div class="apl-kit-opt-top"><span class="apl-kit-code">${Utils.escapeHTML(p.nombre)}</span></div>
+        <div class="apl-kit-opt-prod">${aplFmtPrecio(p.precioVenta)} por ${Utils.escapeHTML((p.unidad||'unidad').toLowerCase())}${cant!==1?` · cantidad sugerida: ${aplFmtLitros(cant)}`:''}</div>
+      </div>
+      <div class="apl-kit-opt-side">${aplBadgeStockHTML(est, p)}${der}</div>
+    </div></div>`;
+  }).join('');
+  return `<div class="apl-kit-group" style="--tipo-color:var(--accent);">
+    <div class="apl-kit-tipo">Lubricante</div>
+    <div class="apl-kit-aceite">${partes.join(' · ')}</div>
+    ${filas || (ac.viscosidad ? `<p class="apl-muted" style="font-size:12px; margin-top:4px;">No hay aceites de esa viscosidad cargados en Stock.</p>` : '')}
+  </div>`;
+}
+
+function aplKitHTML(kit, opts){
+  const a = kit.match.app;
+  const nivel = APL_NIVEL_INFO[kit.match.nivel];
+  const modo = opts.modo || 'lectura';
+  const grupos = kit.tipos.map(t=>{
+    const est = filtroTipoEstilo(t);
+    const lista = kit.grupos[t];
+    const hayStock = lista.some(r=>r.estado==='ok' || r.estado==='bajo');
+    const hayEq = lista.some(r=>r.equivalentes.length);
+    const hayLinkSinStock = lista.some(r=>r.estado==='sin');
+    const alerta = (!hayStock && !hayEq && hayLinkSinStock)
+      ? `<div class="apl-kit-alert">Ninguna opción tiene stock — conviene reponer.</div>` : '';
+    return `<div class="apl-kit-group" style="--tipo-color:${est.color};">
+      <div class="apl-kit-tipo">${Utils.escapeHTML(aplTipoLabel(t))}</div>
+      ${lista.map(r=>aplOpcionHTML(r, modo, opts)).join('')}
+      ${alerta}
+    </div>`;
+  }).join('');
+  return `<div class="apl-kit">
+    <div class="apl-kit-head">
+      <div>
+        <div class="apl-kit-title">${Utils.escapeHTML(a.marca)} ${Utils.escapeHTML(a.modelo)}</div>
+        <div class="apl-kit-sub">${a.motor?Utils.escapeHTML(a.motor):'Motor no especificado'} · ${aplicacionAnioTexto(a)}</div>
+      </div>
+      <span class="badge ${nivel.clase}">${nivel.texto}</span>
+    </div>
+    <div class="apl-kit-body">
+      ${aplAceiteBloqueHTML(kit, modo, opts)}
+      ${grupos || '<p class="apl-muted" style="padding:10px 0; font-size:12.5px;">Esta aplicación no tiene repuestos cargados todavía.</p>'}
+      ${a.observaciones?`<p class="apl-kit-obs">${Utils.escapeHTML(a.observaciones)}</p>`:''}
+    </div>
+  </div>`;
+}
+
+function aplKitsHTML(kits, totalMatches, veh, opts){
+  if(!kits.length){
+    const desc = aplVehiculoDescripcion(veh);
+    return `<div class="apl-kit-empty">${svgIcon('aplicaciones')}
+      <h3>Sin aplicación cargada</h3>
+      <p>No hay repuestos en el catálogo para <b>${Utils.escapeHTML(desc||'este vehículo')}</b>${veh.anio?' ('+veh.anio+')':''}.</p>
+      ${opts.permitirCargar
+        ? `<button type="button" class="btn btn-accent btn-sm apl-kit-cargar" style="margin-top:10px;">Cargar esta aplicación</button>`
+        : `<p style="margin-top:6px;">Se puede cargar desde el módulo Aplicaciones.</p>`}
+    </div>`;
+  }
+  const resto = totalMatches - kits.length;
+  return kits.map(k=>aplKitHTML(k, opts)).join('') +
+    (resto>0 ? `<p class="apl-kit-more">Hay ${resto} coincidencia${resto===1?'':'s'} menos precisa${resto===1?'':'s'}. Indicá el motor o el año para afinar.</p>` : '');
+}
+function aplItemsSeleccionados(cont){
+  return Array.from(cont.querySelectorAll('.apl-kit-check:checked')).map(c=>aplKitRegistro.get(c.dataset.kitId)).filter(Boolean);
+}
+function aplBindKit(cont, veh, opts){
+  cont.querySelectorAll('.apl-kit-add').forEach(btn=>{
+    btn.onclick = async () => {
+      const item = aplKitRegistro.get(btn.dataset.kitId);
+      if(item && opts.onAdd) await opts.onAdd({ ...item });
+    };
+  });
+  cont.querySelectorAll('.apl-kit-cargar').forEach(btn=>{
+    btn.onclick = () => { if(opts.onCargar) opts.onCargar(veh); else openAplicacionModal(null, aplPrefillDesdeVehiculo(veh)); };
+  });
+}
+/* Calcula las coincidencias del vehículo y dibuja el kit en `cont`. */
+async function aplMontarKit(cont, veh, opts={}){
+  if(aplKitRegistro.size > 3000) aplKitRegistro.clear();
+  const ctx = opts.ctx || await aplCargarContexto();
+  const matches = aplBuscarParaVehiculo(veh, ctx.apps);
+  // Se muestran las de mejor nivel (hasta 3); el resto se resume en una línea.
+  const mejor = matches.length ? matches[0].nivel : null;
+  const mostradas = matches.filter(m=>m.nivel===mejor).slice(0, opts.maxKits || 3);
+  const kits = mostradas.map(m=>aplArmarKit(m, ctx, veh));
+  cont.innerHTML = aplKitsHTML(kits, matches.length, veh, opts);
+  aplBindKit(cont, veh, opts);
+  if(opts.onCargado) opts.onCargado({ ctx, matches, kits });
+  return { ctx, matches, kits };
+}
+/* Panel plegable para incrustar en formularios (Servicios, Cotizaciones). */
+async function aplMontarPanelSugerencias(cont, veh, opts={}){
+  if(!cont) return null;
+  cont.innerHTML = `<details class="apl-panel" open>
+    <summary>${svgIcon('aplicaciones')}<span>Repuestos sugeridos del catálogo de Aplicaciones</span></summary>
+    <div class="apl-panel-body"><p class="apl-muted" style="font-size:12px;">Buscando…</p></div>
+  </details>`;
+  const body = cont.querySelector('.apl-panel-body');
+  return aplMontarKit(body, veh, { ...opts, permitirCargar:false });
+}
+
+/* Pasa los ítems elegidos al carrito del POS (mismo mecanismo que "Convertir cotización a venta"). */
+function aplEnviarAlPOS(items, veh){
+  if(!items.length){ Toast.show('error','Nada seleccionado','Tildá al menos un repuesto para llevarlo al POS.'); return; }
+  const merged = [];
+  items.forEach(it=>{
+    if(it.productoId){
+      const ex = merged.find(m=>m.productoId===it.productoId);
+      if(ex){ ex.cantidad = Math.round((ex.cantidad+it.cantidad)*100)/100; return; }
+    }
+    merged.push({
+      itemId: (it.productoId?'p'+it.productoId:'libre')+'-'+Date.now()+Math.random().toString(16).slice(2),
+      productoId: it.productoId||null, nombre: it.descripcion, precioUnitario: it.precioUnitario,
+      cantidad: it.cantidad, stockDisponible: it.stockActual, imagen: it.imagen||null
+    });
+  });
+  posPendingImport = { items:merged, clienteId: (veh && veh.clienteId) ? String(veh.clienteId) : '', descuentoPct:0, cotizacionOrigen:null };
+  Modal.close();
+  Toast.show('success','Repuestos cargados al POS', `${merged.length} ítem${merged.length===1?'':'s'} — revisá el carrito antes de cobrar.`);
+  window.location.hash = '#/pos';
+}
+
+/* ---------- Buscador "marca / modelo / año" (Consulta rápida y POS) ---------- */
+async function aplMontarFinder(root, opts={}){
+  if(!root) return;
+  const ctx = await aplCargarContexto();
+  const pref = opts.prefix || 'apl-f';
+  const st = opts.estado || { marca:'', modelo:'', anio:'', motor:'', patente:'' };
+  const puedePOS = canUsarPOS(Session.get().rol);
+  let vehReg = null;
+
+  const marcasSet = new Map();
+  (Config.cache.marcasVehiculo||[]).forEach(m=>marcasSet.set(aplMarcaClave(m), m));
+  ctx.apps.forEach(a=>{ const k = aplMarcaClave(a.marca); if(!marcasSet.has(k)) marcasSet.set(k, a.marca); });
+  const marcas = Array.from(marcasSet.values()).sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
+  function modelosDe(marca){
+    const k = aplMarcaClave(marca);
+    const set = new Map();
+    const cfg = (Config.cache.modelosPorMarca||{});
+    Object.keys(cfg).forEach(m=>{ if(aplMarcaClave(m)===k) cfg[m].forEach(mod=>set.set(aplNorm(mod), mod)); });
+    ctx.apps.forEach(a=>{ if(aplMarcaClave(a.marca)===k) set.set(aplNorm(a.modelo), a.modelo); });
+    return Array.from(set.values()).sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
+  }
+  function motoresDe(marca, modelo){
+    const k = aplMarcaClave(marca), mt = aplTokens(modelo);
+    return Array.from(new Set(ctx.apps.filter(a=>aplMarcaClave(a.marca)===k && aplCompararModelo(mt, aplTokens(a.modelo))>0 && a.motor).map(a=>a.motor)));
+  }
+
+  root.innerHTML = `
+    <div class="apl-finder">
+      <div class="apl-finder-form">
+        <div class="field"><label>Patente</label>
+          <div class="apl-finder-plate">
+            <input type="text" id="${pref}-patente" placeholder="Ej: AB123CD" maxlength="12" autocomplete="off" value="${Utils.escapeHTML(st.patente||'')}">
+            <button type="button" class="btn btn-ghost btn-sm" id="${pref}-buscar-patente">Buscar</button>
+          </div>
+        </div>
+        <div class="field"><label>Marca</label><select class="select-input" id="${pref}-marca"></select></div>
+        <div class="field"><label>Modelo</label><select class="select-input" id="${pref}-modelo"></select></div>
+        <div class="field"><label>Año</label><input type="number" id="${pref}-anio" min="1950" max="2100" placeholder="Ej: 2015" value="${st.anio||''}"></div>
+        <div class="field"><label>Motor <span class="apl-muted">(opcional)</span></label>
+          <input type="text" id="${pref}-motor" list="${pref}-motores" placeholder="Ej: 1.6" autocomplete="off" value="${Utils.escapeHTML(st.motor||'')}">
+          <datalist id="${pref}-motores"></datalist>
+        </div>
+      </div>
+      <div id="${pref}-vehsug" class="apl-veh-chips"></div>
+      <div id="${pref}-msg" class="apl-msg-slot"></div>
+      <div id="${pref}-res"></div>
+      <div id="${pref}-footer"></div>
+    </div>`;
+
+  const $ = id => document.getElementById(pref + '-' + id);
+  const selMarca = $('marca'), selModelo = $('modelo'), inAnio = $('anio'), inMotor = $('motor'), inPat = $('patente');
+
+  function poblarMarcas(valor){
+    const lista = valor && !marcas.some(m=>aplMarcaClave(m)===aplMarcaClave(valor)) ? [...marcas, valor] : marcas;
+    selMarca.innerHTML = `<option value="">Elegí la marca…</option>` + lista.map(m=>`<option value="${Utils.escapeHTML(m)}">${Utils.escapeHTML(m)}</option>`).join('');
+    const match = lista.find(m=>aplMarcaClave(m)===aplMarcaClave(valor));
+    selMarca.value = match || '';
+  }
+  function poblarModelos(marca, valor){
+    if(!marca){ selModelo.innerHTML = `<option value="">Elegí primero la marca…</option>`; selModelo.disabled = true; return; }
+    selModelo.disabled = false;
+    let lista = modelosDe(marca);
+    if(valor && !lista.some(m=>aplNorm(m)===aplNorm(valor))) lista = [...lista, valor].sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
+    selModelo.innerHTML = `<option value="">Elegí el modelo…</option>` + lista.map(m=>`<option value="${Utils.escapeHTML(m)}">${Utils.escapeHTML(m)}</option>`).join('');
+    const match = lista.find(m=>aplNorm(m)===aplNorm(valor));
+    selModelo.value = match || '';
+  }
+  function poblarMotores(){
+    $('motores').innerHTML = motoresDe(selMarca.value, selModelo.value).map(m=>`<option value="${Utils.escapeHTML(m)}"></option>`).join('');
+  }
+  poblarMarcas(st.marca); poblarModelos(selMarca.value, st.modelo); poblarMotores();
+
+  async function ejecutar(){
+    st.marca = selMarca.value; st.modelo = selModelo.value; st.anio = inAnio.value; st.motor = inMotor.value; st.patente = inPat.value;
+    const res = $('res'), footer = $('footer');
+    footer.innerHTML = '';
+    if(!st.marca || !st.modelo){
+      res.innerHTML = `<div class="apl-kit-empty">${svgIcon('aplicaciones')}<h3>Consultá qué lleva un vehículo</h3><p>Escribí la patente de un cliente, o elegí marca, modelo y año para ver los filtros, el lubricante y su stock.</p></div>`;
+      return;
+    }
+    const veh = { marca:st.marca, modelo:st.modelo, motor:st.motor, anio:st.anio };
+    if(vehReg){ Object.assign(veh, { aceiteRecomendado:vehReg.aceiteRecomendado, capacidadAceiteLts:vehReg.capacidadAceiteLts, combustible:vehReg.combustible, clienteId:vehReg.clienteId, id:vehReg.id }); }
+    const modo = (opts.modo==='seleccion' && puedePOS) ? 'seleccion' : (opts.modo==='agregar' ? 'agregar' : 'lectura');
+    const out = await aplMontarKit(res, veh, { ...opts, modo, ctx });
+    if(modo==='seleccion' && out.kits.length){
+      footer.innerHTML = `<div class="apl-kit-footer"><span>Tildá lo que el cliente se lleva y pasalo al POS.</span><button type="button" class="btn btn-accent" id="${pref}-a-pos">Vender seleccionados en POS</button></div>`;
+      $('a-pos').onclick = () => aplEnviarAlPOS(aplItemsSeleccionados(res), veh);
+    }
+  }
+  const ejecutarDeb = aplDebounce(ejecutar, 150);
+
+  selMarca.onchange = () => { vehReg = null; poblarModelos(selMarca.value, ''); poblarMotores(); $('msg').innerHTML=''; ejecutar(); };
+  selModelo.onchange = () => { vehReg = null; poblarMotores(); $('msg').innerHTML=''; ejecutar(); };
+  inAnio.oninput = ejecutarDeb;
+  inMotor.oninput = ejecutarDeb;
+
+  async function buscarPatente(){
+    const crudo = inPat.value.trim().toUpperCase();
+    if(!crudo) return;
+    let v = await DB.getByIndex('vehiculos','dominio', crudo);
+    if(!v) v = await DB.getByIndex('vehiculos','dominio', crudo.replace(/[\s-]/g,''));
+    if(!v){ $('msg').innerHTML = `<div class="apl-msg apl-msg-warn">No hay un vehículo registrado con la patente <b>${Utils.escapeHTML(crudo)}</b>. Elegí marca, modelo y año.</div>`; return; }
+    await cargarVehiculo(v);
+  }
+  async function cargarVehiculo(v){
+    vehReg = v;
+    if(opts.onVehiculo) opts.onVehiculo(v);
+    inPat.value = v.dominio || '';
+    poblarMarcas(v.marca); poblarModelos(v.marca, v.modelo);
+    inAnio.value = v.anio || ''; inMotor.value = v.motor || '';
+    poblarMotores();
+    const cliente = v.clienteId ? await DB.get('clientes', v.clienteId) : null;
+    $('msg').innerHTML = `<div class="apl-msg apl-msg-ok">${Utils.escapeHTML(v.dominio)} — ${Utils.escapeHTML(v.marca)} ${Utils.escapeHTML(v.modelo)}${cliente?' · '+Utils.escapeHTML(clienteNombreCompleto(cliente)):''}</div>`;
+    await ejecutar();
+  }
+  $('buscar-patente').onclick = buscarPatente;
+  inPat.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); buscarPatente(); } });
+
+  // Vehículos del cliente elegido (p. ej. en el POS): un toque los carga.
+  if(opts.vehiculosSugeridos && opts.vehiculosSugeridos.length){
+    $('vehsug').innerHTML = `<span class="apl-muted" style="font-size:12px;">Vehículos del cliente:</span>` +
+      opts.vehiculosSugeridos.map(v=>`<button type="button" class="tag-chip apl-veh-chip" data-id="${v.id}">${Utils.escapeHTML(v.dominio)} · ${Utils.escapeHTML(v.marca)} ${Utils.escapeHTML(v.modelo)}</button>`).join('');
+    $('vehsug').querySelectorAll('.apl-veh-chip').forEach(b=>{
+      b.onclick = () => cargarVehiculo(opts.vehiculosSugeridos.find(v=>v.id===Number(b.dataset.id)));
+    });
+  }
+  await ejecutar();
+}
+
+/* ---------- Reposición: repuestos del catálogo con stock crítico ---------- */
+function aplCalcularReposicion(ctx){
+  const porProd = {}, sinProducto = {};
+  ctx.apps.forEach(a=>{
+    (a.filtros||[]).forEach(f=>{
+      if(!f.codigo || !String(f.codigo).trim()) return;
+      const r = aplResolverItem(f, ctx);
+      if(r.producto){
+        const e = porProd[r.producto.id] = porProd[r.producto.id] || { producto:r.producto, estado:r.estado, equivalentes:r.equivalentes, tipos:new Set(), apps:new Set() };
+        e.tipos.add(f.tipo); e.apps.add(a.id);
+      }else{
+        const k = aplClaveCodigo(f.codigo) + '|' + f.tipo;
+        const e = sinProducto[k] = sinProducto[k] || { codigo:String(f.codigo).trim(), tipo:f.tipo, marcas:new Set(), apps:new Set() };
+        if(f.marcaFiltro) e.marcas.add(f.marcaFiltro);
+        e.apps.add(a.id);
+      }
+    });
+  });
+  const criticos = Object.values(porProd).filter(e=>e.estado==='sin' || e.estado==='bajo')
+    .sort((a,b)=> (a.estado==='sin'?0:1)-(b.estado==='sin'?0:1) || b.apps.size-a.apps.size);
+  return {
+    criticos,
+    sinProducto: Object.values(sinProducto).sort((a,b)=>b.apps.size-a.apps.size),
+    sinStock: criticos.filter(e=>e.estado==='sin').length,
+    bajo: criticos.filter(e=>e.estado==='bajo').length,
+    totalProductos: Object.keys(porProd).length
+  };
+}
+
+/* ---------- Agrupación por código (pestaña "Por filtro") con equivalencias ---------- */
+function aplAgruparFiltros(ctx){
+  const grupos = {};
+  ctx.apps.forEach(a=>{
+    (a.filtros||[]).forEach(f=>{
+      if(!f.codigo || !String(f.codigo).trim()) return;
+      const k = aplClaveCodigo(f.codigo);
+      const g = grupos[k] = grupos[k] || { key:k, codigo:String(f.codigo).trim(), tipos:new Set(), marcas:new Set(), apps:[], resolved:null, eq:new Map() };
+      g.tipos.add(f.tipo);
+      if(f.marcaFiltro) g.marcas.add(f.marcaFiltro);
+      g.apps.push({ app:a, tipo:f.tipo });
+      if(!g.resolved) g.resolved = aplResolverItem(f, ctx);
+    });
+    // Códigos de un mismo tipo dentro de la misma aplicación = equivalentes entre marcas.
+    const porTipo = {};
+    (a.filtros||[]).forEach(f=>{ if(f.codigo && String(f.codigo).trim()) (porTipo[f.tipo] = porTipo[f.tipo] || []).push(f); });
+    Object.values(porTipo).forEach(lista=>{
+      lista.forEach(f1=>lista.forEach(f2=>{
+        const k1 = aplClaveCodigo(f1.codigo), k2 = aplClaveCodigo(f2.codigo);
+        if(k1!==k2) grupos[k1].eq.set(k2, true);
+      }));
+    });
+  });
+  // Equivalentes declarados en Productos (entre productos que también están en el catálogo).
+  Object.values(grupos).forEach(g=>{
+    const p = g.resolved && g.resolved.producto;
+    if(!p) return;
+    (p.equivalentes||[]).forEach(id=>{
+      const ep = ctx.porId[id];
+      const k = ep ? aplClaveCodigo(ep.codigo) : null;
+      if(k && k!==g.key && grupos[k]){ g.eq.set(k, true); grupos[k].eq.set(g.key, true); }
+    });
+  });
+  return grupos;
+}
+
+/* ---------- Vista principal ---------- */
 let aplicacionesCache = [];
-let aplicacionesUIState = { tab:'vehiculo', q:'', qFiltro:'', qArbol:'' };
+let aplicacionesUIState = {
+  tab:'rapida', q:'', qFiltro:'', qArbol:'', tipo:'', marca:'', stock:'',
+  sort:{ col:'vehiculo', dir:1 }, limite:150,
+  rapida:{ marca:'', modelo:'', anio:'', motor:'', patente:'' }
+};
 
 async function viewAplicacionesList(){
-  aplicacionesCache = (await DB.getAll('aplicacionesFiltros')).sort((a,b)=>(a.marca+a.modelo).localeCompare(b.marca+b.modelo));
+  const ctx = await aplCargarContexto();
+  aplicacionesCache = ctx.apps.sort((a,b)=>(a.marca+a.modelo).localeCompare(b.marca+b.modelo));
+  window._aplCtx = ctx;
   const session = Session.get();
   const puedeGestionar = canManageAplicaciones(session.rol);
   const totalFiltros = aplicacionesCache.reduce((acc,a)=>acc+(a.filtros?a.filtros.length:0),0);
+  const repo = aplCalcularReposicion(ctx);
+  const criticosN = repo.criticos.length;
+  const tab = aplicacionesUIState.tab;
 
   return `
     <div class="page-header">
-      <div><h1>Aplicaciones</h1><p>${aplicacionesCache.length} vehículo${aplicacionesCache.length===1?'':'s'} cargados, ${totalFiltros} filtro${totalFiltros===1?'':'s'} en total</p></div>
+      <div><h1>Aplicaciones</h1>
+        <p>${aplicacionesCache.length} vehículo${aplicacionesCache.length===1?'':'s'} cargados, ${totalFiltros} repuesto${totalFiltros===1?'':'s'} en total${criticosN?` · <span style="color:var(--warning); font-weight:700;">${criticosN} con stock crítico</span>`:''}</p></div>
       ${puedeGestionar?`<button class="btn btn-accent" id="btn-nueva-aplicacion">${svgIcon('aplicaciones')} Nueva aplicación</button>`:''}
     </div>
     <div class="crm-tabs" id="apl-tabs">
-      <button class="crm-tab ${aplicacionesUIState.tab==='vehiculo'?'active':''}" data-tab="vehiculo">Por vehículo</button>
-      <button class="crm-tab ${aplicacionesUIState.tab==='filtro'?'active':''}" data-tab="filtro">Por filtro</button>
-      <button class="crm-tab ${aplicacionesUIState.tab==='arbol'?'active':''}" data-tab="arbol">Árbol</button>
+      <button class="crm-tab ${tab==='rapida'?'active':''}" data-tab="rapida">Consulta rápida</button>
+      <button class="crm-tab ${tab==='vehiculo'?'active':''}" data-tab="vehiculo">Por vehículo</button>
+      <button class="crm-tab ${tab==='filtro'?'active':''}" data-tab="filtro">Por código</button>
+      <button class="crm-tab ${tab==='arbol'?'active':''}" data-tab="arbol">Árbol</button>
+      <button class="crm-tab ${tab==='reposicion'?'active':''}" data-tab="reposicion">Reposición${criticosN?` <span class="crm-tab-count">${criticosN}</span>`:''}</button>
     </div>
-    <div id="apl-tab-vehiculo" class="${aplicacionesUIState.tab==='vehiculo'?'':'hidden'}">
-      ${aplicacionesPorVehiculoHTML(aplicacionesCache, puedeGestionar)}
-    </div>
-    <div id="apl-tab-filtro" class="${aplicacionesUIState.tab==='filtro'?'':'hidden'}">
-      ${aplicacionesPorFiltroHTML(aplicacionesCache)}
-    </div>
-    <div id="apl-tab-arbol" class="${aplicacionesUIState.tab==='arbol'?'':'hidden'}">
-      ${aplicacionesArbolHTML(aplicacionesCache, puedeGestionar)}
-    </div>
+    <div id="apl-tab-body">${aplTabHTML(tab, ctx, puedeGestionar, repo)}</div>
   `;
 }
 
-function aplicacionesPorVehiculoHTML(apps, puedeGestionar){
-  return `
-    <div class="toolbar-filters">
-      <div class="toolbar-search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        <input type="text" id="apl-search" placeholder="Buscar por marca, modelo, motor o código de filtro..." value="${Utils.escapeHTML(aplicacionesUIState.q)}">
+function aplTabHTML(tab, ctx, puedeGestionar, repo){
+  const buscador = (id, placeholder, valor) => `
+    <div class="toolbar-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input type="text" id="${id}" placeholder="${placeholder}" value="${Utils.escapeHTML(valor)}">
+    </div>`;
+  if(tab==='rapida') return `<div id="apl-rapida-root"></div>`;
+  if(tab==='vehiculo'){
+    const marcas = Array.from(new Set(ctx.apps.map(a=>a.marca))).sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
+    const s = aplicacionesUIState;
+    return `
+      <div class="toolbar-filters">
+        ${buscador('apl-search','Buscar: "gol 1.6 2015", código de filtro, motor…', s.q)}
+        <select class="toolbar-select" id="apl-f-marca"><option value="">Todas las marcas</option>${marcas.map(m=>`<option value="${Utils.escapeHTML(m)}" ${s.marca===m?'selected':''}>${Utils.escapeHTML(m)}</option>`).join('')}</select>
+        <select class="toolbar-select" id="apl-f-tipo"><option value="">Todos los repuestos</option>${TIPOS_APLICACION.map(t=>`<option value="${t}" ${s.tipo===t?'selected':''}>${Utils.escapeHTML(aplTipoLabel(t))}</option>`).join('')}</select>
+        <select class="toolbar-select" id="apl-f-stock">
+          <option value="">Cualquier stock</option>
+          <option value="faltantes" ${s.stock==='faltantes'?'selected':''}>Con faltantes de stock</option>
+          <option value="completo" ${s.stock==='completo'?'selected':''}>Todo disponible</option>
+        </select>
       </div>
-    </div>
+      <div id="apl-veh-tabla"></div>`;
+  }
+  if(tab==='filtro') return `
+      <div class="toolbar-filters">${buscador('apl-search-filtro','Buscar por código, marca del filtro, vehículo o año…', aplicacionesUIState.qFiltro)}</div>
+      <div id="apl-filtro-resultados"></div>`;
+  if(tab==='arbol') return `
+      <div class="toolbar-filters">${buscador('apl-search-arbol','Buscar por marca, modelo, motor, año o código…', aplicacionesUIState.qArbol)}</div>
+      <div class="apl-tree" id="apl-tree-cont"></div>`;
+  if(tab==='reposicion') return aplReposicionHTML(repo, ctx);
+  return '';
+}
+
+/* ----- Pestaña Por vehículo ----- */
+function aplFiltrarApps(apps, ctx){
+  const s = aplicacionesUIState;
+  let lista = apps.filter(a=>aplCoincideTexto(a, s.q));
+  if(s.marca) lista = lista.filter(a=>a.marca===s.marca);
+  if(s.tipo) lista = lista.filter(a=>(a.filtros||[]).some(f=>f.tipo===s.tipo));
+  if(s.stock){
+    lista = lista.filter(a=>{
+      const faltan = (a.filtros||[]).some(f=>{ const r = aplResolverItem(f, ctx); return r.estado==='sin' || r.estado==='nolink'; });
+      return s.stock==='faltantes' ? faltan : !faltan;
+    });
+  }
+  const { col, dir } = s.sort;
+  const val = a => col==='motor' ? aplNorm(a.motor||'') : col==='anio' ? (a.anioDesde||a.anioHasta||0) : col==='items' ? (a.filtros||[]).length : aplNorm(a.marca+' '+a.modelo);
+  lista.sort((a,b)=>{ const x = val(a), y = val(b); const c = (typeof x==='number' && typeof y==='number') ? x-y : String(x).localeCompare(String(y)); return (c || aplNorm(a.marca+a.modelo).localeCompare(aplNorm(b.marca+b.modelo))) * dir; });
+  return lista;
+}
+function aplThSort(col, label){
+  const { col:c, dir } = aplicacionesUIState.sort;
+  const act = c===col;
+  return `<th><button type="button" class="apl-th-sort ${act?'active':''}" data-col="${col}">${label}<span class="apl-th-arrow">${act?(dir===1?'▲':'▼'):''}</span></button></th>`;
+}
+function aplRenderTablaVehiculo(){
+  const cont = document.getElementById('apl-veh-tabla');
+  if(!cont) return;
+  const ctx = window._aplCtx;
+  const puedeGestionar = canManageAplicaciones(Session.get().rol);
+  const lista = aplFiltrarApps(ctx.apps, ctx);
+  const visibles = lista.slice(0, aplicacionesUIState.limite);
+  cont.innerHTML = `
     <div class="card" style="padding:0; overflow-x:auto;">
       <table class="data-table" id="aplicaciones-table">
-        <thead><tr><th>Marca / Modelo</th><th>Motor</th><th>Años</th><th>Filtros</th><th style="text-align:right;">Acciones</th></tr></thead>
+        <thead><tr>${aplThSort('vehiculo','Marca / Modelo')}${aplThSort('motor','Motor')}${aplThSort('anio','Años')}<th>Repuestos</th><th style="text-align:right;">Acciones</th></tr></thead>
         <tbody>
-          ${apps.length ? apps.map(a=>`
-            <tr data-id="${a.id}" data-search="${Utils.escapeHTML((a.marca+' '+a.modelo+' '+(a.motor||'')+' '+(a.filtros||[]).map(f=>f.tipo+' '+f.codigo+' '+(f.marcaFiltro||'')).join(' ')).toLowerCase())}">
+          ${visibles.length ? visibles.map(a=>`
+            <tr data-id="${a.id}">
               <td style="font-weight:700;">${Utils.escapeHTML(a.marca)} ${Utils.escapeHTML(a.modelo)}</td>
               <td>${a.motor?Utils.escapeHTML(a.motor):'—'}</td>
               <td>${aplicacionAnioTexto(a)}</td>
-              <td><div style="display:flex; flex-wrap:wrap; gap:5px; max-width:420px;">${(a.filtros||[]).length?(a.filtros||[]).map(filtroChipHTML).join(''):'<span style="color:var(--text-muted); font-size:12px;">Sin filtros cargados</span>'}</div></td>
+              <td><div style="display:flex; flex-wrap:wrap; gap:5px; max-width:460px;">${aplChipLubricanteHTML(a)}${(a.filtros||[]).length?(a.filtros||[]).map(f=>filtroChipHTML(f, ctx)).join(''):(aplChipLubricanteHTML(a)?'':'<span style="color:var(--text-muted); font-size:12px;">Sin repuestos cargados</span>')}</div></td>
               <td style="text-align:right; white-space:nowrap;">
-                ${puedeGestionar?accionesFilaHTML(`<button class="btn btn-ghost btn-sm btn-edit-aplicacion" data-id="${a.id}">Editar</button><button class="btn btn-danger-ghost btn-sm btn-eliminar-aplicacion" data-id="${a.id}">Eliminar</button>`):''}
+                ${puedeGestionar?accionesFilaHTML(`<button class="btn btn-ghost btn-sm btn-edit-aplicacion" data-id="${a.id}">Editar</button><button class="btn btn-ghost btn-sm btn-duplicar-aplicacion" data-id="${a.id}">Duplicar</button><button class="btn btn-danger-ghost btn-sm btn-eliminar-aplicacion" data-id="${a.id}">Eliminar</button>`):''}
               </td>
-            </tr>`).join('') : `<tr><td colspan="5"><div class="empty-state">${svgIcon('aplicaciones')}<h3>Todavía no hay aplicaciones cargadas</h3><p>Registrá qué filtros lleva cada vehículo para consultarlo rápido la próxima vez.</p></div></td></tr>`}
+            </tr>`).join('') : `<tr><td colspan="5"><div class="empty-state">${svgIcon('aplicaciones')}<h3>${ctx.apps.length?'Ningún resultado':'Todavía no hay aplicaciones cargadas'}</h3><p>${ctx.apps.length?'Probá con otras palabras, otro año o quitá algún filtro.':'Registrá qué repuestos lleva cada vehículo para consultarlo rápido la próxima vez.'}</p></div></td></tr>`}
         </tbody>
       </table>
     </div>
-  `;
+    <p class="apl-count">${lista.length===ctx.apps.length ? `${lista.length} aplicaciones` : `${lista.length} de ${ctx.apps.length} aplicaciones`}${lista.length>visibles.length?` · mostrando las primeras ${visibles.length} <button type="button" class="btn btn-ghost btn-sm" id="apl-ver-todas">Mostrar todas</button>`:''}</p>`;
+  cont.querySelectorAll('.apl-th-sort').forEach(b=>{
+    b.onclick = () => {
+      const s = aplicacionesUIState.sort;
+      if(s.col===b.dataset.col) s.dir = -s.dir; else { s.col = b.dataset.col; s.dir = 1; }
+      aplRenderTablaVehiculo();
+    };
+  });
+  const btnTodas = document.getElementById('apl-ver-todas');
+  if(btnTodas) btnTodas.onclick = () => { aplicacionesUIState.limite = 100000; aplRenderTablaVehiculo(); };
+  aplBindAccionesAplicacion(cont);
 }
 
-function renderAplicacionesFiltroResultadosHTML(apps){
-  const q = aplicacionesUIState.qFiltro.trim().toLowerCase();
-  const grupos = {};
-  apps.forEach(a=>{
-    (a.filtros||[]).forEach(f=>{
-      if(!f.codigo) return;
-      const clave = f.codigo.trim().toUpperCase();
-      if(!grupos[clave]) grupos[clave] = { codigo:f.codigo.trim(), tipos:new Set(), marcas:new Set(), vehiculos:[] };
-      grupos[clave].tipos.add(f.tipo);
-      if(f.marcaFiltro) grupos[clave].marcas.add(f.marcaFiltro);
-      grupos[clave].vehiculos.push({ marca:a.marca, modelo:a.modelo, motor:a.motor, anioTexto:aplicacionAnioTexto(a), tipo:f.tipo });
-    });
-  });
+/* ----- Pestaña Por código (con equivalencias y stock) ----- */
+function aplRenderFiltroResultados(){
+  const cont = document.getElementById('apl-filtro-resultados');
+  if(!cont) return;
+  const ctx = window._aplCtx;
+  const grupos = aplAgruparFiltros(ctx);
+  const toks = aplTokens(aplicacionesUIState.qFiltro);
   let lista = Object.values(grupos).sort((a,b)=>a.codigo.localeCompare(b.codigo));
-  if(q) lista = lista.filter(g=>g.codigo.toLowerCase().includes(q) || [...g.marcas].some(m=>m.toLowerCase().includes(q)) || g.vehiculos.some(v=>(v.marca+' '+v.modelo+' '+(v.motor||'')).toLowerCase().includes(q)));
-
-  if(!lista.length) return `<div class="empty-state">${svgIcon('aplicaciones')}<h3>No se encontraron filtros</h3><p>Probá con otro código, marca o vehículo, o cargá aplicaciones desde la pestaña "Por vehículo".</p></div>`;
-
-  return lista.map(g=>`
+  const filas = [];
+  lista.forEach(g=>{
+    const eqCodes = Array.from(g.eq.keys()).map(k=>grupos[k]).filter(Boolean);
+    const hayCodigo = aplNorm([g.codigo, ...g.marcas, ...eqCodes.map(e=>e.codigo)].join(' '));
+    const tokCodigo = toks.filter(t=>hayCodigo.includes(t));
+    const tokVeh = toks.filter(t=>!hayCodigo.includes(t));
+    let vehs = g.apps;
+    // Los tokens que no son del código se cruzan solo contra los datos DEL VEHÍCULO (marca/modelo/motor/año),
+    // nunca contra los códigos de sus otros repuestos — si no, buscar un código de filtro traería también
+    // bujías o correas del mismo auto por pura coincidencia.
+    if(tokVeh.length) vehs = vehs.filter(v=>aplCoincideTextoVehiculo(v.app, tokVeh.join(' ')));
+    if(toks.length && !vehs.length) return;
+    if(toks.length && !tokVeh.length && !tokCodigo.length) return;
+    filas.push({ g, eqCodes, vehs });
+  });
+  if(!filas.length){
+    cont.innerHTML = `<div class="empty-state">${svgIcon('aplicaciones')}<h3>No se encontraron códigos</h3><p>Probá con otro código, marca o vehículo, o cargá aplicaciones desde el módulo.</p></div>`;
+    return;
+  }
+  const MAX = 60;
+  cont.innerHTML = filas.slice(0, MAX).map(({g, eqCodes, vehs})=>{
+    const r = g.resolved;
+    return `
     <div class="card" style="margin-bottom:12px;">
       <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
           <span class="font-mono" style="font-size:15px; font-weight:800;">${Utils.escapeHTML(g.codigo)}</span>
-          ${[...g.tipos].map(t=>{ const e=filtroTipoEstilo(t); return `<span class="tag-chip" style="background:${e.bg}; color:${e.color}; border-color:transparent;">${Utils.escapeHTML(t)}</span>`; }).join('')}
+          ${[...g.tipos].map(t=>{ const e = filtroTipoEstilo(t); return `<span class="tag-chip" style="background:${e.bg}; color:${e.color}; border-color:transparent;">${Utils.escapeHTML(aplTipoLabel(t))}</span>`; }).join('')}
+          ${g.marcas.size?`<span style="font-size:12px; color:var(--text-muted);">Marca: ${Utils.escapeHTML([...g.marcas].join(', '))}</span>`:''}
         </div>
-        ${g.marcas.size?`<span style="font-size:12px; color:var(--text-muted);">Marca: ${Utils.escapeHTML([...g.marcas].join(', '))}</span>`:''}
+        <div style="display:flex; align-items:center; gap:8px;">
+          ${r && r.producto ? `<span style="font-size:12px; color:var(--text-secondary);">${Utils.escapeHTML(r.producto.nombre)} · <b>${aplFmtPrecio(r.producto.precioVenta)}</b></span>` : ''}
+          ${r ? aplBadgeStockHTML(r.estado, r.producto) : ''}
+        </div>
       </div>
-      <p style="font-size:12px; color:var(--text-secondary); margin-bottom:8px;">Se usa en ${g.vehiculos.length} vehículo${g.vehiculos.length===1?'':'s'}:</p>
+      ${eqCodes.length ? `<div class="apl-eq-row"><span class="apl-muted" style="font-size:12px;">Equivalentes:</span>${eqCodes.map(e=>`<button type="button" class="tag-chip apl-eq-chip" data-code="${Utils.escapeHTML(e.codigo)}" title="Buscar este código">${e.resolved?aplPuntoStockHTML(e.resolved.estado, e.resolved.producto):''}${Utils.escapeHTML(e.codigo)}${e.marcas.size?' · '+Utils.escapeHTML([...e.marcas][0]):''}</button>`).join('')}</div>` : ''}
+      <p style="font-size:12px; color:var(--text-secondary); margin-bottom:8px;">Se usa en ${vehs.length} vehículo${vehs.length===1?'':'s'}:</p>
       <div style="display:flex; flex-wrap:wrap; gap:6px;">
-        ${g.vehiculos.map(v=>`<span class="tag-chip">${Utils.escapeHTML(v.marca)} ${Utils.escapeHTML(v.modelo)}${v.motor?' '+Utils.escapeHTML(v.motor):''} (${v.anioTexto})</span>`).join('')}
+        ${vehs.slice(0,40).map(v=>`<span class="tag-chip">${Utils.escapeHTML(v.app.marca)} ${Utils.escapeHTML(v.app.modelo)}${v.app.motor?' '+Utils.escapeHTML(v.app.motor):''} (${aplicacionAnioTexto(v.app)})</span>`).join('')}
+        ${vehs.length>40?`<span class="apl-muted" style="font-size:12px; align-self:center;">+${vehs.length-40} más</span>`:''}
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('') + (filas.length>MAX ? `<p class="apl-count">Mostrando ${MAX} de ${filas.length} códigos. Afiná la búsqueda para ver el resto.</p>` : '');
+  cont.querySelectorAll('.apl-eq-chip').forEach(b=>{
+    b.onclick = () => {
+      const inp = document.getElementById('apl-search-filtro');
+      inp.value = b.dataset.code; aplicacionesUIState.qFiltro = b.dataset.code;
+      aplRenderFiltroResultados(); window.scrollTo({ top:0, behavior:'smooth' });
+    };
+  });
 }
 
-function aplicacionesPorFiltroHTML(apps){
-  return `
-    <div class="toolbar-filters">
-      <div class="toolbar-search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        <input type="text" id="apl-search-filtro" placeholder="Buscar por código de filtro, marca o vehículo..." value="${Utils.escapeHTML(aplicacionesUIState.qFiltro)}">
-      </div>
-    </div>
-    <div id="apl-filtro-resultados">${renderAplicacionesFiltroResultadosHTML(apps)}</div>
-  `;
-}
-
-function aplicacionesArbolHTML(apps, puedeGestionar){
-  if(!apps.length) return `<div class="empty-state">${svgIcon('aplicaciones')}<h3>Todavía no hay aplicaciones cargadas</h3><p>Registrá vehículos con sus filtros desde la pestaña "Por vehículo" para verlos organizados acá por marca y modelo.</p></div>`;
-
+/* ----- Pestaña Árbol ----- */
+function aplRenderArbol(){
+  const cont = document.getElementById('apl-tree-cont');
+  if(!cont) return;
+  const ctx = window._aplCtx;
+  const puedeGestionar = canManageAplicaciones(Session.get().rol);
+  const q = aplicacionesUIState.qArbol;
+  const apps = ctx.apps.filter(a=>aplCoincideTexto(a, q));
+  if(!apps.length){
+    cont.innerHTML = `<div class="empty-state">${svgIcon('aplicaciones')}<h3>${ctx.apps.length?'Ningún resultado':'Todavía no hay aplicaciones cargadas'}</h3><p>${ctx.apps.length?'Probá con otras palabras o con otro año.':'Registrá vehículos con sus repuestos desde el botón "Nueva aplicación".'}</p></div>`;
+    return;
+  }
   const arbol = {};
-  apps.forEach(a=>{
-    arbol[a.marca] = arbol[a.marca] || {};
-    (arbol[a.marca][a.modelo] = arbol[a.marca][a.modelo] || []).push(a);
-  });
-  const marcas = Object.keys(arbol).sort();
+  apps.forEach(a=>{ arbol[a.marca] = arbol[a.marca] || {}; (arbol[a.marca][a.modelo] = arbol[a.marca][a.modelo] || []).push(a); });
   const flechaSVG = `<svg class="apl-tree-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>`;
-
-  return `
-    <div class="toolbar-filters">
-      <div class="toolbar-search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        <input type="text" id="apl-search-arbol" placeholder="Buscar por marca, modelo, motor o código de filtro..." value="${Utils.escapeHTML(aplicacionesUIState.qArbol)}">
+  const abrir = q.trim() ? 'open' : '';
+  cont.innerHTML = Object.keys(arbol).sort().map(marca=>{
+    const modelos = Object.keys(arbol[marca]).sort();
+    const totalVeh = modelos.reduce((acc,m)=>acc+arbol[marca][m].length,0);
+    return `
+    <details class="apl-tree-marca" open>
+      <summary>${flechaSVG}<span>${Utils.escapeHTML(marca)}</span><span class="apl-tree-count">${modelos.length} modelo${modelos.length===1?'':'s'} · ${totalVeh} vehículo${totalVeh===1?'':'s'}</span></summary>
+      <div class="apl-tree-children">
+        ${modelos.map(modelo=>{
+          const entries = arbol[marca][modelo];
+          return `
+          <details class="apl-tree-modelo" ${abrir}>
+            <summary>${flechaSVG}<span>${Utils.escapeHTML(modelo)}</span><span class="apl-tree-count">${entries.length} versión${entries.length===1?'':'es'}</span></summary>
+            <div class="apl-tree-children">
+              ${entries.map(a=>`
+                <div class="apl-tree-leaf" data-id="${a.id}">
+                  <div class="apl-tree-leaf-head">
+                    <span>${a.motor?Utils.escapeHTML(a.motor):'Motor no especificado'} · ${aplicacionAnioTexto(a)}</span>
+                    ${puedeGestionar?`<div style="display:flex; gap:6px;"><button class="btn btn-ghost btn-sm btn-edit-aplicacion" data-id="${a.id}">Editar</button><button class="btn btn-danger-ghost btn-sm btn-eliminar-aplicacion" data-id="${a.id}">Eliminar</button></div>`:''}
+                  </div>
+                  <div class="apl-tree-leaf-filtros">${aplChipLubricanteHTML(a)}${(a.filtros||[]).length?(a.filtros||[]).map(f=>filtroChipHTML(f, ctx)).join(''):(aplChipLubricanteHTML(a)?'':'<span style="color:var(--text-muted); font-size:12px;">Sin repuestos cargados</span>')}</div>
+                </div>`).join('')}
+            </div>
+          </details>`;
+        }).join('')}
       </div>
-    </div>
-    <div class="apl-tree" id="apl-tree-cont">
-      ${marcas.map(marca=>{
-        const modelos = Object.keys(arbol[marca]).sort();
-        const totalVeh = modelos.reduce((acc,m)=>acc+arbol[marca][m].length,0);
-        return `
-        <details class="apl-tree-marca" open data-search="${Utils.escapeHTML(marca.toLowerCase())}">
-          <summary>${flechaSVG}<span>${Utils.escapeHTML(marca)}</span><span class="apl-tree-count">${modelos.length} modelo${modelos.length===1?'':'s'} · ${totalVeh} vehículo${totalVeh===1?'':'s'}</span></summary>
-          <div class="apl-tree-children">
-            ${modelos.map(modelo=>{
-              const entries = arbol[marca][modelo];
-              return `
-              <details class="apl-tree-modelo" data-search="${Utils.escapeHTML(modelo.toLowerCase())}">
-                <summary>${flechaSVG}<span>${Utils.escapeHTML(modelo)}</span><span class="apl-tree-count">${entries.length} versión${entries.length===1?'':'es'}</span></summary>
-                <div class="apl-tree-children">
-                  ${entries.map(a=>`
-                    <div class="apl-tree-leaf" data-id="${a.id}" data-search="${Utils.escapeHTML(((a.motor||'')+' '+(a.filtros||[]).map(f=>f.tipo+' '+f.codigo+' '+(f.marcaFiltro||'')).join(' ')).toLowerCase())}">
-                      <div class="apl-tree-leaf-head">
-                        <span>${a.motor?Utils.escapeHTML(a.motor):'Motor no especificado'} · ${aplicacionAnioTexto(a)}</span>
-                        ${puedeGestionar?`<div style="display:flex; gap:6px;"><button class="btn btn-ghost btn-sm btn-edit-aplicacion" data-id="${a.id}">Editar</button><button class="btn btn-danger-ghost btn-sm btn-eliminar-aplicacion" data-id="${a.id}">Eliminar</button></div>`:''}
-                      </div>
-                      <div class="apl-tree-leaf-filtros">${(a.filtros||[]).length?(a.filtros||[]).map(filtroChipHTML).join(''):'<span style="color:var(--text-muted); font-size:12px;">Sin filtros cargados</span>'}</div>
-                    </div>`).join('')}
-                </div>
-              </details>`;
-            }).join('')}
-          </div>
-        </details>`;
-      }).join('')}
-    </div>
-  `;
+    </details>`;
+  }).join('');
+  aplBindAccionesAplicacion(cont);
 }
 
-function bindAplicacionesListEvents(){
-  bindAccionesFilaButtons();
-  document.querySelectorAll('#apl-tabs .crm-tab').forEach(btn=>{
-    btn.onclick = () => { aplicacionesUIState.tab = btn.dataset.tab; router(); };
-  });
-  const btnNueva = document.getElementById('btn-nueva-aplicacion');
-  if(btnNueva) btnNueva.onclick = () => openAplicacionModal();
+/* ----- Pestaña Reposición ----- */
+function aplReposicionHTML(repo, ctx){
+  if(!ctx.apps.length) return `<div class="empty-state">${svgIcon('aplicaciones')}<h3>Todavía no hay aplicaciones cargadas</h3><p>Cuando cargues aplicaciones, acá vas a ver qué repuestos conviene reponer.</p></div>`;
+  const kpi = (label, valor, color) => `<div class="kpi-card" style="--kpi-color:${color}"><div class="kpi-label">${label}</div><div class="kpi-value">${valor}</div></div>`;
+  const tablaCriticos = repo.criticos.length ? `
+    <div class="card" style="padding:0; overflow-x:auto; margin-bottom:18px;">
+      <table class="data-table">
+        <thead><tr><th>Producto</th><th>Tipo</th><th>Cubre</th><th>Stock</th><th>Mínimo</th><th>Precio</th><th>Equivalente en stock</th><th></th></tr></thead>
+        <tbody>
+          ${repo.criticos.slice(0,120).map(e=>{
+            const p = e.producto;
+            return `<tr>
+              <td style="font-weight:700;">${Utils.escapeHTML(p.nombre)}<div class="font-mono apl-muted" style="font-size:11px;">${Utils.escapeHTML(p.codigo)}</div></td>
+              <td>${[...e.tipos].map(t=>Utils.escapeHTML(aplTipoLabel(t))).join(', ')}</td>
+              <td>${e.apps.size} vehículo${e.apps.size===1?'':'s'}</td>
+              <td>${aplBadgeStockHTML(e.estado, p)}</td>
+              <td>${p.stockMinimo||0}</td>
+              <td class="font-mono">${aplFmtPrecio(p.precioVenta)}</td>
+              <td style="font-size:12px;">${e.equivalentes.length ? e.equivalentes.map(q=>`${Utils.escapeHTML(q.nombre)} (${q.stockActual})`).join('<br>') : '<span class="apl-muted">—</span>'}</td>
+              <td style="text-align:right;"><a class="btn btn-ghost btn-sm" href="#/productos/${p.id}">Ver producto</a></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>` : `<div class="apl-msg apl-msg-ok" style="margin-bottom:18px;">Todos los repuestos del catálogo que están en Stock tienen existencias por encima del mínimo.</div>`;
+  const tablaSinProd = repo.sinProducto.length ? `
+    <div class="cfg-section-title" style="font-size:13px; margin:6px 0 4px;">Códigos del catálogo sin producto en Stock <span class="badge badge-neutral">${repo.sinProducto.length}</span></div>
+    <p class="apl-muted" style="font-size:12px; margin-bottom:10px;">No se encontró un producto con ese código (ni en el nombre). Cargalos en Productos, o vinculalos desde "Editar" en la aplicación.</p>
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table class="data-table">
+        <thead><tr><th>Código</th><th>Tipo</th><th>Marca</th><th>Cubre</th></tr></thead>
+        <tbody>
+          ${repo.sinProducto.slice(0,120).map(e=>`<tr>
+            <td class="font-mono" style="font-weight:700;">${Utils.escapeHTML(e.codigo)}</td>
+            <td>${Utils.escapeHTML(aplTipoLabel(e.tipo))}</td>
+            <td>${e.marcas.size?Utils.escapeHTML([...e.marcas].join(', ')):'—'}</td>
+            <td>${e.apps.size} vehículo${e.apps.size===1?'':'s'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>` : '';
+  return `
+    <div class="grid-kpi" style="margin-bottom:18px;">
+      ${kpi('Sin stock', repo.sinStock, 'var(--danger)')}
+      ${kpi('Bajo el mínimo', repo.bajo, 'var(--warning)')}
+      ${kpi('Sin producto en Stock', repo.sinProducto.length, 'var(--text-muted)')}
+      ${kpi('Productos del catálogo', repo.totalProductos, 'var(--teal)')}
+    </div>
+    <div class="cfg-section-title" style="font-size:13px; margin:6px 0 10px;">Conviene reponer <span class="badge badge-neutral">${repo.criticos.length}</span></div>
+    <p class="apl-muted" style="font-size:12px; margin-bottom:10px;">Ordenados por urgencia y por cuántos vehículos cubren.</p>
+    ${tablaCriticos}
+    ${tablaSinProd}`;
+}
 
-  document.querySelectorAll('.btn-edit-aplicacion').forEach(btn=>{
+/* ----- Acciones (editar / duplicar / eliminar) ----- */
+function aplBindAccionesAplicacion(cont){
+  bindAccionesFilaButtons();
+  cont.querySelectorAll('.btn-edit-aplicacion').forEach(btn=>{
     btn.onclick = async () => openAplicacionModal(await DB.get('aplicacionesFiltros', Number(btn.dataset.id)));
   });
-  document.querySelectorAll('.btn-eliminar-aplicacion').forEach(btn=>{
+  cont.querySelectorAll('.btn-duplicar-aplicacion').forEach(btn=>{
+    btn.onclick = async () => {
+      const a = await DB.get('aplicacionesFiltros', Number(btn.dataset.id));
+      const copia = { ...a }; delete copia.id; delete copia._h;
+      copia.motor = ''; // se pide un dato distinto (motor / años) antes de guardar
+      openAplicacionModal(null, copia);
+    };
+  });
+  cont.querySelectorAll('.btn-eliminar-aplicacion').forEach(btn=>{
     btn.onclick = async () => {
       const a = await DB.get('aplicacionesFiltros', Number(btn.dataset.id));
       if(!confirm(`¿Eliminar la aplicación de ${a.marca} ${a.modelo}? Esta acción no se puede deshacer.`)) return;
@@ -10309,51 +11214,48 @@ function bindAplicacionesListEvents(){
       router();
     };
   });
+}
 
-  const searchVeh = document.getElementById('apl-search');
-  if(searchVeh){
-    searchVeh.addEventListener('input', () => {
-      aplicacionesUIState.q = searchVeh.value;
-      const q = searchVeh.value.trim().toLowerCase();
-      document.querySelectorAll('#aplicaciones-table tbody tr[data-id]').forEach(tr=>{
-        tr.style.display = (!q || tr.dataset.search.includes(q)) ? '' : 'none';
-      });
+function bindAplicacionesListEvents(){
+  document.querySelectorAll('#apl-tabs .crm-tab').forEach(btn=>{
+    btn.onclick = () => { aplicacionesUIState.tab = btn.dataset.tab; router(); };
+  });
+  const btnNueva = document.getElementById('btn-nueva-aplicacion');
+  if(btnNueva) btnNueva.onclick = () => openAplicacionModal();
+  const s = aplicacionesUIState;
+  const tab = s.tab;
+
+  if(tab==='rapida'){
+    aplMontarFinder(document.getElementById('apl-rapida-root'), {
+      prefix:'apl-rapida', estado:s.rapida, modo:'seleccion', permitirCargar:true, permitirSinStock:false, permitirLibres:false
     });
   }
-  const searchFil = document.getElementById('apl-search-filtro');
-  if(searchFil){
-    searchFil.addEventListener('input', () => {
-      aplicacionesUIState.qFiltro = searchFil.value;
-      document.getElementById('apl-filtro-resultados').innerHTML = renderAplicacionesFiltroResultadosHTML(aplicacionesCache);
-    });
+  if(tab==='vehiculo'){
+    aplRenderTablaVehiculo();
+    const search = document.getElementById('apl-search');
+    const rerender = aplDebounce(() => aplRenderTablaVehiculo(), 120);
+    search.addEventListener('input', () => { s.q = search.value; rerender(); });
+    document.getElementById('apl-f-marca').onchange = e => { s.marca = e.target.value; aplRenderTablaVehiculo(); };
+    document.getElementById('apl-f-tipo').onchange = e => { s.tipo = e.target.value; aplRenderTablaVehiculo(); };
+    document.getElementById('apl-f-stock').onchange = e => { s.stock = e.target.value; aplRenderTablaVehiculo(); };
   }
-
-  const searchArbol = document.getElementById('apl-search-arbol');
-  if(searchArbol){
-    searchArbol.addEventListener('input', () => {
-      aplicacionesUIState.qArbol = searchArbol.value;
-      const q = searchArbol.value.trim().toLowerCase();
-      document.querySelectorAll('#apl-tree-cont > .apl-tree-marca').forEach(marcaEl=>{
-        let algunModeloVisible = false;
-        marcaEl.querySelectorAll(':scope > .apl-tree-children > .apl-tree-modelo').forEach(modeloEl=>{
-          let algunaHojaVisible = false;
-          modeloEl.querySelectorAll(':scope > .apl-tree-children > .apl-tree-leaf').forEach(leafEl=>{
-            const coincide = !q || leafEl.dataset.search.includes(q) || modeloEl.dataset.search.includes(q) || marcaEl.dataset.search.includes(q);
-            leafEl.style.display = coincide ? '' : 'none';
-            if(coincide) algunaHojaVisible = true;
-          });
-          modeloEl.style.display = algunaHojaVisible ? '' : 'none';
-          if(q && algunaHojaVisible) modeloEl.open = true;
-          if(algunaHojaVisible) algunModeloVisible = true;
-        });
-        marcaEl.style.display = algunModeloVisible ? '' : 'none';
-        if(q && algunModeloVisible) marcaEl.open = true;
-      });
-    });
+  if(tab==='filtro'){
+    aplRenderFiltroResultados();
+    const inp = document.getElementById('apl-search-filtro');
+    const rerender = aplDebounce(() => aplRenderFiltroResultados(), 150);
+    inp.addEventListener('input', () => { s.qFiltro = inp.value; rerender(); });
+  }
+  if(tab==='arbol'){
+    aplRenderArbol();
+    const inp = document.getElementById('apl-search-arbol');
+    const rerender = aplDebounce(() => aplRenderArbol(), 150);
+    inp.addEventListener('input', () => { s.qArbol = inp.value; rerender(); });
   }
 }
 
+/* ---------- Formulario Nueva / Editar aplicación ---------- */
 function aplicacionFormHTML(a){
+  const ac = (a && a.aceite) || {};
   return `
     <div class="field-row">
       <div class="field"><label>Marca</label>
@@ -10384,10 +11286,21 @@ function aplicacionFormHTML(a){
     </div>
 
     <div class="field">
-      <label>Filtros de este vehículo</label>
+      <label>Lubricante recomendado <span class="apl-muted">(opcional)</span></label>
+      <div class="field-row" style="grid-template-columns:1fr 1fr 1.4fr;">
+        <input type="text" id="af-visc" list="af-visc-list" placeholder="Viscosidad (5W30)" value="${Utils.escapeHTML(ac.viscosidad||'')}">
+        <datalist id="af-visc-list">${(Config.cache.viscosidadesAceite||[]).map(v=>`<option value="${Utils.escapeHTML(v)}"></option>`).join('')}</datalist>
+        <input type="number" id="af-capacidad" min="0" step="0.1" placeholder="Capacidad (L)" value="${ac.capacidadLts||''}">
+        <input type="text" id="af-espec" placeholder="Especificación (API SN, ACEA A3…)" value="${Utils.escapeHTML(ac.especificacion||'')}">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Repuestos de este vehículo</label>
+      <p class="apl-muted" style="font-size:11.5px; margin:-2px 0 8px;">Podés cargar varios códigos del mismo tipo (original, alternativo, económico). Los códigos de un mismo tipo se toman como equivalentes entre sí.</p>
       <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
-        <select class="select-input" id="af-nuevo-tipo" style="max-width:150px;">
-          ${TIPOS_FILTRO.map(t=>`<option value="${t}">${t}</option>`).join('')}
+        <select class="select-input" id="af-nuevo-tipo" style="max-width:190px;">
+          ${TIPOS_APLICACION.map(t=>`<option value="${t}">${Utils.escapeHTML(aplTipoLabel(t))}</option>`).join('')}
         </select>
         <div class="autocomplete-wrap" style="flex:1; min-width:220px;">
           <input type="text" id="af-producto-search" placeholder="Buscar producto de Stock (opcional)..." autocomplete="off">
@@ -10402,38 +11315,70 @@ function aplicacionFormHTML(a){
   `;
 }
 
-function renderAplicacionFiltrosRows(rowsState){
+function renderAplicacionFiltrosRows(rowsState, productos){
   const cont = document.getElementById('af-filtros-list');
   if(!cont) return;
   cont.innerHTML = rowsState.map((f,idx)=>`
-    <div class="compra-item-row">
-      <select class="af-row-tipo" data-idx="${idx}" style="width:120px; background:var(--bg-panel); border:1px solid var(--border); border-radius:6px; padding:5px 7px; font-size:12px; color:var(--text-primary);">
-        ${TIPOS_FILTRO.map(t=>`<option value="${t}" ${f.tipo===t?'selected':''}>${t}</option>`).join('')}
+    <div class="apl-row">
+      <select class="apl-row-tipo" data-idx="${idx}" aria-label="Tipo">
+        ${TIPOS_APLICACION.map(t=>`<option value="${t}" ${f.tipo===t?'selected':''}>${Utils.escapeHTML(aplTipoLabel(t))}</option>`).join('')}
       </select>
-      <input type="text" class="af-row-codigo" data-idx="${idx}" placeholder="Código" value="${Utils.escapeHTML(f.codigo||'')}" style="flex:1; background:var(--bg-panel); border:1px solid var(--border); border-radius:6px; padding:5px 7px; font-size:12px; color:var(--text-primary);">
-      <input type="text" class="af-row-marca" data-idx="${idx}" placeholder="Marca (ej: Mann)" value="${Utils.escapeHTML(f.marcaFiltro||'')}" style="width:130px; background:var(--bg-panel); border:1px solid var(--border); border-radius:6px; padding:5px 7px; font-size:12px; color:var(--text-primary);">
-      ${f.productoId?`<span class="tag-chip" title="Vinculado a un producto de Stock">${svgIcon('stock')}</span>`:''}
-      <button type="button" class="cir-remove af-row-remove" data-idx="${idx}">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-      </button>
-    </div>`).join('') || `<p style="font-size:12px; color:var(--text-muted); text-align:center; padding:10px;">Todavía no agregaste filtros para este vehículo.</p>`;
+      <select class="apl-row-cal" data-idx="${idx}" aria-label="Calidad">
+        ${CALIDADES_APLICACION.map(c=>`<option value="${c}" ${(f.calidad||'Original')===c?'selected':''}>${c}</option>`).join('')}
+      </select>
+      <input type="text" class="apl-row-codigo" data-idx="${idx}" placeholder="Código" value="${Utils.escapeHTML(f.codigo||'')}">
+      <input type="text" class="apl-row-marca" data-idx="${idx}" placeholder="Marca (ej: Mann)" value="${Utils.escapeHTML(f.marcaFiltro||'')}">
+      <div class="apl-row-btns">
+        ${f.productoId?`<span class="tag-chip apl-row-link" title="Vinculado a un producto de Stock">${svgIcon('stock')}</span>`:''}
+        <button type="button" class="btn btn-ghost btn-sm apl-row-alt" data-idx="${idx}" title="Agregar otro código del mismo tipo (equivalente)">+ Alt.</button>
+        <button type="button" class="cir-remove apl-row-remove" data-idx="${idx}" aria-label="Quitar">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>`).join('') || `<p style="font-size:12px; color:var(--text-muted); text-align:center; padding:10px;">Todavía no agregaste repuestos para este vehículo.</p>`;
 
-  cont.querySelectorAll('.af-row-tipo').forEach(sel=>{ sel.onchange = () => { rowsState[Number(sel.dataset.idx)].tipo = sel.value; }; });
-  cont.querySelectorAll('.af-row-codigo').forEach(inp=>{ inp.onchange = () => { rowsState[Number(inp.dataset.idx)].codigo = inp.value.trim(); }; });
-  cont.querySelectorAll('.af-row-marca').forEach(inp=>{ inp.onchange = () => { rowsState[Number(inp.dataset.idx)].marcaFiltro = inp.value.trim(); }; });
-  cont.querySelectorAll('.af-row-remove').forEach(btn=>{ btn.onclick = () => { rowsState.splice(Number(btn.dataset.idx),1); renderAplicacionFiltrosRows(rowsState); }; });
+  cont.querySelectorAll('.apl-row-tipo').forEach(sel=>{ sel.onchange = () => { rowsState[Number(sel.dataset.idx)].tipo = sel.value; }; });
+  cont.querySelectorAll('.apl-row-cal').forEach(sel=>{ sel.onchange = () => { rowsState[Number(sel.dataset.idx)].calidad = sel.value; }; });
+  cont.querySelectorAll('.apl-row-codigo').forEach(inp=>{
+    inp.oninput = () => {
+      const f = rowsState[Number(inp.dataset.idx)];
+      f.codigo = inp.value;
+      // Si se cambia el código de una fila vinculada a un producto, el vínculo deja de ser válido.
+      if(f.productoId){
+        const p = (productos||[]).find(x=>x.id===f.productoId);
+        if(p && aplClaveCodigo(p.codigo) !== aplClaveCodigo(inp.value)){
+          f.productoId = null;
+          const chip = inp.closest('.apl-row').querySelector('.apl-row-link'); if(chip) chip.remove();
+        }
+      }
+    };
+  });
+  cont.querySelectorAll('.apl-row-marca').forEach(inp=>{ inp.oninput = () => { rowsState[Number(inp.dataset.idx)].marcaFiltro = inp.value; }; });
+  cont.querySelectorAll('.apl-row-alt').forEach(btn=>{
+    btn.onclick = () => {
+      const base = rowsState[Number(btn.dataset.idx)];
+      rowsState.splice(Number(btn.dataset.idx)+1, 0, { tipo:base.tipo, calidad:'Alternativo', codigo:'', marcaFiltro:'', productoId:null });
+      renderAplicacionFiltrosRows(rowsState, productos);
+    };
+  });
+  cont.querySelectorAll('.apl-row-remove').forEach(btn=>{ btn.onclick = () => { rowsState.splice(Number(btn.dataset.idx),1); renderAplicacionFiltrosRows(rowsState, productos); }; });
 }
 
-async function openAplicacionModal(app=null){
-  const productos = (await DB.getAll('productos')).filter(p=>p.activo!==false);
+/* app: aplicación existente (edita) — prefill: datos iniciales para una nueva (duplicar / desde un vehículo). */
+async function openAplicacionModal(app=null, prefill=null){
+  const [productos, marcasProd] = await Promise.all([ DB.getAll('productos'), DB.getAll('marcas') ]);
+  const productosActivos = productos.filter(p=>p.activo!==false);
+  const marcasMapa = {}; marcasProd.forEach(m=>{ marcasMapa[m.id] = m.nombre; });
+  const base = app || prefill || null;
   Modal.open(
     app ? 'Editar aplicación' : 'Nueva aplicación',
-    aplicacionFormHTML(app) + `<div class="modal-actions"><button class="btn btn-ghost" id="af-cancel">Cancelar</button><button class="btn btn-accent" id="af-save">Guardar</button></div>`,
-    { width:'640px' }
+    aplicacionFormHTML(base) + `<div class="modal-actions"><button class="btn btn-ghost" id="af-cancel">Cancelar</button><button class="btn btn-accent" id="af-save">Guardar</button></div>`,
+    { width:'760px' }
   );
 
-  const rowsState = app && app.filtros ? app.filtros.map(f=>({...f})) : [];
-  renderAplicacionFiltrosRows(rowsState);
+  const rowsState = base && base.filtros ? base.filtros.map(f=>({ calidad:'Original', ...f })) : [];
+  renderAplicacionFiltrosRows(rowsState, productosActivos);
+  function calidadPorDefecto(tipo){ return rowsState.some(f=>f.tipo===tipo) ? 'Alternativo' : 'Original'; }
 
   // Marca / Modelo en cascada, mismo patrón que el módulo Vehículos.
   const marcaSelect = document.getElementById('af-marca-select');
@@ -10453,8 +11398,8 @@ async function openAplicacionModal(app=null){
     else modeloSelect.disabled = false;
   }
   function actualizarVisibilidadModeloInput(){ modeloInput.style.display = modeloSelect.value==='__otro__' ? '' : 'none'; }
-  poblarModeloSelect(app?app.modelo:'');
-  if(app && app.modelo && !(Config.cache.modelosPorMarca||{})[marcaEfectivaActual()]?.includes(app.modelo)) modeloSelect.value = '__otro__';
+  poblarModeloSelect(base?base.modelo:'');
+  if(base && base.modelo && !(Config.cache.modelosPorMarca||{})[marcaEfectivaActual()]?.includes(base.modelo)) modeloSelect.value = '__otro__';
   actualizarVisibilidadModeloInput();
 
   marcaSelect.onchange = () => {
@@ -10468,30 +11413,29 @@ async function openAplicacionModal(app=null){
     else { modeloInput.style.display='none'; modeloInput.value = modeloSelect.value; }
   };
 
-  // Buscador de producto de Stock: al elegir uno, agrega un filtro
-  // prellenado (código = código del producto), vinculado a ese producto.
+  // Buscador de producto de Stock: al elegir uno, agrega una fila prellenada y vinculada.
   const searchInput = document.getElementById('af-producto-search');
   const resultsBox = document.getElementById('af-autocomplete-results');
   const tipoSelect = document.getElementById('af-nuevo-tipo');
   searchInput.addEventListener('input', () => {
-    const q = searchInput.value.trim().toLowerCase();
-    if(!q){ resultsBox.classList.add('hidden'); return; }
-    const matches = productos.filter(p=>p.codigo.toLowerCase().includes(q) || p.nombre.toLowerCase().includes(q)).slice(0,8);
+    const toks = aplTokens(searchInput.value);
+    if(!toks.length){ resultsBox.classList.add('hidden'); return; }
+    const matches = productosActivos.filter(p=>{ const h = aplNorm(p.codigo+' '+p.nombre); return toks.every(t=>h.includes(t)); }).slice(0,8);
     resultsBox.innerHTML = matches.map(p=>`<div class="autocomplete-item" data-id="${p.id}">${Utils.escapeHTML(p.codigo)} — ${Utils.escapeHTML(p.nombre)}</div>`).join('') || `<div class="autocomplete-item" style="color:var(--text-muted);">Sin resultados</div>`;
     resultsBox.classList.remove('hidden');
     resultsBox.querySelectorAll('.autocomplete-item[data-id]').forEach(item=>{
       item.onclick = () => {
-        const producto = productos.find(p=>p.id===Number(item.dataset.id));
-        rowsState.push({ tipo:tipoSelect.value, codigo:producto.codigo, marcaFiltro:'', productoId:producto.id });
-        renderAplicacionFiltrosRows(rowsState);
+        const producto = productosActivos.find(p=>p.id===Number(item.dataset.id));
+        rowsState.push({ tipo:tipoSelect.value, calidad:calidadPorDefecto(tipoSelect.value), codigo:producto.codigo, marcaFiltro:marcasMapa[producto.marcaId]||'', productoId:producto.id });
+        renderAplicacionFiltrosRows(rowsState, productosActivos);
         searchInput.value=''; resultsBox.classList.add('hidden');
       };
     });
   });
 
   document.getElementById('af-add-manual').onclick = () => {
-    rowsState.push({ tipo:tipoSelect.value, codigo:'', marcaFiltro:'', productoId:null });
-    renderAplicacionFiltrosRows(rowsState);
+    rowsState.push({ tipo:tipoSelect.value, calidad:calidadPorDefecto(tipoSelect.value), codigo:'', marcaFiltro:'', productoId:null });
+    renderAplicacionFiltrosRows(rowsState, productosActivos);
   };
 
   document.getElementById('af-cancel').onclick = () => Modal.close();
@@ -10500,18 +11444,23 @@ async function openAplicacionModal(app=null){
     const modelo = document.getElementById('af-modelo').value.trim();
     const anioDesde = Number(document.getElementById('af-anioDesde').value) || null;
     const anioHasta = Number(document.getElementById('af-anioHasta').value) || null;
+    const viscosidad = document.getElementById('af-visc').value.trim();
+    const capacidadLts = Number(document.getElementById('af-capacidad').value) || null;
+    const especificacion = document.getElementById('af-espec').value.trim();
 
     if(!marca){ Toast.show('error','Falta la marca','Seleccioná o escribí la marca del vehículo.'); return; }
     if(!modelo){ Toast.show('error','Falta el modelo','Seleccioná o escribí el modelo del vehículo.'); return; }
     if(anioDesde && anioHasta && anioDesde > anioHasta){ Toast.show('error','Rango de años inválido','El año "desde" no puede ser mayor al año "hasta".'); return; }
     const filtrosValidos = rowsState.filter(f=>f.codigo && f.codigo.trim());
-    if(!filtrosValidos.length){ Toast.show('error','Faltan filtros','Agregá al menos un filtro con su código.'); return; }
+    const tieneAceite = !!(viscosidad || capacidadLts || especificacion);
+    if(!filtrosValidos.length && !tieneAceite){ Toast.show('error','Falta cargar algo','Agregá al menos un repuesto con su código o los datos del lubricante.'); return; }
 
     const payload = {
       marca, modelo,
       motor: document.getElementById('af-motor').value.trim(),
       anioDesde, anioHasta,
-      filtros: filtrosValidos.map(f=>({ tipo:f.tipo, codigo:f.codigo.trim(), marcaFiltro:(f.marcaFiltro||'').trim(), productoId:f.productoId||null })),
+      aceite: tieneAceite ? { viscosidad, capacidadLts, especificacion } : null,
+      filtros: filtrosValidos.map(f=>({ tipo:f.tipo, calidad:f.calidad||'Original', codigo:f.codigo.trim(), marcaFiltro:(f.marcaFiltro||'').trim(), productoId:f.productoId||null })),
       observaciones: document.getElementById('af-observaciones').value.trim(),
       fechaActualizacion: Utils.nowISO()
     };
@@ -10529,6 +11478,28 @@ async function openAplicacionModal(app=null){
     Modal.close();
     router();
   };
+}
+
+/* ---------- Integración: ficha del vehículo ---------- */
+async function montarAplicacionesVehiculoDetalle(vehiculoId){
+  const cont = document.getElementById('vd-apl-body');
+  if(!cont) return;
+  const vehiculo = await DB.get('vehiculos', vehiculoId);
+  if(!vehiculo) return;
+  const rol = Session.get().rol;
+  const puedePOS = canUsarPOS(rol);
+  // "Ver catálogo" abre la Consulta rápida ya cargada con este vehículo.
+  const link = document.getElementById('vd-apl-catalogo');
+  if(link) link.onclick = () => {
+    aplicacionesUIState.tab = 'rapida';
+    aplicacionesUIState.rapida = { marca:vehiculo.marca||'', modelo:vehiculo.modelo||'', anio:vehiculo.anio||'', motor:vehiculo.motor||'', patente:vehiculo.dominio||'' };
+  };
+  const out = await aplMontarKit(cont, vehiculo, { modo: puedePOS?'seleccion':'lectura', permitirSinStock:false, permitirCargar:canManageAplicaciones(rol) });
+  const footer = document.getElementById('vd-apl-footer');
+  if(footer && puedePOS && out.kits.length){
+    footer.innerHTML = `<div class="apl-kit-footer" style="margin-top:12px;"><span>Tildá lo que el cliente se lleva y pasalo al POS.</span><button type="button" class="btn btn-accent btn-sm" id="vd-apl-pos">Vender seleccionados en POS</button></div>`;
+    document.getElementById('vd-apl-pos').onclick = () => aplEnviarAlPOS(aplItemsSeleccionados(cont), vehiculo);
+  }
 }
 
 async function siguienteCodigoSugerido(){
@@ -12502,6 +13473,10 @@ async function posCartViewHTML(){
           </div>
         </div>
         <div class="pos-cartfull-buttons">
+          <button class="btn btn-ghost btn-pos-lg" id="btn-pos-por-vehiculo" title="Buscar los filtros y el lubricante que lleva un vehículo">
+            ${svgIcon('vehiculos')}
+            Repuestos por vehículo
+          </button>
           <button class="btn btn-ghost btn-pos-lg" id="btn-agregar-articulos">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
             Agregar artículos
@@ -12523,7 +13498,10 @@ function posCartRowsHTML(){
       ${svgIcon('pos')}
       <h3>Empecemos una venta</h3>
       <p>Tocá "Agregar artículos" para buscar productos o escanear un código de barras.</p>
-      <button class="btn btn-accent" id="btn-agregar-articulos-empty">+ Agregar artículos</button>
+      <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
+        <button class="btn btn-accent" id="btn-agregar-articulos-empty">+ Agregar artículos</button>
+        <button class="btn btn-ghost" id="btn-pos-por-vehiculo-empty">${svgIcon('vehiculos')} Repuestos por vehículo</button>
+      </div>
     </div>`;
   }
   return posCart.map(item => `
@@ -12555,6 +13533,8 @@ function renderPOSCart(){
 
   const btnEmpty = document.getElementById('btn-agregar-articulos-empty');
   if(btnEmpty) btnEmpty.onclick = irAPickerPOS;
+  const btnVehEmpty = document.getElementById('btn-pos-por-vehiculo-empty');
+  if(btnVehEmpty) btnVehEmpty.onclick = posPorVehiculoModal;
 
   document.querySelectorAll('.pos-qty-plus').forEach(btn=>btn.onclick=()=>posChangeQty(btn.dataset.itemid,1));
   document.querySelectorAll('.pos-qty-minus').forEach(btn=>btn.onclick=()=>posChangeQty(btn.dataset.itemid,-1));
@@ -12638,6 +13618,7 @@ function bindPOSCartViewEvents(){
   recibidoInput.addEventListener('input', () => updatePOSTotales());
   actualizarVisibilidadEfectivo();
   document.getElementById('btn-agregar-articulos').onclick = irAPickerPOS;
+  document.getElementById('btn-pos-por-vehiculo').onclick = posPorVehiculoModal;
   document.getElementById('btn-finalizar-venta').onclick = finalizarVenta;
   const btnVaciar = document.getElementById('btn-vaciar-carrito');
   if(btnVaciar) btnVaciar.onclick = () => {
@@ -12774,6 +13755,50 @@ async function posAddToCart(productoId){
       precioEl.insertAdjacentHTML('beforebegin', `<span class="badge badge-ok" style="margin-right:4px;">En carrito: ${item.cantidad}</span>`);
     }
   }
+}
+/* Igual que posAddToCart pero con cantidad (p. ej. los litros de aceite de un vehículo).
+   Respeta la misma advertencia de stock insuficiente. Devuelve true si se agregó. */
+async function posAddToCartConCantidad(productoId, cantidad){
+  const producto = await DB.get('productos', productoId);
+  if(!producto) return false;
+  const cant = Math.round((Number(cantidad)||1)*100)/100;
+  const existente = posCart.find(i=>i.productoId===productoId);
+  const total = (existente ? existente.cantidad : 0) + cant;
+  if(total > producto.stockActual){
+    const disponible = Math.max(0, producto.stockActual);
+    const continuar = confirm(
+      disponible===0
+        ? `"${producto.nombre}" no tiene stock disponible.\n\n¿Querés agregarlo a la venta de todas formas? El stock va a quedar en negativo.`
+        : `Solo quedan ${disponible} de "${producto.nombre}" y estás por llevar ${total}.\n\n¿Querés continuar de todas formas? El stock va a quedar en negativo.`
+    );
+    if(!continuar) return false;
+  }
+  if(existente) existente.cantidad = Math.round(total*100)/100;
+  else posCart.push({ itemId:'p'+productoId, productoId, nombre:producto.nombre, precioUnitario:producto.precioVenta, cantidad:cant, stockDisponible:producto.stockActual, imagen:producto.imagen||null });
+  Toast.show('success', producto.nombre, 'Agregado al carrito');
+  return true;
+}
+/* Modal del carrito: buscar por patente o marca/modelo/año lo que lleva un vehículo (filtros,
+   lubricante, stock) y agregarlo al carrito sin salir del POS. */
+async function posPorVehiculoModal(){
+  let vehiculosCliente = [];
+  if(posClienteId) vehiculosCliente = (await DB.getAllByIndex('vehiculos','clienteId', Number(posClienteId))).filter(v=>v.activo!==false);
+  Modal.open('Repuestos por vehículo', `<div id="pv-root"></div><div class="modal-actions"><button class="btn btn-ghost" id="pv-cerrar">Cerrar</button></div>`, { width:'720px' });
+  const cerrar = () => { Modal.close(); renderPOSCart(); };
+  document.getElementById('pv-cerrar').onclick = cerrar;
+  document.getElementById('modal-close-btn').onclick = cerrar;
+  await aplMontarFinder(document.getElementById('pv-root'), {
+    prefix:'pv', modo:'agregar', permitirSinStock:true, permitirLibres:false, permitirCargar:false,
+    vehiculosSugeridos: vehiculosCliente,
+    // Si la venta no tenía cliente y se encuentra un vehículo registrado, se le asigna su dueño.
+    onVehiculo: (v) => {
+      if(!posClienteId && v.clienteId){
+        posClienteId = String(v.clienteId);
+        const sel = document.getElementById('pos-cliente'); if(sel) sel.value = posClienteId;
+      }
+    },
+    onAdd: async (it) => { if(await posAddToCartConCantidad(it.productoId, it.cantidad)) renderPOSCart(); }
+  });
 }
 /* Atajo desde el carrito: buscar y agregar un producto sin salir de la
    pantalla del carrito (sin navegar a la vista de picker a pantalla
@@ -18637,6 +19662,11 @@ async function openCotizacionModal(cotizacion=null){
     </div>
 
     <div class="field">
+      <button type="button" class="btn btn-ghost btn-sm" id="cf-apl-btn">${svgIcon('aplicaciones')} Ver repuestos sugeridos para este vehículo</button>
+    </div>
+    <div id="cf-apl-panel"></div>
+
+    <div class="field">
       <label>Trabajo a realizar</label>
       <div class="checklist-grid">
         ${(Config.cache?.serviceChecklistItems||SERVICE_CHECKLIST_ITEMS).map(it=>`
@@ -18787,9 +19817,35 @@ async function openCotizacionModal(cotizacion=null){
     document.getElementById('cf-vehiculoAnio').value = v.anio||'';
     document.getElementById('cf-vehiculoDominio').value = v.dominio||'';
     document.getElementById('cf-vehiculoKilometraje').value = v.kilometraje||'';
+    cfSugerirRepuestos();
   });
   if(cotizacion) await onClienteChange();
   if(cotizacion && cotizacion.vehiculoId) vehSelect.value = cotizacion.vehiculoId;
+
+  // Repuestos sugeridos del catálogo de Aplicaciones: usa el vehículo registrado del cliente si hay uno
+  // elegido; si no, interpreta el texto libre "marca y modelo" + año.
+  async function cfSugerirRepuestos(){
+    const panel = document.getElementById('cf-apl-panel');
+    if(!panel) return;
+    const vid = Number(vehSelect.value) || null;
+    const desc = document.getElementById('cf-vehiculoDescripcion').value.trim();
+    const anio = Number(document.getElementById('cf-vehiculoAnio').value) || null;
+    let veh;
+    if(vid) veh = await DB.get('vehiculos', vid);
+    else if(desc) veh = { texto:desc, anio };
+    else { Toast.show('info','Falta el vehículo','Elegí el vehículo del cliente o escribí marca y modelo.'); return; }
+    await aplMontarPanelSugerencias(panel, veh, {
+      modo:'agregar', permitirSinStock:true, permitirLibres:true,
+      onAdd: (it) => {
+        const ex = it.productoId ? cotItems.find(x=>x.productoId===it.productoId) : null;
+        if(ex) ex.cantidad = Math.round(((ex.cantidad||0) + it.cantidad)*100)/100;
+        else cotItems.push({ descripcion:it.descripcion, cantidad:it.cantidad, precioUnitario:it.precioUnitario, ...(it.productoId?{productoId:it.productoId}:{}) });
+        renderItemsList();
+        Toast.show('success', it.descripcion, 'Agregado a la cotización');
+      }
+    });
+  }
+  document.getElementById('cf-apl-btn').onclick = cfSugerirRepuestos;
 
   /* Guardado automático como borrador: se dispara al cerrar el modal (botón
      "Cancelar" o la "X") sin haber guardado la cotización. Si estamos
