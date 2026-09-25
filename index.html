@@ -1575,7 +1575,6 @@ const DB_VERSION = 26; // v26: store 'cheques' (cheques recibidos de clientes y 
    una línea abajo) cada vez que se entrega una nueva versión, para tener
    registro de qué se cambió y cuándo sin depender del nombre del archivo.
    Historial:
-     v18.41 — Fixes de Cheques: la búsqueda y el filtro por estado dejaban de funcionar después de usar el filtro una vez (el re-render no reconectaba los eventos); el buscador además perdía el foco en cada letra al reconstruir todo el bloque en vez de solo la tabla. Los datos de un cheque cargados en el POS ya no se pierden si volvés al buscador de artículos a agregar otro producto antes de cobrar. Corregido un colspan mal calculado en la tabla (desalineaba el mensaje de "sin resultados") y una fecha inválida en el listado de facturas al endosar un cheque a un proveedor.
      v18.40 — Nuevo módulo Cheques (dentro de "Compras y Finanzas"): cheques recibidos de clientes y emitidos a proveedores, con su ciclo de vida completo (Cartera → Depositado → Acreditado, o Rechazado, o Endosado a un proveedor sin pasar por Caja; Entregado → Debitado para los emitidos, o Rechazado). Rechazar o anular un cheque reabre automáticamente la deuda del cliente o del proveedor. "Cheque" ahora es un medio de pago más en el POS y en el cobro de Servicios (con fecha estimada de cobro y banco/número/titular) y en el pago a proveedores; mientras el cheque está en cartera no impacta en Caja — recién lo hace al acreditarse/debitarse. Pestaña de Vencimientos y KPIs de saldo en cartera/por cobrar/vencido, más una tarjeta de "Cheques en cartera" en la vista de Caja con link directo al módulo.
      v18.39 — Aplicaciones: se ve la foto del producto vinculado (kit de repuestos, pestaña "Por código", chips de "Por vehículo"/"Árbol" y formulario de carga); sin foto se muestra un ícono discreto. Al cargar un código (repuesto nuevo o "+ Alt." para un equivalente) ahora se puede elegir un SKU ya cargado en Stock desde un buscador desplegable (con foto, nombre y stock), igual que en Servicios/Cotizaciones, en vez de tipear el código a ciegas; se sigue pudiendo escribir un código manual si no está en Stock.
      v18.38 — Aplicaciones: deja de ser una isla. Nueva pestaña "Consulta rápida" (patente o marca/modelo/año → filtros, lubricante y stock), motor de coincidencias vehículo→aplicación, y el kit de repuestos aparece en la ficha del Vehículo, en Servicios, en Cotizaciones y en el POS (botón "Repuestos por vehículo"). Cada repuesto muestra stock/precio del producto vinculado (por vínculo, código o nombre), alerta de reposición y equivalentes. Nuevos tipos (bujías, pastillas, correas, batería), lubricante con viscosidad/capacidad/especificación, varios códigos por tipo (Original/Alternativo/Económico) con equivalencias entre marcas. Búsqueda por palabras sueltas, sin tildes y por año; filtros por marca/tipo/stock, orden por columna, duplicar aplicación y pestaña Reposición.
@@ -1602,7 +1601,7 @@ const DB_VERSION = 26; // v26: store 'cheques' (cheques recibidos de clientes y 
      v18.17 — Backup automático: ahora corre 2 veces por día (10:00 y 19:50 hora Argentina), cada uno con su propio archivo y control de "ya se hizo hoy".
      v18.16 — Retiros de socios (nuevo submódulo dentro de Caja) + versión visible en la app.
      v18.15 — punto de partida de este historial. */
-const APP_VERSION = 'v18.41';
+const APP_VERSION = 'v18.40';
 const SESSION_KEY = 'cs_session';
 const REMEMBER_KEY = 'cs_remember_user';
 const THEME_KEY = 'cs_theme';
@@ -3261,7 +3260,7 @@ async function router(){
       outlet.innerHTML = await viewCuentasCorrientesList(); bindCuentasCorrientesListEvents();
       break;
     case 'cheques':
-      if(!canManageCheques(Session.get().rol)){ outlet.innerHTML = viewNoPermiso(); return; }
+      if(!canManageCaja(Session.get().rol)){ outlet.innerHTML = viewNoPermiso(); return; }
       outlet.innerHTML = await viewChequesList(); bindChequesListEvents();
       break;
     case 'balancegeneral':
@@ -9838,6 +9837,17 @@ function histEstSemanaHTML(){
     .map(([pid,cant])=>({ producto: productosById[pid], cantidad: cant }))
     .filter(x=>x.producto)
     .sort((a,b)=> b.cantidad - a.cantidad);
+  // Stock total considerando equivalentes: se suma el stock del producto
+  // más el de cada producto declarado como equivalente (mismo campo
+  // "equivalentes" que usa el módulo Aplicaciones/Productos, relación
+  // bidireccional sincronizada por sincronizarEquivalentes).
+  filasFiltros.forEach(f=>{
+    const eqIds = f.producto.equivalentes || [];
+    const equivalentesProductos = eqIds.map(id=>productosById[id]).filter(Boolean);
+    const stockEquivalentes = equivalentesProductos.reduce((acc,p)=> acc + (Number(p.stockActual)||0), 0);
+    f.equivalentesProductos = equivalentesProductos;
+    f.stockTotalEquivalentes = (Number(f.producto.stockActual)||0) + stockEquivalentes;
+  });
 
   return `
     <div class="toolbar-filters" style="justify-content:space-between;">
@@ -9860,14 +9870,19 @@ function histEstSemanaHTML(){
       ${filasFiltros.length ? `
       <div class="card" style="padding:0; overflow-x:auto;">
         <table class="data-table">
-          <thead><tr><th>Filtro</th><th>Usados esta semana</th><th>Stock actual</th></tr></thead>
+          <thead><tr><th>Filtro</th><th>Usados esta semana</th><th>Stock actual</th><th>Stock total (con equivalentes)</th></tr></thead>
           <tbody>
             ${filasFiltros.map(f=>{
               const bajo = f.producto.stockActual <= f.producto.stockMinimo;
+              const bajoTotal = f.stockTotalEquivalentes <= f.producto.stockMinimo;
+              const tituloEq = f.equivalentesProductos.length
+                ? 'Incluye: '+f.equivalentesProductos.map(p=>`${p.nombre} (${p.stockActual})`).join(', ')
+                : 'Sin equivalentes cargados';
               return `<tr>
                 <td>${Utils.escapeHTML(f.producto.nombre)}</td>
                 <td>${f.cantidad}</td>
                 <td class="${bajo?'margen-negativo':''}">${f.producto.stockActual}${bajo?' ⚠️':''}</td>
+                <td class="${bajoTotal?'margen-negativo':''}" title="${Utils.escapeHTML(tituloEq)}">${f.stockTotalEquivalentes}${bajoTotal?' ⚠️':''}${f.equivalentesProductos.length?' <span style="color:var(--text-muted); font-size:11px;">('+f.equivalentesProductos.length+' equiv.)</span>':''}</td>
               </tr>`;
             }).join('')}
           </tbody>
@@ -13489,7 +13504,6 @@ let posMode = 'cart'; // 'cart' | 'picker'
 let posClienteId = '';
 let posDescuentoPct = 0;
 let posMedioPago = 'Efectivo';
-let posChequeDraft = { banco:'', numero:'', fechaCobro:'', titular:'' }; // sobrevive a ir y volver del buscador de artículos
 let posCotizacionOrigen = null; // { id, numero } — si el carrito actual vino de "Convertir a venta" de una cotización
 let posPendingImport = null; // datos a inyectar en el próximo bindPOSEvents (viene de convertirCotizacionAVenta)
 
@@ -13562,7 +13576,7 @@ async function posCartViewHTML(){
           </select>
         </div>
       </div>
-      ${chequeCamposHTML('pos', '', true, posChequeDraft)}
+      ${chequeCamposHTML('pos', '', true)}
 
       <div class="pos-cartfull-items" id="pos-cart-items"></div>
 
@@ -13725,10 +13739,6 @@ function bindPOSCartViewEvents(){
   medioSel.onchange = () => { posMedioPago = medioSel.value; actualizarVisibilidadEfectivo(); };
   recibidoInput.addEventListener('input', () => updatePOSTotales());
   actualizarVisibilidadEfectivo();
-  ['banco','numero','fechaCobro','titular'].forEach(campo=>{
-    const el = document.getElementById(`pos-${campo}`);
-    if(el) el.addEventListener('input', () => { posChequeDraft[campo] = el.value; });
-  });
   document.getElementById('btn-agregar-articulos').onclick = irAPickerPOS;
   document.getElementById('btn-pos-por-vehiculo').onclick = posPorVehiculoModal;
   document.getElementById('btn-finalizar-venta').onclick = finalizarVenta;
@@ -14095,7 +14105,7 @@ function volverACarritoPOS(){ posMode = 'cart'; renderPOSMode(); }
 async function bindPOSEvents(){
   posCart = []; // cada visita al POS empieza con un carrito limpio
   posMode = 'cart';
-  posClienteId = ''; posDescuentoPct = 0; posMedioPago = 'Efectivo'; posChequeDraft = { banco:'', numero:'', fechaCobro:'', titular:'' };
+  posClienteId = ''; posDescuentoPct = 0; posMedioPago = 'Efectivo';
   posCotizacionOrigen = null;
 
   // Si venimos de "Convertir a venta" desde una cotización, inyecta esos
@@ -14350,7 +14360,7 @@ async function finalizarVenta(){
 
   mostrarTicketModal(venta, cfg, cliente);
   posCart = [];
-  posClienteId = ''; posDescuentoPct = 0; posMedioPago = 'Efectivo'; posChequeDraft = { banco:'', numero:'', fechaCobro:'', titular:'' };
+  posClienteId = ''; posDescuentoPct = 0; posMedioPago = 'Efectivo';
   posCotizacionOrigen = null;
   const elCliente = document.getElementById('pos-cliente'); if(elCliente) elCliente.value = '';
   const elDesc = document.getElementById('pos-descuento'); if(elDesc) elDesc.value = 0;
@@ -18343,18 +18353,17 @@ async function chequeEndosar(cheque, proveedorId, aplicaciones){
 /* ---------- Captura de datos del cheque, embebida en un formulario de cobro/pago ---------- */
 // Se usa en POS, cobro de Servicios (recibido) y pago a proveedor (emitido). El bloque se
 // muestra/oculta según el medio de pago elegido; devuelve null (con un Toast) si falta algo.
-function chequeCamposHTML(prefix, titularDefault, esRecibido, valores){
-  const v = valores || {};
-  const hoy = v.fechaCobro || Utils.hoyLocal();
+function chequeCamposHTML(prefix, titularDefault, esRecibido){
+  const hoy = Utils.hoyLocal();
   return `
     <div id="${prefix}-cheque-datos" class="cheque-datos-inline" style="display:none;">
       <div class="field-row">
-        <div class="field"><label>Banco</label><input type="text" id="${prefix}-banco" placeholder="Ej: Banco Nación" value="${Utils.escapeHTML(v.banco||'')}"></div>
-        <div class="field"><label>Número de cheque</label><input type="text" id="${prefix}-numero" placeholder="Ej: 00012345" value="${Utils.escapeHTML(v.numero||'')}"></div>
+        <div class="field"><label>Banco</label><input type="text" id="${prefix}-banco" placeholder="Ej: Banco Nación"></div>
+        <div class="field"><label>Número de cheque</label><input type="text" id="${prefix}-numero" placeholder="Ej: 00012345"></div>
       </div>
       <div class="field-row">
         <div class="field"><label>${esRecibido?'Fecha estimada de cobro':'Fecha de pago'}</label><input type="date" id="${prefix}-fechaCobro" value="${hoy}"></div>
-        <div class="field"><label>${esRecibido?'Librador (titular)':'A la orden de'}</label><input type="text" id="${prefix}-titular" placeholder="Nombre del titular" value="${Utils.escapeHTML(v.titular||tituularDefaultSeguro(titularDefault))}"></div>
+        <div class="field"><label>${esRecibido?'Librador (titular)':'A la orden de'}</label><input type="text" id="${prefix}-titular" placeholder="Nombre del titular" value="${Utils.escapeHTML(tituularDefaultSeguro(titularDefault))}"></div>
       </div>
       <p class="apl-muted" style="font-size:11px; margin:-4px 0 4px;">${esRecibido?'Si la fecha de cobro es futura, el importe queda "en cartera" y no impacta en Caja hasta acreditarse.':'El importe no impacta en Caja hasta que el banco lo debite.'}</p>
     </div>`;
@@ -18425,8 +18434,12 @@ async function viewChequesList(){
   `;
 }
 
-function chequesFiltrarLista(todos){
+async function chequesTabHTML(todos){
   const s = chequesUIState;
+  if(s.tab==='vencimientos'){
+    const pendientes = todos.filter(c=>['Cartera','Depositado','Entregado'].includes(c.estado)).sort((a,b)=> new Date(a.fechaCobro)-new Date(b.fechaCobro));
+    return chequesTablaHTML(pendientes, true);
+  }
   const tipo = s.tab==='emitidos' ? 'emitido' : 'recibido';
   let lista = todos.filter(c=>c.tipo===tipo);
   if(s.estado) lista = lista.filter(c=>c.estado===s.estado);
@@ -18435,15 +18448,6 @@ function chequesFiltrarLista(todos){
     lista = lista.filter(c=>aplNorm([c.numero,c.banco,c.titular].join(' ')).includes(q));
   }
   lista.sort((a,b)=> new Date(b.fechaCobro)-new Date(a.fechaCobro));
-  return lista;
-}
-async function chequesTabHTML(todos){
-  const s = chequesUIState;
-  if(s.tab==='vencimientos'){
-    const pendientes = todos.filter(c=>['Cartera','Depositado','Entregado'].includes(c.estado)).sort((a,b)=> new Date(a.fechaCobro)-new Date(b.fechaCobro));
-    return chequesTablaHTML(pendientes, true);
-  }
-  const tipo = s.tab==='emitidos' ? 'emitido' : 'recibido';
   const estados = tipo==='recibido' ? ESTADOS_CHEQUE_RECIBIDO : ESTADOS_CHEQUE_EMITIDO;
   return `
     <div class="toolbar-filters">
@@ -18456,7 +18460,7 @@ async function chequesTabHTML(todos){
         ${estados.map(e=>`<option value="${e}" ${s.estado===e?'selected':''}>${CHEQUE_ESTADO_INFO[e].label}</option>`).join('')}
       </select>
     </div>
-    <div id="cheques-resultados">${chequesTablaHTML(chequesFiltrarLista(todos), false)}</div>
+    ${chequesTablaHTML(lista, false)}
   `;
 }
 function chequesTablaHTML(lista, mostrarTipo){
@@ -18475,7 +18479,7 @@ function chequesTablaHTML(lista, mostrarTipo){
               <td class="font-mono">$${c.monto.toLocaleString('es-AR')}</td>
               <td>${chequeEstadoBadgeHTML(c.estado)}</td>
               <td style="text-align:right; white-space:nowrap;">${accionesFilaHTML(chequeAccionesHTML(c))}</td>
-            </tr>`).join('') : `<tr><td colspan="${mostrarTipo?8:7}"><div class="empty-state">${svgIcon('cheques')}<h3>No hay cheques para mostrar</h3><p>Se cargan automáticamente al cobrar en POS/Servicios con "Cheque", al pagarle a un proveedor con "Cheque", o manualmente con el botón "Cargar cheque manual".</p></div></td></tr>`}
+            </tr>`).join('') : `<tr><td colspan="${mostrarTipo?7:6}"><div class="empty-state">${svgIcon('cheques')}<h3>No hay cheques para mostrar</h3><p>Se cargan automáticamente al cobrar en POS/Servicios con "Cheque", al pagarle a un proveedor con "Cheque", o manualmente con el botón "Cargar cheque manual".</p></div></td></tr>`}
         </tbody>
       </table>
     </div>`;
@@ -18500,29 +18504,20 @@ function chequeAccionesHTML(c){
   return btns.join('');
 }
 
-async function rerenderChequesResultados(){
-  const cont = document.getElementById('cheques-resultados');
-  if(!cont) return; // pestaña "vencimientos": no tiene buscador ni este contenedor
-  cont.innerHTML = chequesTablaHTML(chequesFiltrarLista(await DB.getAll('cheques')), false);
-  bindChequesAccionesEvents();
-}
-function bindChequesFiltrosEvents(){
-  const search = document.getElementById('cheques-search');
-  if(search){
-    const rerender = aplDebounce(() => { chequesUIState.q = search.value; rerenderChequesResultados(); }, 150);
-    search.addEventListener('input', rerender);
-  }
-  const selEstado = document.getElementById('cheques-f-estado');
-  if(selEstado) selEstado.onchange = () => { chequesUIState.estado = selEstado.value; rerenderChequesResultados(); };
-  bindChequesAccionesEvents();
-}
 function bindChequesListEvents(){
   document.querySelectorAll('#cheques-tabs .crm-tab').forEach(btn=>{
     btn.onclick = () => { chequesUIState.tab = btn.dataset.tab; chequesUIState.estado=''; chequesUIState.q=''; router(); };
   });
   const btnNuevo = document.getElementById('btn-nuevo-cheque');
   if(btnNuevo) btnNuevo.onclick = () => openChequeManualModal();
-  bindChequesFiltrosEvents();
+  const search = document.getElementById('cheques-search');
+  if(search){
+    const rerender = aplDebounce(async () => { document.getElementById('cheques-tab-body').innerHTML = await chequesTabHTML(await DB.getAll('cheques')); bindChequesAccionesEvents(); }, 150);
+    search.addEventListener('input', () => { chequesUIState.q = search.value; rerender(); });
+  }
+  const selEstado = document.getElementById('cheques-f-estado');
+  if(selEstado) selEstado.onchange = async () => { chequesUIState.estado = selEstado.value; document.getElementById('cheques-tab-body').innerHTML = await chequesTabHTML(await DB.getAll('cheques')); bindChequesAccionesEvents(); };
+  bindChequesAccionesEvents();
 }
 function bindChequesAccionesEvents(){
   bindAccionesFilaButtons();
