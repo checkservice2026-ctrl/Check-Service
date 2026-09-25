@@ -458,6 +458,7 @@ a{ color:inherit; text-decoration:none; }
 .csb-card::before{ content:''; position:absolute; top:0; left:0; width:4px; height:100%; background:var(--csb-color,var(--accent)); }
 .csb-head{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
 .csb-icon{ width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:17px; background:var(--csb-bg,var(--accent-dim)); flex-shrink:0; }
+.csb-icon svg{ width:18px; height:18px; stroke:currentColor; }
 .csb-label{ font-size:11.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:700; }
 .csb-value{ font-size:24px; font-weight:700; font-family:'Consolas','SF Mono',monospace; }
 .csb-chips{ display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
@@ -1188,6 +1189,16 @@ details[open] > summary > .apl-tree-arrow{ transform:rotate(90deg); }
    APLICACIONES v18.38 — kit del vehículo, consulta rápida, formulario ampliado
    ============================================================================ */
 .apl-muted{ color:var(--text-muted); }
+
+/* ============================================================================
+   CHEQUES
+   ============================================================================ */
+.cheque-datos-inline{ background:var(--bg-panel-alt); border:1px solid var(--border-soft); border-radius:10px; padding:12px 14px; margin:-4px 0 14px; }
+.cheque-venc-vencido{ color:var(--danger); font-weight:700; }
+.cheque-venc-hoy{ color:var(--warning); font-weight:700; }
+.cheque-venc-proximo{ color:var(--warning); }
+.cheque-hist-list{ display:flex; flex-direction:column; gap:8px; margin-top:8px; max-height:220px; overflow-y:auto; }
+.cheque-hist-item{ padding:8px 10px; border:1px solid var(--border-soft); border-radius:8px; background:var(--bg-panel-alt); font-size:12.5px; }
 .apl-auto{ font-size:9.5px; font-weight:800; color:var(--info); background:var(--info-dim); border-radius:20px; padding:1px 6px; margin-left:4px; vertical-align:middle; }
 .apl-dot{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; flex-shrink:0; vertical-align:middle; }
 .apl-count{ font-size:12px; color:var(--text-muted); margin:10px 2px 0; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
@@ -1228,6 +1239,11 @@ details[open] > summary > .apl-tree-arrow{ transform:rotate(90deg); }
 .apl-kit-tipo::before{ content:''; width:8px; height:8px; border-radius:50%; background:var(--tipo-color,var(--accent)); }
 .apl-kit-aceite{ font-size:13px; margin-bottom:8px; color:var(--text-primary); }
 .apl-kit-opt{ display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid var(--border); border-radius:9px; background:var(--bg-panel-alt); }
+/* Fotos de producto */
+.apl-photo{ flex-shrink:0; border-radius:8px; object-fit:cover; background:var(--bg-panel); border:1px solid var(--border-soft); }
+.apl-photo-empty{ display:flex; align-items:center; justify-content:center; color:var(--text-muted); }
+.apl-photo-empty svg{ width:55%; height:55%; }
+.apl-chip-photo{ width:16px; height:16px; border-radius:50%; object-fit:cover; margin-right:6px; flex-shrink:0; vertical-align:middle; }
 .apl-kit-optwrap{ margin-bottom:6px; }
 .apl-kit-opt.is-sug{ border-color:var(--accent-ring); background:var(--accent-dim); }
 .apl-kit-opt.is-sin{ opacity:.78; }
@@ -1241,6 +1257,7 @@ details[open] > summary > .apl-tree-arrow{ transform:rotate(90deg); }
 .apl-kit-opt-side{ display:flex; align-items:center; gap:8px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end; }
 .apl-kit-check{ width:17px; height:17px; accent-color:var(--accent); flex-shrink:0; cursor:pointer; }
 .apl-kit-eq{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin:4px 0 0 18px; padding:6px 10px; border-left:2px solid var(--teal); background:var(--teal-dim); border-radius:0 8px 8px 0; font-size:12px; }
+.apl-kit-eq-info{ display:flex; align-items:center; gap:8px; min-width:0; }
 .apl-kit-alert{ margin-top:6px; padding:8px 10px; border-radius:8px; background:var(--danger-dim); color:var(--danger); font-size:12px; font-weight:600; }
 .apl-kit-obs{ margin-top:8px; font-size:12px; color:var(--text-muted); font-style:italic; }
 .apl-kit-more{ font-size:12px; color:var(--text-muted); margin:10px 2px 0; }
@@ -1263,6 +1280,10 @@ details[open] > summary > .apl-tree-arrow{ transform:rotate(90deg); }
 /* Formulario de aplicación: fila de repuesto */
 .apl-row{ display:grid; grid-template-columns:150px 118px minmax(90px,1fr) 130px auto; gap:6px; align-items:center; padding:6px 8px; border:1px solid var(--border-soft); border-radius:9px; background:var(--bg-panel-alt); margin-bottom:6px; }
 .apl-row select, .apl-row input[type="text"]{ min-width:0; width:100%; background:var(--bg-panel); border:1px solid var(--border); border-radius:6px; padding:6px 8px; font-size:12px; color:var(--text-primary); }
+.apl-row-ac-wrap{ min-width:0; }
+.apl-row-ac-results{ font-size:12px; }
+.apl-row-ac-item{ display:flex; align-items:center; gap:8px; }
+.apl-row-btns .apl-photo{ width:28px; height:28px; border-radius:6px; }
 .apl-row-codigo{ font-family:'SFMono-Regular',Consolas,Menlo,monospace; font-weight:700; }
 .apl-row-btns{ display:flex; align-items:center; gap:6px; justify-content:flex-end; }
 @media (max-width:720px){
@@ -1547,13 +1568,15 @@ var qrcode=function(){var qrcode=function(t,r){var e=t,n=c[r],o=null,i=0,a=null,
    0. CONSTANTES GLOBALES
 ----------------------------------------------------------------------- */
 const DB_NAME = 'CheckServiceDB';
-const DB_VERSION = 25; // v25: store 'gastosPlanificados' (planificación de gastos a futuro). v24: 'socios' (catálogo de socios, para atribuir retiros de Caja)
+const DB_VERSION = 26; // v26: store 'cheques' (cheques recibidos de clientes y emitidos a proveedores, con su ciclo de vida). v25: 'gastosPlanificados' (planificación de gastos a futuro). v24: 'socios' (catálogo de socios, para atribuir retiros de Caja)
 
 /* Versión visible de la app — se muestra en el pie del menú lateral y en
    Configuración › Información del sistema. Actualizar este número (y sumar
    una línea abajo) cada vez que se entrega una nueva versión, para tener
    registro de qué se cambió y cuándo sin depender del nombre del archivo.
    Historial:
+     v18.40 — Nuevo módulo Cheques (dentro de "Compras y Finanzas"): cheques recibidos de clientes y emitidos a proveedores, con su ciclo de vida completo (Cartera → Depositado → Acreditado, o Rechazado, o Endosado a un proveedor sin pasar por Caja; Entregado → Debitado para los emitidos, o Rechazado). Rechazar o anular un cheque reabre automáticamente la deuda del cliente o del proveedor. "Cheque" ahora es un medio de pago más en el POS y en el cobro de Servicios (con fecha estimada de cobro y banco/número/titular) y en el pago a proveedores; mientras el cheque está en cartera no impacta en Caja — recién lo hace al acreditarse/debitarse. Pestaña de Vencimientos y KPIs de saldo en cartera/por cobrar/vencido, más una tarjeta de "Cheques en cartera" en la vista de Caja con link directo al módulo.
+     v18.39 — Aplicaciones: se ve la foto del producto vinculado (kit de repuestos, pestaña "Por código", chips de "Por vehículo"/"Árbol" y formulario de carga); sin foto se muestra un ícono discreto. Al cargar un código (repuesto nuevo o "+ Alt." para un equivalente) ahora se puede elegir un SKU ya cargado en Stock desde un buscador desplegable (con foto, nombre y stock), igual que en Servicios/Cotizaciones, en vez de tipear el código a ciegas; se sigue pudiendo escribir un código manual si no está en Stock.
      v18.38 — Aplicaciones: deja de ser una isla. Nueva pestaña "Consulta rápida" (patente o marca/modelo/año → filtros, lubricante y stock), motor de coincidencias vehículo→aplicación, y el kit de repuestos aparece en la ficha del Vehículo, en Servicios, en Cotizaciones y en el POS (botón "Repuestos por vehículo"). Cada repuesto muestra stock/precio del producto vinculado (por vínculo, código o nombre), alerta de reposición y equivalentes. Nuevos tipos (bujías, pastillas, correas, batería), lubricante con viscosidad/capacidad/especificación, varios códigos por tipo (Original/Alternativo/Económico) con equivalencias entre marcas. Búsqueda por palabras sueltas, sin tildes y por año; filtros por marca/tipo/stock, orden por columna, duplicar aplicación y pestaña Reposición.
      v18.37 — Fix importante (introducido en v18.35): la Planificación de gastos declaraba una función `diasEntreFechas` con el mismo nombre que la que ya usaba la Planificación de cambio de aceite (vehículos/CRM). La nueva pisaba a la original y daba vuelta el cálculo de días, por eso todos los services aparecían como vencidos. Se renombró la de gastos (diasDesdeHoyGastoPlan); la original vuelve a funcionar igual que en v18.33. Chequeado: no quedan otras funciones duplicadas en el archivo.
      v18.36 — Fix: Gastos › Planificación y alertas del Dashboard marcaban como "vencidos" gastos planificados que ya se habían pagado cargándolos a mano en Gastos (sin usar "Registrar" del plan). Ahora, si hay un gasto libre de la misma categoría en ese mes (o el siguiente, por pagos tardíos) por al menos la mitad del monto estimado, la ocurrencia se da por cumplida y se aclara "pago detectado en Gastos". Cada gasto se usa una sola vez.
@@ -1578,7 +1601,7 @@ const DB_VERSION = 25; // v25: store 'gastosPlanificados' (planificación de gas
      v18.17 — Backup automático: ahora corre 2 veces por día (10:00 y 19:50 hora Argentina), cada uno con su propio archivo y control de "ya se hizo hoy".
      v18.16 — Retiros de socios (nuevo submódulo dentro de Caja) + versión visible en la app.
      v18.15 — punto de partida de este historial. */
-const APP_VERSION = 'v18.38';
+const APP_VERSION = 'v18.40';
 const SESSION_KEY = 'cs_session';
 const REMEMBER_KEY = 'cs_remember_user';
 const THEME_KEY = 'cs_theme';
@@ -1594,6 +1617,12 @@ const COMBUSTIBLES = ['Nafta','Diesel','GNC','Eléctrico','Híbrido'];
 const CATEGORIAS_PRODUCTO = ['Aceites','Filtros','Frenos','Correas','Baterías','Refrigerantes y líquidos','Accesorios','Repuestos','Otros'];
 const UNIDADES_PRODUCTO = ['Unidad','Litro','Caja','Par','Juego'];
 const MEDIOS_PAGO = ['Efectivo','Transferencia','Tarjeta','QR','QR Mercado Pago','Cuenta corriente'];
+// Variantes con "Cheque" solo para los puntos donde se captura toda su lógica (ver más abajo,
+// sección CHEQUES): cobro a clientes (POS y Servicios) y pago a proveedores. No se agrega al
+// MEDIOS_PAGO genérico para no ofrecerlo en movimientos manuales de Caja o reembolsos, donde no
+// habría un cheque real detrás del registro.
+const MEDIOS_PAGO_COBRO = ['Efectivo','Cheque','Transferencia','Tarjeta','QR','QR Mercado Pago','Cuenta corriente'];
+const MEDIOS_PAGO_PAGO_PROVEEDOR = ['Efectivo','Cheque','Transferencia','Tarjeta','QR'];
 const MOTIVOS_NOTA_CREDITO = ['Devolución de mercadería','Error de facturación','Descuento posterior','Servicio no conforme','Otro'];
 const ESTADOS_PAGO_COMPRA = ['Pendiente','Parcial','Pagada'];
 const CONDICIONES_IVA = ['Consumidor Final','Exento','Monotributista','No Categorizado','Responsable Inscripto'];
@@ -1852,6 +1881,17 @@ const DB = (() => {
           const st = db.createObjectStore('cuentasCorrientes', { keyPath:'id', autoIncrement:true });
           st.createIndex('clienteId', 'clienteId');
           st.createIndex('fecha', 'fecha');
+        }
+        if(!db.objectStoreNames.contains('cheques')){
+          // Cheques recibidos de clientes (cobro) y emitidos a proveedores (pago), con su ciclo
+          // de vida completo: Cartera → Depositado → Acreditado (o Rechazado / Endosado / Anulado)
+          // para los recibidos; Entregado → Debitado (o Rechazado / Anulado) para los emitidos.
+          const st = db.createObjectStore('cheques', { keyPath:'id', autoIncrement:true });
+          st.createIndex('tipo', 'tipo');
+          st.createIndex('estado', 'estado');
+          st.createIndex('fechaCobro', 'fechaCobro');
+          st.createIndex('clienteId', 'clienteId');
+          st.createIndex('proveedorId', 'proveedorId');
         }
         if(!db.objectStoreNames.contains('notasCredito')){
           const st = db.createObjectStore('notasCredito', { keyPath:'id', autoIncrement:true });
@@ -2939,7 +2979,8 @@ const ICONS = {
   whatsapp:'<path d="M3 21l1.65-4.95A9 9 0 1112 21a8.96 8.96 0 01-4.35-1.12L3 21z"/><path d="M8.5 8.5c.3-.6.6-.6.9-.6h.4c.2 0 .5 0 .7.5s.7 1.8.8 1.9c.1.2.1.4 0 .6-.1.2-.2.3-.4.5s-.4.4-.2.7c.2.4.9 1.4 1.9 2.3 1.3 1.1 2.3 1.5 2.7 1.6.3.1.5.1.7-.1.2-.2.7-.9.9-1.1.2-.3.4-.2.7-.1s1.8.9 2.1 1c.3.1.5.2.6.3.1.2.1.9-.2 1.7-.3.8-1.6 1.5-2.3 1.6-.6.1-1.3.1-2.1-.1-.5-.2-1.1-.4-1.9-.7-3.3-1.4-5.4-4.7-5.6-4.9-.2-.2-1.3-1.7-1.3-3.3 0-1.6.8-2.3 1.1-2.7z"/>',
   info:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
   barcode:'<path d="M3 5v14M7 5v14M10 5v14M13 5v14M15 5v14M18 5v14M21 5v14"/>',
-  aplicaciones:'<path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>'
+  aplicaciones:'<path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>',
+  cheques:'<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 9h20M6 17h4"/><path d="M14 15l2 2 4-4"/>'
 };
 function svgIcon(name){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]||ICONS.gear}</svg>`; }
 
@@ -2974,6 +3015,7 @@ const NAV_SECTIONS = [
     { key:'compras', label:'Compras', icon:'compras' },
     { key:'proveedores', label:'Proveedores', icon:'proveedores' },
     { key:'caja', label:'Caja', icon:'caja' },
+    { key:'cheques', label:'Cheques', icon:'cheques' },
     { key:'gastos', label:'Gastos', icon:'gastos' },
     { key:'cuentascorrientes', label:'Cuentas Corrientes', icon:'cuentascorrientes' },
     { key:'balancegeneral', label:'Balance General', icon:'reportes' },
@@ -3007,7 +3049,7 @@ function navItemPermitido(item, session){
   // Compras y Proveedores: back-office
   if((item.key==='proveedores' || item.key==='compras') && session && !canManageCompras(session.rol)) return false;
   // Caja y Cuentas Corrientes: operativo/financiero
-  if((item.key==='caja' || item.key==='cuentascorrientes') && session && !canManageCaja(session.rol)) return false;
+  if((item.key==='caja' || item.key==='cuentascorrientes' || item.key==='cheques') && session && !canManageCaja(session.rol)) return false;
   // Gastos: mismos roles que Caja
   if(item.key==='gastos' && session && !canManageGastos(session.rol)) return false;
   // Balance General: información financiera sensible, solo quien ve costos
@@ -3216,6 +3258,10 @@ async function router(){
     case 'cuentascorrientes':
       if(!canManageCaja(Session.get().rol)){ outlet.innerHTML = viewNoPermiso(); return; }
       outlet.innerHTML = await viewCuentasCorrientesList(); bindCuentasCorrientesListEvents();
+      break;
+    case 'cheques':
+      if(!canManageCaja(Session.get().rol)){ outlet.innerHTML = viewNoPermiso(); return; }
+      outlet.innerHTML = await viewChequesList(); bindChequesListEvents();
       break;
     case 'balancegeneral':
       if(!canSeeCosto(Session.get().rol)){ outlet.innerHTML = viewNoPermiso(); return; }
@@ -8852,13 +8898,16 @@ async function openRegistrarPagoHistorialModal(h){
       <div style="font-size:20px; font-weight:700;" class="saldo-deudor">$${saldo.toLocaleString('es-AR')}</div>
     </div>
     <div class="field"><label>Monto a pagar</label><input type="number" min="0.01" max="${saldo}" step="0.01" id="rph-monto" value="${saldo}"></div>
-    <div class="field"><label>Medio de pago</label><select class="select-input" id="rph-medio">${MEDIOS_PAGO.map(m=>`<option value="${m}">${m}</option>`).join('')}</select></div>
+    <div class="field"><label>Medio de pago</label><select class="select-input" id="rph-medio">${MEDIOS_PAGO_COBRO.map(m=>`<option value="${m}">${m}</option>`).join('')}</select></div>
+    ${chequeCamposHTML('rph', cliente?clienteNombreCompleto(cliente):'', true)}
     <div class="field"><label>Fecha del pago</label><input type="date" id="rph-fecha" value="${Utils.hoyLocal()}" max="${Utils.hoyLocal()}"></div>
     <div class="modal-actions"><button class="btn btn-ghost" id="rph-cancel">Cancelar</button><button class="btn btn-accent" id="rph-save">Confirmar pago</button></div>
     `,
     { width:'420px' }
   );
   document.getElementById('rph-cancel').onclick = () => Modal.close();
+  const rphMedioSel = document.getElementById('rph-medio');
+  rphMedioSel.onchange = () => chequeToggleVisibilidad(rphMedioSel, 'rph');
   document.getElementById('rph-save').onclick = async () => {
     const monto = Number(document.getElementById('rph-monto').value);
     const medioPago = document.getElementById('rph-medio').value;
@@ -8866,6 +8915,11 @@ async function openRegistrarPagoHistorialModal(h){
     if(!monto || monto<=0 || monto>saldo+0.01){ Toast.show('error','Monto inválido',''); return; }
     if(!fechaPago){ Toast.show('error','Falta la fecha','Indicá la fecha del pago.'); return; }
     if(medioPago==='Cuenta corriente' && !h.clienteId){ Toast.show('error','Sin cliente','Este service no tiene un cliente registrado para cargar a cuenta corriente.'); return; }
+    let datosCheque = null;
+    if(medioPago==='Cheque'){
+      datosCheque = chequeLeerCampos('rph');
+      if(!datosCheque) return;
+    }
     let chequeoLimite = { ok:true };
     if(medioPago==='Cuenta corriente'){
       chequeoLimite = await chequearLimiteCtaCte(h.clienteId, monto);
@@ -8883,6 +8937,12 @@ async function openRegistrarPagoHistorialModal(h){
     if(medioPago === 'Cuenta corriente'){
       await registrarMovimientoCtaCte(h.clienteId, { tipo:'cargo', concepto:motivo, monto, referencia:`historial:${h.id}`, fecha:fechaISO });
       avisarSiCercaDelLimite(chequeoLimite);
+    }else if(medioPago === 'Cheque'){
+      await crearCheque({
+        tipo:'recibido', banco:datosCheque.banco, numero:datosCheque.numero, fechaCobro:datosCheque.fechaCobro,
+        monto, clienteId:h.clienteId, titular: datosCheque.titular || (cliente?clienteNombreCompleto(cliente):''),
+        estado:'Cartera', referencia:`historial:${h.id}`
+      });
     }else{
       await registrarMovimientoCaja({ tipo:'ingreso', concepto:motivo, monto, medioPago, referencia:`historial:${h.id}`, fecha:fechaISO });
     }
@@ -10452,6 +10512,19 @@ function aplPuntoStockHTML(estado, p){
   const tit = estado==='ok' ? `En stock (${p.stockActual})` : estado==='bajo' ? `Stock bajo (${p.stockActual})` : estado==='sin' ? 'Sin stock' : 'Sin producto en Stock';
   return `<span class="apl-dot" style="background:${col};" title="${Utils.escapeHTML(tit)}"></span>`;
 }
+// Miniatura del producto vinculado (si tiene foto cargada en Stock); placeholder discreto si no hay foto.
+function aplFotoHTML(producto, size, titulo){
+  size = size || 32;
+  const tit = Utils.escapeHTML(titulo || (producto?producto.nombre:'') || '');
+  if(producto && producto.imagen) return `<img src="${producto.imagen}" class="apl-photo" style="width:${size}px; height:${size}px;" title="${tit}" alt="">`;
+  if(!producto) return '';
+  return `<span class="apl-photo apl-photo-empty" style="width:${size}px; height:${size}px;" title="${tit}">${svgIcon('productos')}</span>`;
+}
+// Miniatura para chips (solo si hay foto real; en un chip chico no vale la pena un placeholder).
+function aplChipFotoHTML(producto){
+  if(!producto || !producto.imagen) return '';
+  return `<img src="${producto.imagen}" class="apl-chip-photo" alt="">`;
+}
 function aplBadgeStockHTML(estado, p){
   if(estado==='nolink') return `<span class="badge badge-neutral" title="No hay un producto en Stock con este código">Sin producto</span>`;
   if(estado==='sin') return `<span class="badge stock-badge-cero">Sin stock</span>`;
@@ -10460,10 +10533,10 @@ function aplBadgeStockHTML(estado, p){
 }
 function filtroChipHTML(f, ctx){
   const est = filtroTipoEstilo(f.tipo);
-  let punto = '';
-  if(ctx){ const r = aplResolverItem(f, ctx); punto = aplPuntoStockHTML(r.estado, r.producto); }
+  let punto = '', foto = '';
+  if(ctx){ const r = aplResolverItem(f, ctx); punto = aplPuntoStockHTML(r.estado, r.producto); foto = aplChipFotoHTML(r.producto); }
   const cal = (f.calidad && f.calidad!=='Original') ? ` (${Utils.escapeHTML(f.calidad.toLowerCase())})` : '';
-  return `<span class="tag-chip" style="background:${est.bg}; color:${est.color}; border-color:transparent;" title="${Utils.escapeHTML(f.marcaFiltro||'Sin marca')}">${punto}${Utils.escapeHTML(f.tipo)}: ${Utils.escapeHTML(f.codigo)}${cal}</span>`;
+  return `<span class="tag-chip" style="background:${est.bg}; color:${est.color}; border-color:transparent;" title="${Utils.escapeHTML(f.marcaFiltro||'Sin marca')}">${foto}${punto}${Utils.escapeHTML(f.tipo)}: ${Utils.escapeHTML(f.codigo)}${cal}</span>`;
 }
 function aplChipLubricanteHTML(a){
   const ac = a.aceite;
@@ -10547,11 +10620,12 @@ function aplOpcionHTML(r, modo, opts){
     let eAcc = '';
     if(modo==='agregar') eAcc = `<button type="button" class="btn btn-ghost btn-sm apl-kit-add" data-kit-id="${eid}">Agregar este</button>`;
     else if(modo==='seleccion') eAcc = `<input type="checkbox" class="apl-kit-check" data-kit-id="${eid}" aria-label="Incluir ${Utils.escapeHTML(e.nombre)}">`;
-    return `<div class="apl-kit-eq"><span>Equivalente con stock: <b>${Utils.escapeHTML(e.nombre)}</b> · ${aplFmtPrecio(e.precioVenta)} · ${e.stockActual} disp.</span>${eAcc}</div>`;
+    return `<div class="apl-kit-eq"><span class="apl-kit-eq-info">${aplFotoHTML(e, 26)}<span>Equivalente con stock: <b>${Utils.escapeHTML(e.nombre)}</b> · ${aplFmtPrecio(e.precioVenta)} · ${e.stockActual} disp.</span></span>${eAcc}</div>`;
   }).join('');
   return `<div class="apl-kit-optwrap">
     <div class="apl-kit-opt ${r.estado==='sin'?'is-sin':''} ${r.sugerido?'is-sug':''}">
       ${izq}
+      ${aplFotoHTML(p, 40)}
       <div class="apl-kit-opt-main">
         <div class="apl-kit-opt-top">
           <span class="apl-kit-cal">${Utils.escapeHTML(r.calidad)}</span>
@@ -10584,6 +10658,7 @@ function aplAceiteBloqueHTML(kit, modo, opts){
     if(modo==='agregar') der = puede ? `<button type="button" class="btn btn-accent btn-sm apl-kit-add" data-kit-id="${id}">Agregar${cant!==1?' '+aplFmtLitros(cant):''}</button>` : `<button type="button" class="btn btn-ghost btn-sm" disabled>Sin stock</button>`;
     return `<div class="apl-kit-optwrap"><div class="apl-kit-opt ${est==='sin'?'is-sin':''}">
       ${izq}
+      ${aplFotoHTML(p, 40)}
       <div class="apl-kit-opt-main">
         <div class="apl-kit-opt-top"><span class="apl-kit-code">${Utils.escapeHTML(p.nombre)}</span></div>
         <div class="apl-kit-opt-prod">${aplFmtPrecio(p.precioVenta)} por ${Utils.escapeHTML((p.unidad||'unidad').toLowerCase())}${cant!==1?` · cantidad sugerida: ${aplFmtLitros(cant)}`:''}</div>
@@ -11069,11 +11144,12 @@ function aplRenderFiltroResultados(){
           ${g.marcas.size?`<span style="font-size:12px; color:var(--text-muted);">Marca: ${Utils.escapeHTML([...g.marcas].join(', '))}</span>`:''}
         </div>
         <div style="display:flex; align-items:center; gap:8px;">
+          ${r && r.producto ? aplFotoHTML(r.producto, 34) : ''}
           ${r && r.producto ? `<span style="font-size:12px; color:var(--text-secondary);">${Utils.escapeHTML(r.producto.nombre)} · <b>${aplFmtPrecio(r.producto.precioVenta)}</b></span>` : ''}
           ${r ? aplBadgeStockHTML(r.estado, r.producto) : ''}
         </div>
       </div>
-      ${eqCodes.length ? `<div class="apl-eq-row"><span class="apl-muted" style="font-size:12px;">Equivalentes:</span>${eqCodes.map(e=>`<button type="button" class="tag-chip apl-eq-chip" data-code="${Utils.escapeHTML(e.codigo)}" title="Buscar este código">${e.resolved?aplPuntoStockHTML(e.resolved.estado, e.resolved.producto):''}${Utils.escapeHTML(e.codigo)}${e.marcas.size?' · '+Utils.escapeHTML([...e.marcas][0]):''}</button>`).join('')}</div>` : ''}
+      ${eqCodes.length ? `<div class="apl-eq-row"><span class="apl-muted" style="font-size:12px;">Equivalentes:</span>${eqCodes.map(e=>`<button type="button" class="tag-chip apl-eq-chip" data-code="${Utils.escapeHTML(e.codigo)}" title="Buscar este código">${e.resolved?aplChipFotoHTML(e.resolved.producto):''}${e.resolved?aplPuntoStockHTML(e.resolved.estado, e.resolved.producto):''}${Utils.escapeHTML(e.codigo)}${e.marcas.size?' · '+Utils.escapeHTML([...e.marcas][0]):''}</button>`).join('')}</div>` : ''}
       <p style="font-size:12px; color:var(--text-secondary); margin-bottom:8px;">Se usa en ${vehs.length} vehículo${vehs.length===1?'':'s'}:</p>
       <div style="display:flex; flex-wrap:wrap; gap:6px;">
         ${vehs.slice(0,40).map(v=>`<span class="tag-chip">${Utils.escapeHTML(v.app.marca)} ${Utils.escapeHTML(v.app.modelo)}${v.app.motor?' '+Utils.escapeHTML(v.app.motor):''} (${aplicacionAnioTexto(v.app)})</span>`).join('')}
@@ -11315,10 +11391,13 @@ function aplicacionFormHTML(a){
   `;
 }
 
-function renderAplicacionFiltrosRows(rowsState, productos){
+function renderAplicacionFiltrosRows(rowsState, productos, marcasMapa){
   const cont = document.getElementById('af-filtros-list');
   if(!cont) return;
-  cont.innerHTML = rowsState.map((f,idx)=>`
+  marcasMapa = marcasMapa || {};
+  cont.innerHTML = rowsState.map((f,idx)=>{
+    const linkedProd = f.productoId ? (productos||[]).find(p=>p.id===f.productoId) : null;
+    return `
     <div class="apl-row">
       <select class="apl-row-tipo" data-idx="${idx}" aria-label="Tipo">
         ${TIPOS_APLICACION.map(t=>`<option value="${t}" ${f.tipo===t?'selected':''}>${Utils.escapeHTML(aplTipoLabel(t))}</option>`).join('')}
@@ -11326,42 +11405,67 @@ function renderAplicacionFiltrosRows(rowsState, productos){
       <select class="apl-row-cal" data-idx="${idx}" aria-label="Calidad">
         ${CALIDADES_APLICACION.map(c=>`<option value="${c}" ${(f.calidad||'Original')===c?'selected':''}>${c}</option>`).join('')}
       </select>
-      <input type="text" class="apl-row-codigo" data-idx="${idx}" placeholder="Código" value="${Utils.escapeHTML(f.codigo||'')}">
+      <div class="autocomplete-wrap apl-row-ac-wrap" data-idx="${idx}">
+        <input type="text" class="apl-row-codigo" data-idx="${idx}" placeholder="Código" autocomplete="off" value="${Utils.escapeHTML(f.codigo||'')}">
+        <div class="autocomplete-results hidden apl-row-ac-results"></div>
+      </div>
       <input type="text" class="apl-row-marca" data-idx="${idx}" placeholder="Marca (ej: Mann)" value="${Utils.escapeHTML(f.marcaFiltro||'')}">
       <div class="apl-row-btns">
-        ${f.productoId?`<span class="tag-chip apl-row-link" title="Vinculado a un producto de Stock">${svgIcon('stock')}</span>`:''}
+        ${linkedProd ? aplFotoHTML(linkedProd, 28, 'Producto vinculado: '+linkedProd.nombre) : ''}
         <button type="button" class="btn btn-ghost btn-sm apl-row-alt" data-idx="${idx}" title="Agregar otro código del mismo tipo (equivalente)">+ Alt.</button>
         <button type="button" class="cir-remove apl-row-remove" data-idx="${idx}" aria-label="Quitar">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
         </button>
       </div>
-    </div>`).join('') || `<p style="font-size:12px; color:var(--text-muted); text-align:center; padding:10px;">Todavía no agregaste repuestos para este vehículo.</p>`;
+    </div>`;
+  }).join('') || `<p style="font-size:12px; color:var(--text-muted); text-align:center; padding:10px;">Todavía no agregaste repuestos para este vehículo.</p>`;
 
   cont.querySelectorAll('.apl-row-tipo').forEach(sel=>{ sel.onchange = () => { rowsState[Number(sel.dataset.idx)].tipo = sel.value; }; });
   cont.querySelectorAll('.apl-row-cal').forEach(sel=>{ sel.onchange = () => { rowsState[Number(sel.dataset.idx)].calidad = sel.value; }; });
-  cont.querySelectorAll('.apl-row-codigo').forEach(inp=>{
+  // Código: se puede tipear a mano, o elegir un SKU ya cargado en Stock desde el desplegable
+  // (mismo buscador que usan Servicios/Cotizaciones). Al elegir uno, vincula el producto y su marca.
+  cont.querySelectorAll('.apl-row-ac-wrap').forEach(wrap=>{
+    const idx = Number(wrap.dataset.idx);
+    const inp = wrap.querySelector('.apl-row-codigo');
+    const results = wrap.querySelector('.apl-row-ac-results');
     inp.oninput = () => {
-      const f = rowsState[Number(inp.dataset.idx)];
+      const f = rowsState[idx];
       f.codigo = inp.value;
-      // Si se cambia el código de una fila vinculada a un producto, el vínculo deja de ser válido.
       if(f.productoId){
         const p = (productos||[]).find(x=>x.id===f.productoId);
-        if(p && aplClaveCodigo(p.codigo) !== aplClaveCodigo(inp.value)){
-          f.productoId = null;
-          const chip = inp.closest('.apl-row').querySelector('.apl-row-link'); if(chip) chip.remove();
-        }
+        if(p && aplClaveCodigo(p.codigo) !== aplClaveCodigo(inp.value)) f.productoId = null;
       }
+      const toks = aplTokens(inp.value);
+      if(!toks.length){ results.classList.add('hidden'); results.innerHTML=''; return; }
+      const matches = (productos||[]).filter(p=>{ const h = aplNorm(p.codigo+' '+p.nombre); return toks.every(t=>h.includes(t)); }).slice(0,6);
+      results.innerHTML = matches.length ? matches.map(p=>`
+        <div class="autocomplete-item apl-row-ac-item" data-id="${p.id}">
+          ${aplFotoHTML(p, 26)}
+          <span style="flex:1; min-width:0;"><span class="font-mono" style="font-weight:700;">${Utils.escapeHTML(p.codigo)}</span> — ${Utils.escapeHTML(p.nombre)}</span>
+          <span style="font-size:11px; color:var(--text-muted); flex-shrink:0;">${p.stockActual} disp.</span>
+        </div>`).join('') : `<div class="autocomplete-item" style="color:var(--text-muted);">Sin coincidencias — se guarda como código manual</div>`;
+      results.classList.remove('hidden');
+      results.querySelectorAll('.apl-row-ac-item[data-id]').forEach(item=>{
+        item.onclick = () => {
+          const p = (productos||[]).find(x=>x.id===Number(item.dataset.id));
+          if(!p) return;
+          rowsState[idx] = { ...rowsState[idx], codigo:p.codigo, marcaFiltro: marcasMapa[p.marcaId] || rowsState[idx].marcaFiltro || '', productoId:p.id };
+          renderAplicacionFiltrosRows(rowsState, productos, marcasMapa);
+        };
+      });
     };
+    inp.addEventListener('focus', () => { if(inp.value.trim()) inp.dispatchEvent(new Event('input')); });
+    inp.addEventListener('blur', () => setTimeout(()=>results.classList.add('hidden'), 150));
   });
   cont.querySelectorAll('.apl-row-marca').forEach(inp=>{ inp.oninput = () => { rowsState[Number(inp.dataset.idx)].marcaFiltro = inp.value; }; });
   cont.querySelectorAll('.apl-row-alt').forEach(btn=>{
     btn.onclick = () => {
       const base = rowsState[Number(btn.dataset.idx)];
       rowsState.splice(Number(btn.dataset.idx)+1, 0, { tipo:base.tipo, calidad:'Alternativo', codigo:'', marcaFiltro:'', productoId:null });
-      renderAplicacionFiltrosRows(rowsState, productos);
+      renderAplicacionFiltrosRows(rowsState, productos, marcasMapa);
     };
   });
-  cont.querySelectorAll('.apl-row-remove').forEach(btn=>{ btn.onclick = () => { rowsState.splice(Number(btn.dataset.idx),1); renderAplicacionFiltrosRows(rowsState, productos); }; });
+  cont.querySelectorAll('.apl-row-remove').forEach(btn=>{ btn.onclick = () => { rowsState.splice(Number(btn.dataset.idx),1); renderAplicacionFiltrosRows(rowsState, productos, marcasMapa); }; });
 }
 
 /* app: aplicación existente (edita) — prefill: datos iniciales para una nueva (duplicar / desde un vehículo). */
@@ -11377,7 +11481,7 @@ async function openAplicacionModal(app=null, prefill=null){
   );
 
   const rowsState = base && base.filtros ? base.filtros.map(f=>({ calidad:'Original', ...f })) : [];
-  renderAplicacionFiltrosRows(rowsState, productosActivos);
+  renderAplicacionFiltrosRows(rowsState, productosActivos, marcasMapa);
   function calidadPorDefecto(tipo){ return rowsState.some(f=>f.tipo===tipo) ? 'Alternativo' : 'Original'; }
 
   // Marca / Modelo en cascada, mismo patrón que el módulo Vehículos.
@@ -11427,7 +11531,7 @@ async function openAplicacionModal(app=null, prefill=null){
       item.onclick = () => {
         const producto = productosActivos.find(p=>p.id===Number(item.dataset.id));
         rowsState.push({ tipo:tipoSelect.value, calidad:calidadPorDefecto(tipoSelect.value), codigo:producto.codigo, marcaFiltro:marcasMapa[producto.marcaId]||'', productoId:producto.id });
-        renderAplicacionFiltrosRows(rowsState, productosActivos);
+        renderAplicacionFiltrosRows(rowsState, productosActivos, marcasMapa);
         searchInput.value=''; resultsBox.classList.add('hidden');
       };
     });
@@ -11435,7 +11539,7 @@ async function openAplicacionModal(app=null, prefill=null){
 
   document.getElementById('af-add-manual').onclick = () => {
     rowsState.push({ tipo:tipoSelect.value, calidad:calidadPorDefecto(tipoSelect.value), codigo:'', marcaFiltro:'', productoId:null });
-    renderAplicacionFiltrosRows(rowsState, productosActivos);
+    renderAplicacionFiltrosRows(rowsState, productosActivos, marcasMapa);
   };
 
   document.getElementById('af-cancel').onclick = () => Modal.close();
@@ -13452,10 +13556,11 @@ async function posCartViewHTML(){
         <div class="pcf-field" style="max-width:210px;">
           <label>Medio de pago</label>
           <select class="select-input" id="pos-medio-pago">
-            ${MEDIOS_PAGO.map(m=>`<option value="${m}" ${m===posMedioPago?'selected':''}>${m}</option>`).join('')}
+            ${MEDIOS_PAGO_COBRO.map(m=>`<option value="${m}" ${m===posMedioPago?'selected':''}>${m}</option>`).join('')}
           </select>
         </div>
       </div>
+      ${chequeCamposHTML('pos', '', true)}
 
       <div class="pos-cartfull-items" id="pos-cart-items"></div>
 
@@ -13611,6 +13716,7 @@ function bindPOSCartViewEvents(){
     recibidoRow.style.display = esEfectivo ? '' : 'none';
     vueltoRow.style.display = esEfectivo ? '' : 'none';
     if(esEfectivo) updatePOSTotales();
+    chequeToggleVisibilidad(medioSel, 'pos');
   }
   clienteSel.onchange = () => { posClienteId = clienteSel.value; };
   descInput.oninput = () => { updatePOSTotales(); };
@@ -14116,6 +14222,11 @@ async function finalizarVenta(){
 
   const medioPagoSel = document.getElementById('pos-medio-pago').value;
   const clienteIdSel = Number(document.getElementById('pos-cliente').value) || null;
+  let datosCheque = null;
+  if(medioPagoSel === 'Cheque'){
+    datosCheque = chequeLeerCampos('pos');
+    if(!datosCheque) return;
+  }
   if(medioPagoSel === 'Cuenta corriente' && !clienteIdSel){
     SoundFX.error();
     Toast.show('error','Falta el cliente','Para vender a cuenta corriente, seleccioná un cliente.');
@@ -14209,6 +14320,12 @@ async function finalizarVenta(){
   if(medioPago === 'Cuenta corriente'){
     await registrarMovimientoCtaCte(clienteId, { tipo:'cargo', concepto:`Venta #${numero}`, monto: total, referencia:`venta:${ventaId}` });
     avisarSiCercaDelLimite(chequeoLimitePOS);
+  }else if(medioPago === 'Cheque'){
+    await crearCheque({
+      tipo:'recibido', banco:datosCheque.banco, numero:datosCheque.numero, fechaCobro:datosCheque.fechaCobro,
+      monto: total, clienteId, titular: datosCheque.titular || (cliente?clienteNombreCompleto(cliente):'Consumidor Final'),
+      estado:'Cartera', referencia:`venta:${ventaId}`
+    });
   }else{
     await registrarMovimientoCaja({ tipo:'ingreso', concepto:`Venta #${numero}`, monto: total, medioPago, referencia:`venta:${ventaId}` });
   }
@@ -14233,6 +14350,9 @@ async function finalizarVenta(){
   const elDesc = document.getElementById('pos-descuento'); if(elDesc) elDesc.value = 0;
   const elMedio = document.getElementById('pos-medio-pago'); if(elMedio) elMedio.value = 'Efectivo';
   const elRecibido = document.getElementById('pos-recibido'); if(elRecibido) elRecibido.value = '';
+  ['pos-banco','pos-numero','pos-titular'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  const elFechaCobro = document.getElementById('pos-fechaCobro'); if(elFechaCobro) elFechaCobro.value = Utils.hoyLocal();
+  const elChequeDatos = document.getElementById('pos-cheque-datos'); if(elChequeDatos) elChequeDatos.style.display = 'none';
   renderPOSCart();
 }
 
@@ -15137,7 +15257,8 @@ async function openRegistrarPagoProveedorModal(proveedorId){
     ${filasHTML}
     <div class="field"><label>Monto a pagar</label><input type="number" min="0.01" step="0.01" id="rpp-monto" value="0"></div>
     <div id="rpp-hint" style="font-size:11.5px; color:var(--text-muted); margin:-8px 0 14px;"></div>
-    <div class="field"><label>Medio de pago</label><select class="select-input" id="rpp-medio">${MEDIOS_PAGO.filter(m=>m!=='Cuenta corriente').map(m=>`<option value="${m}">${m}</option>`).join('')}</select></div>
+    <div class="field"><label>Medio de pago</label><select class="select-input" id="rpp-medio">${MEDIOS_PAGO_PAGO_PROVEEDOR.map(m=>`<option value="${m}">${m}</option>`).join('')}</select></div>
+    ${chequeCamposHTML('rpp', proveedor.nombre, false)}
     <div class="modal-actions"><button class="btn btn-ghost" id="rpp-cancel">Cancelar</button><button class="btn btn-accent" id="rpp-save">Confirmar pago</button></div>
     `,
     { width:'460px' }
@@ -15163,12 +15284,19 @@ async function openRegistrarPagoProveedorModal(proveedorId){
   }
   checks().forEach(ch => ch.addEventListener('change', actualizarSeleccion));
   actualizarSeleccion();
+  const rppMedioSel = document.getElementById('rpp-medio');
+  rppMedioSel.onchange = () => chequeToggleVisibilidad(rppMedioSel, 'rpp');
 
   document.getElementById('rpp-cancel').onclick = () => Modal.close();
   document.getElementById('rpp-save').onclick = async () => {
     const monto = Number(inputMonto.value);
     if(!monto || monto<=0){ Toast.show('error','Monto inválido',''); return; }
     const medioPago = document.getElementById('rpp-medio').value;
+    let datosCheque = null;
+    if(medioPago === 'Cheque'){
+      datosCheque = chequeLeerCampos('rpp');
+      if(!datosCheque) return;
+    }
     const idsSeleccionados = new Set(checks().filter(ch=>ch.checked).map(ch=>Number(ch.dataset.id)));
 
     // Orden de aplicación del pago: primero las facturas seleccionadas
@@ -15181,6 +15309,7 @@ async function openRegistrarPagoProveedorModal(proveedorId){
 
     let restante = monto;
     const detalleAplicado = [];
+    const aplicacionesCheque = [];
     for(const c of prioridad){
       if(restante <= 0.009) break;
       const saldoC = c.total - c.montoPagado;
@@ -15189,7 +15318,11 @@ async function openRegistrarPagoProveedorModal(proveedorId){
       const nuevoMontoPagado = c.montoPagado + aplicado;
       const nuevoEstado = nuevoMontoPagado >= c.total - 0.009 ? 'Pagada' : 'Parcial';
       await DB.put('compras', { ...c, montoPagado: nuevoMontoPagado, estadoPago: nuevoEstado });
-      await registrarMovimientoCaja({ tipo:'egreso', concepto:`Pago a proveedor ${proveedor.nombre}${c.numeroFactura?' - Factura '+c.numeroFactura:''}`, monto: aplicado, medioPago, referencia:`compra:${c.id}` });
+      if(medioPago === 'Cheque'){
+        aplicacionesCheque.push({ compraId:c.id, monto:aplicado });
+      }else{
+        await registrarMovimientoCaja({ tipo:'egreso', concepto:`Pago a proveedor ${proveedor.nombre}${c.numeroFactura?' - Factura '+c.numeroFactura:''}`, monto: aplicado, medioPago, referencia:`compra:${c.id}` });
+      }
       detalleAplicado.push(`Factura ${c.numeroFactura||'#'+c.id}: $${aplicado.toLocaleString('es-AR')}`);
       restante -= aplicado;
     }
@@ -15200,8 +15333,21 @@ async function openRegistrarPagoProveedorModal(proveedorId){
       // guardado en el mismo campo que usa "Ajustar saldo".
       const nuevoAjuste = (proveedor.ajusteSaldoManual||0) - restante;
       await DB.put('proveedores', { ...proveedor, ajusteSaldoManual: nuevoAjuste });
-      await registrarMovimientoCaja({ tipo:'egreso', concepto:`Pago a cuenta — proveedor ${proveedor.nombre}`, monto: restante, medioPago, referencia:`proveedor-adelanto:${proveedorId}` });
+      if(medioPago === 'Cheque'){
+        aplicacionesCheque.push({ adelanto:true, monto:restante });
+      }else{
+        await registrarMovimientoCaja({ tipo:'egreso', concepto:`Pago a cuenta — proveedor ${proveedor.nombre}`, monto: restante, medioPago, referencia:`proveedor-adelanto:${proveedorId}` });
+      }
       detalleAplicado.push(`Pago a cuenta (adelanto): $${restante.toLocaleString('es-AR')}`);
+    }
+
+    if(medioPago === 'Cheque'){
+      await crearCheque({
+        tipo:'emitido', banco:datosCheque.banco, numero:datosCheque.numero, fechaCobro:datosCheque.fechaCobro,
+        monto, proveedorId, titular: datosCheque.titular || proveedor.nombre,
+        estado:'Entregado', referencia:`proveedor:${proveedorId}`, aplicaciones:aplicacionesCheque,
+        observaciones: detalleAplicado.join(' · ')
+      });
     }
 
     await Audit.log('proveedor_pago_registrado', `Pago de $${monto.toLocaleString('es-AR')} registrado para ${proveedor.nombre}. ${detalleAplicado.join(' · ')}`);
@@ -16022,7 +16168,8 @@ async function viewCajaList(){
   const totalDiscriminado = saldoEfectivo + saldoBancario;
   const pctEfectivo = totalDiscriminado > 0.009 ? Math.max(0, saldoEfectivo/totalDiscriminado*100) : 50;
   const pctBancario = 100 - pctEfectivo;
-  const DOT_COLORS = { 'Transferencia':'var(--info)', 'Tarjeta':'var(--warning)', 'QR':'var(--teal)', 'QR Mercado Pago':'#2FA8D8' };
+  const DOT_COLORS = { 'Transferencia':'var(--info)', 'Tarjeta':'var(--warning)', 'QR':'var(--teal)', 'QR Mercado Pago':'#2FA8D8', 'Cheque':'#A78BFA' };
+  const resumenCheques = await chequesResumen();
 
   const session = Session.get();
   return `
@@ -16052,9 +16199,19 @@ async function viewCajaList(){
         </div>
         <div class="csb-value" style="color:${saldoBancario>=0?'inherit':'var(--danger)'};">$${saldoBancario.toLocaleString('es-AR')}</div>
         <div class="csb-chips">
-          ${['QR Mercado Pago','QR','Tarjeta','Transferencia'].map(m=>`<span class="csb-chip"><span class="csb-chip-dot" style="background:${DOT_COLORS[m]};"></span>${m} <b>$${(saldoPorMedio[m]||0).toLocaleString('es-AR')}</b></span>`).join('')}
+          ${['QR Mercado Pago','QR','Tarjeta','Transferencia','Cheque'].map(m=>`<span class="csb-chip"><span class="csb-chip-dot" style="background:${DOT_COLORS[m]};"></span>${m} <b>$${(saldoPorMedio[m]||0).toLocaleString('es-AR')}</b></span>`).join('')}
         </div>
       </div>
+      <a href="#/cheques" class="csb-card" style="--csb-color:#A78BFA; --csb-bg:rgba(167,139,250,.14); text-decoration:none; color:inherit;">
+        <div class="csb-head">
+          <div class="csb-icon">${svgIcon('cheques')}</div>
+          <div><div class="csb-label">Cheques en cartera</div></div>
+        </div>
+        <div class="csb-value">$${resumenCheques.totalEnCartera.toLocaleString('es-AR')}</div>
+        <div class="csb-chips">
+          ${resumenCheques.cantidadVencidosSinDepositar ? `<span class="csb-chip" style="color:var(--danger);"><span class="csb-chip-dot" style="background:var(--danger);"></span>${resumenCheques.cantidadVencidosSinDepositar} vencido${resumenCheques.cantidadVencidosSinDepositar===1?'':'s'} sin depositar</span>` : `<span class="csb-chip">Sin vencidos pendientes</span>`}
+        </div>
+      </a>
     </div>
     <div class="caja-saldo-bar">
       <div class="caja-saldo-bar-seg" style="width:${pctEfectivo}%; background:var(--teal);"></div>
@@ -18005,6 +18162,558 @@ async function drawGastoCategoriaEvolucionMensualChart(canvas, categoriaId, nomb
 /* -----------------------------------------------------------------------
    20-O. MÓDULO CUENTAS CORRIENTES (Fase 6)
 ----------------------------------------------------------------------- */
+/* -----------------------------------------------------------------------
+   CHEQUES — cheques recibidos de clientes (cobro en POS/Servicios) y
+   emitidos a proveedores (pago de compras), con su ciclo de vida completo.
+
+   Recibidos:  Cartera → Depositado → Acreditado (ahí sí impacta en Caja)
+                       → Rechazado (reabre la deuda del cliente)
+                       → Endosado (se usa para pagarle a un proveedor, sin
+                         pasar por Caja — es una transferencia del papel,
+                         no de plata)
+               Cartera → Anulado (carga por error, antes de depositar)
+   Emitidos:   Entregado → Debitado (ahí sí impacta en Caja como egreso)
+                        → Rechazado / Anulado (reabre la deuda con el
+                          proveedor, revirtiendo lo aplicado a cada compra)
+
+   Mientras un cheque recibido está en Cartera o Depositado, su monto ya no
+   es una deuda del cliente pero tampoco es plata líquida: es "saldo a
+   liberar". Cuando se Acredita, pasa a ser plata real en Caja.
+----------------------------------------------------------------------- */
+const ESTADOS_CHEQUE_RECIBIDO = ['Cartera','Depositado','Acreditado','Rechazado','Endosado','Anulado'];
+const ESTADOS_CHEQUE_EMITIDO  = ['Entregado','Debitado','Rechazado','Anulado'];
+const CHEQUE_ESTADO_INFO = {
+  Cartera:    { label:'En cartera',  clase:'badge-info' },
+  Depositado: { label:'Depositado',  clase:'badge-warn' },
+  Acreditado: { label:'Acreditado',  clase:'badge-ok' },
+  Entregado:  { label:'Entregado',   clase:'badge-info' },
+  Debitado:   { label:'Debitado',    clase:'badge-ok' },
+  Rechazado:  { label:'Rechazado',   clase:'badge-danger' },
+  Endosado:   { label:'Endosado',    clase:'badge-neutral' },
+  Anulado:    { label:'Anulado',     clase:'badge-neutral' }
+};
+function canManageCheques(rol){ return canManageCaja(rol); }
+function chequeEstadoBadgeHTML(estado){
+  const info = CHEQUE_ESTADO_INFO[estado] || { label:estado, clase:'badge-neutral' };
+  return `<span class="badge ${info.clase}">${Utils.escapeHTML(info.label)}</span>`;
+}
+function chequeDiasParaVencer(cheque){
+  const hoy = new Date(Utils.hoyLocal()+'T00:00:00');
+  const venc = new Date(cheque.fechaCobro+'T00:00:00');
+  return Math.round((venc-hoy)/86400000);
+}
+function chequeVencimientoHTML(cheque){
+  const fechaTxt = new Date(cheque.fechaCobro+'T00:00:00').toLocaleDateString('es-AR');
+  if(!['Cartera','Depositado','Entregado'].includes(cheque.estado)) return fechaTxt;
+  const dias = chequeDiasParaVencer(cheque);
+  if(dias<0) return `<span class="cheque-venc-vencido">${fechaTxt} — vencido hace ${Math.abs(dias)} día${Math.abs(dias)===1?'':'s'}</span>`;
+  if(dias===0) return `<span class="cheque-venc-hoy">${fechaTxt} — vence hoy</span>`;
+  if(dias<=3) return `<span class="cheque-venc-proximo">${fechaTxt} — en ${dias} día${dias===1?'':'s'}</span>`;
+  return fechaTxt;
+}
+function chequeTituloCorto(cheque){
+  return `Cheque Nº ${cheque.numero}${cheque.banco?' ('+cheque.banco+')':''}`;
+}
+
+async function crearCheque(datos){
+  const session = Session.get();
+  const ahora = Utils.nowISO();
+  const cheque = {
+    tipo: datos.tipo, numero: String(datos.numero||'').trim(), banco: (datos.banco||'').trim(),
+    sucursal: (datos.sucursal||'').trim(), cuit: (datos.cuit||'').trim(), titular: (datos.titular||'').trim(),
+    clienteId: datos.clienteId||null, proveedorId: datos.proveedorId||null,
+    fechaEmision: datos.fechaEmision || Utils.hoyLocal(), fechaCobro: datos.fechaCobro,
+    monto: datos.monto, estado: datos.estado,
+    referencia: datos.referencia||'manual', referenciaEndoso: null,
+    aplicaciones: datos.aplicaciones||null, // emitido/endosado: [{compraId,monto}] o [{adelanto:true,monto}]
+    observaciones: (datos.observaciones||'').trim(), imagen: datos.imagen||null,
+    historial: [{ estado: datos.estado, fecha: ahora, nota:'Cheque cargado', usuarioNombre: session.nombre }],
+    fechaCreacion: ahora, fechaActualizacion: ahora,
+    usuarioId: session.usuarioId, usuarioNombre: session.nombre
+  };
+  const id = await DB.add('cheques', cheque);
+  return { ...cheque, id };
+}
+async function chequeAgregarHistorial(cheque, estado, nota){
+  const session = Session.get();
+  const historial = [...(cheque.historial||[]), { estado, fecha: Utils.nowISO(), nota: nota||'', usuarioNombre: session.nombre }];
+  const actualizado = { ...cheque, estado, historial, fechaActualizacion: Utils.nowISO() };
+  await DB.put('cheques', actualizado);
+  return actualizado;
+}
+async function chequeDepositar(cheque, fecha){
+  const fechaTxt = new Date((fecha||Utils.hoyLocal())+'T00:00:00').toLocaleDateString('es-AR');
+  await chequeAgregarHistorial(cheque, 'Depositado', `Depositado el ${fechaTxt}`);
+  await Audit.log('cheque_depositado', `${chequeTituloCorto(cheque)} depositado.`);
+}
+async function chequeAcreditar(cheque){
+  await registrarMovimientoCaja({ tipo:'ingreso', concepto:`${chequeTituloCorto(cheque)} acreditado`, monto:cheque.monto, medioPago:'Cheque', referencia:`cheque:${cheque.id}` });
+  await chequeAgregarHistorial(cheque, 'Acreditado', 'Acreditado en la cuenta bancaria');
+  await Audit.log('cheque_acreditado', `${chequeTituloCorto(cheque)} acreditado por $${cheque.monto.toLocaleString('es-AR')}.`);
+}
+async function chequeDebitar(cheque){
+  await registrarMovimientoCaja({ tipo:'egreso', concepto:`${chequeTituloCorto(cheque)} debitado`, monto:cheque.monto, medioPago:'Cheque', referencia:`cheque:${cheque.id}` });
+  await chequeAgregarHistorial(cheque, 'Debitado', 'Debitado por el banco');
+  await Audit.log('cheque_debitado', `${chequeTituloCorto(cheque)} debitado por $${cheque.monto.toLocaleString('es-AR')}.`);
+}
+// Reabre lo que el cheque había cerrado: la deuda del cliente (recibido) o del
+// proveedor (emitido/endosado). Se usa tanto para Rechazar como para Anular.
+async function chequeReabrirDeuda(cheque, motivoCorto){
+  if(cheque.tipo === 'recibido'){
+    const ref = String(cheque.referencia||'');
+    if(ref.startsWith('historial:')){
+      const h = await DB.get('historialServicios', Number(ref.split(':')[1]));
+      if(h){
+        const nuevoMontoPagado = Math.max(0, (h.montoPagado||0) - cheque.monto);
+        const nuevoEstado = nuevoMontoPagado<=0.009 ? 'Pendiente' : (nuevoMontoPagado >= (h.precio||0)-0.01 ? 'Pagada' : 'Parcial');
+        await DB.put('historialServicios', { ...h, montoPagado:nuevoMontoPagado, estadoPago:nuevoEstado });
+        return 'service';
+      }
+    }
+    if(cheque.clienteId){
+      await registrarMovimientoCtaCte(cheque.clienteId, { tipo:'cargo', concepto:`${chequeTituloCorto(cheque)} ${motivoCorto}`, monto:cheque.monto, referencia:`cheque:${cheque.id}` });
+      return 'ctacte';
+    }
+    return null; // sin cliente ni service asociado: no hay dónde reabrir la deuda automáticamente
+  }else{
+    // emitido o endosado: revertir lo aplicado a cada compra (y el adelanto, si lo hubo)
+    for(const a of (cheque.aplicaciones||[])){
+      if(a.adelanto){
+        const prov = await DB.get('proveedores', cheque.proveedorId);
+        if(prov) await DB.put('proveedores', { ...prov, ajusteSaldoManual: (prov.ajusteSaldoManual||0) + a.monto });
+      }else if(a.compraId){
+        const c = await DB.get('compras', a.compraId);
+        if(c){
+          const nuevoMontoPagado = Math.max(0, (c.montoPagado||0) - a.monto);
+          const nuevoEstado = nuevoMontoPagado<=0.009 ? 'Pendiente' : (nuevoMontoPagado >= c.total-0.009 ? 'Pagada' : 'Parcial');
+          await DB.put('compras', { ...c, montoPagado:nuevoMontoPagado, estadoPago:nuevoEstado });
+        }
+      }
+    }
+    return 'proveedor';
+  }
+}
+async function chequeRechazar(cheque, motivo, gastoExtra){
+  if(cheque.estado==='Acreditado'){
+    await registrarMovimientoCaja({ tipo:'egreso', concepto:`Reversión — ${chequeTituloCorto(cheque)} rechazado`, monto:cheque.monto, medioPago:'Cheque', referencia:`cheque:${cheque.id}` });
+  }
+  const donde = await chequeReabrirDeuda(cheque, `rechazado (${motivo||'sin motivo indicado'})`);
+  if(gastoExtra>0){
+    await registrarMovimientoCaja({ tipo:'egreso', concepto:`Gastos bancarios — ${chequeTituloCorto(cheque)} rechazado`, monto:gastoExtra, medioPago:'Efectivo', referencia:`cheque:${cheque.id}` });
+  }
+  const nota = (motivo?motivo+'. ':'') + (donde==='service' ? 'Se reabrió el saldo pendiente del service.' : donde==='ctacte' ? 'Se cargó a la cuenta corriente del cliente.' : donde==='proveedor' ? 'Se reabrió la deuda con el proveedor.' : 'No se pudo reabrir la deuda automáticamente: cargala a mano.');
+  await chequeAgregarHistorial(cheque, 'Rechazado', nota);
+  await Audit.log('cheque_rechazado', `${chequeTituloCorto(cheque)} rechazado. ${nota}`);
+  return donde;
+}
+async function chequeAnular(cheque, motivo){
+  const donde = await chequeReabrirDeuda(cheque, `anulado (${motivo||'carga incorrecta'})`);
+  const nota = (motivo?motivo+'. ':'') + (donde==='service' ? 'Se reabrió el saldo pendiente del service.' : donde==='ctacte' ? 'Se cargó a la cuenta corriente del cliente.' : donde==='proveedor' ? 'Se reabrió la deuda con el proveedor.' : 'No se pudo reabrir la deuda automáticamente: revisala a mano.');
+  await chequeAgregarHistorial(cheque, 'Anulado', nota);
+  await Audit.log('cheque_anulado', `${chequeTituloCorto(cheque)} anulado. ${nota}`);
+  return donde;
+}
+// Endosar: usar un cheque recibido (todavía en Cartera) para pagarle a un proveedor.
+// No mueve Caja — es la misma lógica de aplicación que "Registrar pago" a proveedor,
+// pero el instrumento (el papel) cambia de manos en vez de convertirse en plata.
+async function chequeEndosar(cheque, proveedorId, aplicaciones){
+  const proveedor = await DB.get('proveedores', proveedorId);
+  for(const a of aplicaciones){
+    if(a.adelanto){
+      await DB.put('proveedores', { ...proveedor, ajusteSaldoManual: (proveedor.ajusteSaldoManual||0) - a.monto });
+    }else{
+      const c = await DB.get('compras', a.compraId);
+      const nuevoMontoPagado = c.montoPagado + a.monto;
+      const nuevoEstado = nuevoMontoPagado >= c.total-0.009 ? 'Pagada' : 'Parcial';
+      await DB.put('compras', { ...c, montoPagado:nuevoMontoPagado, estadoPago:nuevoEstado });
+    }
+  }
+  const session = Session.get();
+  const historial = [...(cheque.historial||[]), { estado:'Endosado', fecha: Utils.nowISO(), nota:`Endosado a ${proveedor.nombre}`, usuarioNombre: session.nombre }];
+  await DB.put('cheques', { ...cheque, estado:'Endosado', proveedorId, referenciaEndoso:`proveedor:${proveedorId}`, aplicaciones, historial, fechaActualizacion:Utils.nowISO() });
+  await Audit.log('cheque_endosado', `${chequeTituloCorto(cheque)} endosado a ${proveedor.nombre} por $${cheque.monto.toLocaleString('es-AR')}.`);
+}
+
+/* ---------- Captura de datos del cheque, embebida en un formulario de cobro/pago ---------- */
+// Se usa en POS, cobro de Servicios (recibido) y pago a proveedor (emitido). El bloque se
+// muestra/oculta según el medio de pago elegido; devuelve null (con un Toast) si falta algo.
+function chequeCamposHTML(prefix, titularDefault, esRecibido){
+  const hoy = Utils.hoyLocal();
+  return `
+    <div id="${prefix}-cheque-datos" class="cheque-datos-inline" style="display:none;">
+      <div class="field-row">
+        <div class="field"><label>Banco</label><input type="text" id="${prefix}-banco" placeholder="Ej: Banco Nación"></div>
+        <div class="field"><label>Número de cheque</label><input type="text" id="${prefix}-numero" placeholder="Ej: 00012345"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>${esRecibido?'Fecha estimada de cobro':'Fecha de pago'}</label><input type="date" id="${prefix}-fechaCobro" value="${hoy}"></div>
+        <div class="field"><label>${esRecibido?'Librador (titular)':'A la orden de'}</label><input type="text" id="${prefix}-titular" placeholder="Nombre del titular" value="${Utils.escapeHTML(tituularDefaultSeguro(titularDefault))}"></div>
+      </div>
+      <p class="apl-muted" style="font-size:11px; margin:-4px 0 4px;">${esRecibido?'Si la fecha de cobro es futura, el importe queda "en cartera" y no impacta en Caja hasta acreditarse.':'El importe no impacta en Caja hasta que el banco lo debite.'}</p>
+    </div>`;
+}
+function tituularDefaultSeguro(v){ return v||''; }
+function chequeLeerCampos(prefix){
+  const banco = document.getElementById(`${prefix}-banco`).value.trim();
+  const numero = document.getElementById(`${prefix}-numero`).value.trim();
+  const fechaCobro = document.getElementById(`${prefix}-fechaCobro`).value;
+  const titular = document.getElementById(`${prefix}-titular`).value.trim();
+  if(!banco || !numero || !fechaCobro){
+    Toast.show('error','Faltan datos del cheque','Completá banco, número y fecha de cobro.');
+    return null;
+  }
+  return { banco, numero, fechaCobro, titular };
+}
+function chequeToggleVisibilidad(medioSelect, prefix, extraCallback){
+  const bloque = document.getElementById(`${prefix}-cheque-datos`);
+  if(!bloque) return;
+  const esCheque = medioSelect.value === 'Cheque';
+  bloque.style.display = esCheque ? '' : 'none';
+  if(extraCallback) extraCallback(esCheque);
+}
+
+/* ---------- Vencimientos y saldos (usados en Cheques y como KPI en Caja) ---------- */
+async function chequesResumen(){
+  const todos = await DB.getAll('cheques');
+  const recibidosEnCartera = todos.filter(c=>c.tipo==='recibido' && (c.estado==='Cartera'||c.estado==='Depositado'));
+  const emitidosPendientes = todos.filter(c=>c.tipo==='emitido' && c.estado==='Entregado');
+  const hoy = new Date(Utils.hoyLocal()+'T00:00:00');
+  const en7dias = new Date(hoy.getTime()+7*86400000);
+  const vencidosSinDepositar = recibidosEnCartera.filter(c=>new Date(c.fechaCobro+'T00:00:00') < hoy);
+  const porCobrarProximos7 = recibidosEnCartera.filter(c=>{ const f=new Date(c.fechaCobro+'T00:00:00'); return f>=hoy && f<=en7dias; });
+  return {
+    todos,
+    totalEnCartera: recibidosEnCartera.reduce((a,c)=>a+c.monto,0),
+    cantidadEnCartera: recibidosEnCartera.length,
+    totalVencidosSinDepositar: vencidosSinDepositar.reduce((a,c)=>a+c.monto,0),
+    cantidadVencidosSinDepositar: vencidosSinDepositar.length,
+    totalProximos7: porCobrarProximos7.reduce((a,c)=>a+c.monto,0),
+    totalEmitidosPendientes: emitidosPendientes.reduce((a,c)=>a+c.monto,0),
+    cantidadEmitidosPendientes: emitidosPendientes.length
+  };
+}
+
+/* ---------- Vista principal ---------- */
+let chequesUIState = { tab:'recibidos', estado:'', q:'' };
+
+async function viewChequesList(){
+  const resumen = await chequesResumen();
+  return `
+    <div class="page-header">
+      <div><h1>Cheques</h1><p>Cheques recibidos de clientes y emitidos a proveedores</p></div>
+      <button class="btn btn-accent" id="btn-nuevo-cheque">${svgIcon('cheques')} Cargar cheque manual</button>
+    </div>
+    <div class="grid-kpi" style="margin-bottom:18px;">
+      <div class="kpi-card" style="--kpi-color:var(--info)"><div class="kpi-label">En cartera (por liberar)</div><div class="kpi-value">$${resumen.totalEnCartera.toLocaleString('es-AR')}</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--warning)"><div class="kpi-label">Por cobrar próximos 7 días</div><div class="kpi-value">$${resumen.totalProximos7.toLocaleString('es-AR')}</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--danger)"><div class="kpi-label">Vencidos sin depositar</div><div class="kpi-value">$${resumen.totalVencidosSinDepositar.toLocaleString('es-AR')}</div></div>
+      <div class="kpi-card" style="--kpi-color:var(--teal)"><div class="kpi-label">Emitidos por debitar</div><div class="kpi-value">$${resumen.totalEmitidosPendientes.toLocaleString('es-AR')}</div></div>
+    </div>
+    <div class="crm-tabs" id="cheques-tabs">
+      <button class="crm-tab ${chequesUIState.tab==='recibidos'?'active':''}" data-tab="recibidos">Recibidos</button>
+      <button class="crm-tab ${chequesUIState.tab==='emitidos'?'active':''}" data-tab="emitidos">Emitidos</button>
+      <button class="crm-tab ${chequesUIState.tab==='vencimientos'?'active':''}" data-tab="vencimientos">Vencimientos</button>
+    </div>
+    <div id="cheques-tab-body">${await chequesTabHTML(resumen.todos)}</div>
+  `;
+}
+
+async function chequesTabHTML(todos){
+  const s = chequesUIState;
+  if(s.tab==='vencimientos'){
+    const pendientes = todos.filter(c=>['Cartera','Depositado','Entregado'].includes(c.estado)).sort((a,b)=> new Date(a.fechaCobro)-new Date(b.fechaCobro));
+    return chequesTablaHTML(pendientes, true);
+  }
+  const tipo = s.tab==='emitidos' ? 'emitido' : 'recibido';
+  let lista = todos.filter(c=>c.tipo===tipo);
+  if(s.estado) lista = lista.filter(c=>c.estado===s.estado);
+  if(s.q.trim()){
+    const q = aplNorm(s.q);
+    lista = lista.filter(c=>aplNorm([c.numero,c.banco,c.titular].join(' ')).includes(q));
+  }
+  lista.sort((a,b)=> new Date(b.fechaCobro)-new Date(a.fechaCobro));
+  const estados = tipo==='recibido' ? ESTADOS_CHEQUE_RECIBIDO : ESTADOS_CHEQUE_EMITIDO;
+  return `
+    <div class="toolbar-filters">
+      <div class="toolbar-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input type="text" id="cheques-search" placeholder="Buscar por número, banco o titular..." value="${Utils.escapeHTML(s.q)}">
+      </div>
+      <select class="toolbar-select" id="cheques-f-estado">
+        <option value="">Todos los estados</option>
+        ${estados.map(e=>`<option value="${e}" ${s.estado===e?'selected':''}>${CHEQUE_ESTADO_INFO[e].label}</option>`).join('')}
+      </select>
+    </div>
+    ${chequesTablaHTML(lista, false)}
+  `;
+}
+function chequesTablaHTML(lista, mostrarTipo){
+  return `
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table class="data-table">
+        <thead><tr>${mostrarTipo?'<th>Tipo</th>':''}<th>Número</th><th>Banco</th><th>Titular</th><th>Fecha de cobro/pago</th><th>Monto</th><th>Estado</th><th style="text-align:right;">Acciones</th></tr></thead>
+        <tbody>
+          ${lista.length ? lista.map(c=>`
+            <tr data-id="${c.id}">
+              ${mostrarTipo?`<td>${c.tipo==='recibido'?'Recibido':'Emitido'}</td>`:''}
+              <td class="font-mono" style="font-weight:700;">${Utils.escapeHTML(c.numero)}</td>
+              <td>${Utils.escapeHTML(c.banco)}</td>
+              <td>${Utils.escapeHTML(c.titular||'—')}</td>
+              <td>${chequeVencimientoHTML(c)}</td>
+              <td class="font-mono">$${c.monto.toLocaleString('es-AR')}</td>
+              <td>${chequeEstadoBadgeHTML(c.estado)}</td>
+              <td style="text-align:right; white-space:nowrap;">${accionesFilaHTML(chequeAccionesHTML(c))}</td>
+            </tr>`).join('') : `<tr><td colspan="${mostrarTipo?7:6}"><div class="empty-state">${svgIcon('cheques')}<h3>No hay cheques para mostrar</h3><p>Se cargan automáticamente al cobrar en POS/Servicios con "Cheque", al pagarle a un proveedor con "Cheque", o manualmente con el botón "Cargar cheque manual".</p></div></td></tr>`}
+        </tbody>
+      </table>
+    </div>`;
+}
+function chequeAccionesHTML(c){
+  const btns = [`<button class="btn btn-ghost btn-sm btn-ver-cheque" data-id="${c.id}">Ver detalle</button>`];
+  if(c.tipo==='recibido'){
+    if(c.estado==='Cartera'){
+      btns.push(`<button class="btn btn-ghost btn-sm btn-depositar-cheque" data-id="${c.id}">Depositar</button>`);
+      btns.push(`<button class="btn btn-ghost btn-sm btn-endosar-cheque" data-id="${c.id}">Endosar a proveedor</button>`);
+    }
+    if(c.estado==='Cartera' || c.estado==='Depositado') btns.push(`<button class="btn btn-ghost btn-sm btn-acreditar-cheque" data-id="${c.id}">Acreditar</button>`);
+    if(['Cartera','Depositado','Acreditado'].includes(c.estado)) btns.push(`<button class="btn btn-danger-ghost btn-sm btn-rechazar-cheque" data-id="${c.id}">Rechazar</button>`);
+    if(c.estado==='Cartera') btns.push(`<button class="btn btn-danger-ghost btn-sm btn-anular-cheque" data-id="${c.id}">Anular</button>`);
+  }else{
+    if(c.estado==='Entregado'){
+      btns.push(`<button class="btn btn-ghost btn-sm btn-debitar-cheque" data-id="${c.id}">Marcar debitado</button>`);
+      btns.push(`<button class="btn btn-danger-ghost btn-sm btn-rechazar-cheque" data-id="${c.id}">Rechazar</button>`);
+      btns.push(`<button class="btn btn-danger-ghost btn-sm btn-anular-cheque" data-id="${c.id}">Anular</button>`);
+    }
+  }
+  return btns.join('');
+}
+
+function bindChequesListEvents(){
+  document.querySelectorAll('#cheques-tabs .crm-tab').forEach(btn=>{
+    btn.onclick = () => { chequesUIState.tab = btn.dataset.tab; chequesUIState.estado=''; chequesUIState.q=''; router(); };
+  });
+  const btnNuevo = document.getElementById('btn-nuevo-cheque');
+  if(btnNuevo) btnNuevo.onclick = () => openChequeManualModal();
+  const search = document.getElementById('cheques-search');
+  if(search){
+    const rerender = aplDebounce(async () => { document.getElementById('cheques-tab-body').innerHTML = await chequesTabHTML(await DB.getAll('cheques')); bindChequesAccionesEvents(); }, 150);
+    search.addEventListener('input', () => { chequesUIState.q = search.value; rerender(); });
+  }
+  const selEstado = document.getElementById('cheques-f-estado');
+  if(selEstado) selEstado.onchange = async () => { chequesUIState.estado = selEstado.value; document.getElementById('cheques-tab-body').innerHTML = await chequesTabHTML(await DB.getAll('cheques')); bindChequesAccionesEvents(); };
+  bindChequesAccionesEvents();
+}
+function bindChequesAccionesEvents(){
+  bindAccionesFilaButtons();
+  document.querySelectorAll('.btn-ver-cheque').forEach(b=>{ b.onclick = async () => abrirDetalleChequeModal(await DB.get('cheques', Number(b.dataset.id))); });
+  document.querySelectorAll('.btn-depositar-cheque').forEach(b=>{ b.onclick = async () => abrirDepositarChequeModal(await DB.get('cheques', Number(b.dataset.id))); });
+  document.querySelectorAll('.btn-acreditar-cheque').forEach(b=>{
+    b.onclick = async () => {
+      const c = await DB.get('cheques', Number(b.dataset.id));
+      if(!confirm(`¿Acreditar ${chequeTituloCorto(c)} por $${c.monto.toLocaleString('es-AR')}? Se va a registrar como ingreso en Caja.`)) return;
+      await chequeAcreditar(c);
+      Toast.show('success','Cheque acreditado', `$${c.monto.toLocaleString('es-AR')}`);
+      router();
+    };
+  });
+  document.querySelectorAll('.btn-debitar-cheque').forEach(b=>{
+    b.onclick = async () => {
+      const c = await DB.get('cheques', Number(b.dataset.id));
+      if(!confirm(`¿Marcar ${chequeTituloCorto(c)} como debitado? Se va a registrar como egreso en Caja.`)) return;
+      await chequeDebitar(c);
+      Toast.show('success','Cheque debitado', `$${c.monto.toLocaleString('es-AR')}`);
+      router();
+    };
+  });
+  document.querySelectorAll('.btn-rechazar-cheque').forEach(b=>{ b.onclick = async () => abrirRechazarChequeModal(await DB.get('cheques', Number(b.dataset.id))); });
+  document.querySelectorAll('.btn-anular-cheque').forEach(b=>{
+    b.onclick = async () => {
+      const c = await DB.get('cheques', Number(b.dataset.id));
+      const motivo = prompt(`¿Por qué anulás ${chequeTituloCorto(c)}? (opcional)`);
+      if(motivo===null) return;
+      await chequeAnular(c, motivo);
+      Toast.show('success','Cheque anulado', chequeTituloCorto(c));
+      router();
+    };
+  });
+  document.querySelectorAll('.btn-endosar-cheque').forEach(b=>{ b.onclick = async () => abrirEndosarChequeModal(await DB.get('cheques', Number(b.dataset.id))); });
+}
+
+function abrirDetalleChequeModal(c){
+  const historialHTML = (c.historial||[]).slice().reverse().map(h=>`
+    <div class="cheque-hist-item">
+      <div style="display:flex; justify-content:space-between; gap:10px;"><b>${CHEQUE_ESTADO_INFO[h.estado]?CHEQUE_ESTADO_INFO[h.estado].label:h.estado}</b><span class="apl-muted" style="font-size:11px;">${new Date(h.fecha).toLocaleString('es-AR')}</span></div>
+      ${h.nota?`<div style="font-size:12px; color:var(--text-secondary);">${Utils.escapeHTML(h.nota)}</div>`:''}
+      <div class="apl-muted" style="font-size:11px;">${Utils.escapeHTML(h.usuarioNombre||'')}</div>
+    </div>`).join('');
+  Modal.open(
+    chequeTituloCorto(c),
+    `
+    <div class="card" style="padding:12px 14px; margin-bottom:14px;">
+      <div class="field-row">
+        <div><div style="font-size:12px; color:var(--text-muted);">Monto</div><div style="font-size:18px; font-weight:700;">$${c.monto.toLocaleString('es-AR')}</div></div>
+        <div>${chequeEstadoBadgeHTML(c.estado)}</div>
+      </div>
+    </div>
+    <div class="field-row" style="font-size:12.5px;">
+      <div><div class="apl-muted">Banco</div><div>${Utils.escapeHTML(c.banco)}${c.sucursal?' — '+Utils.escapeHTML(c.sucursal):''}</div></div>
+      <div><div class="apl-muted">Titular</div><div>${Utils.escapeHTML(c.titular||'—')}</div></div>
+    </div>
+    <div class="field-row" style="font-size:12.5px; margin-top:8px;">
+      <div><div class="apl-muted">Fecha de emisión</div><div>${c.fechaEmision?new Date(c.fechaEmision+'T00:00:00').toLocaleDateString('es-AR'):'—'}</div></div>
+      <div><div class="apl-muted">Fecha de cobro/pago</div><div>${chequeVencimientoHTML(c)}</div></div>
+    </div>
+    ${c.imagen?`<img src="${c.imagen}" style="max-width:100%; border-radius:8px; margin-top:12px; border:1px solid var(--border);">`:''}
+    ${c.observaciones?`<p style="font-size:12px; color:var(--text-secondary); margin-top:10px;">${Utils.escapeHTML(c.observaciones)}</p>`:''}
+    <div class="cfg-section-title" style="font-size:12px; margin-top:16px;">Historial</div>
+    <div class="cheque-hist-list">${historialHTML}</div>
+    <div class="modal-actions"><button class="btn btn-ghost" id="cheque-detalle-cerrar">Cerrar</button></div>
+    `,
+    { width:'480px' }
+  );
+  document.getElementById('cheque-detalle-cerrar').onclick = () => Modal.close();
+}
+function abrirDepositarChequeModal(c){
+  Modal.open(
+    'Depositar — ' + chequeTituloCorto(c),
+    `
+    <div class="field"><label>Fecha de depósito</label><input type="date" id="dep-fecha" value="${Utils.hoyLocal()}" max="${Utils.hoyLocal()}"></div>
+    <p class="apl-muted" style="font-size:12px;">Esto solo marca el cheque como depositado; el ingreso a Caja se registra cuando lo acredites.</p>
+    <div class="modal-actions"><button class="btn btn-ghost" id="dep-cancel">Cancelar</button><button class="btn btn-accent" id="dep-save">Confirmar</button></div>
+    `,
+    { width:'380px' }
+  );
+  document.getElementById('dep-cancel').onclick = () => Modal.close();
+  document.getElementById('dep-save').onclick = async () => {
+    await chequeDepositar(c, document.getElementById('dep-fecha').value);
+    Toast.show('success','Cheque depositado', chequeTituloCorto(c));
+    Modal.close();
+    router();
+  };
+}
+function abrirRechazarChequeModal(c){
+  Modal.open(
+    'Rechazar — ' + chequeTituloCorto(c),
+    `
+    <p class="apl-muted" style="font-size:12.5px;">${c.tipo==='recibido' ? 'Se va a reabrir la deuda del cliente por este monto.' : 'Se va a reabrir la deuda con el proveedor por este monto.'}</p>
+    <div class="field"><label>Motivo</label><input type="text" id="rc-motivo" placeholder="Ej: sin fondos, firma disconforme..."></div>
+    ${c.tipo==='recibido'?`<div class="field"><label>Gastos bancarios por el rechazo (opcional)</label><input type="number" min="0" step="0.01" id="rc-gasto" value="0"></div>`:''}
+    <div class="modal-actions"><button class="btn btn-ghost" id="rc-cancel">Cancelar</button><button class="btn btn-danger" id="rc-save">Confirmar rechazo</button></div>
+    `,
+    { width:'420px' }
+  );
+  document.getElementById('rc-cancel').onclick = () => Modal.close();
+  document.getElementById('rc-save').onclick = async () => {
+    const motivo = document.getElementById('rc-motivo').value.trim();
+    const gastoEl = document.getElementById('rc-gasto');
+    const gasto = gastoEl ? Number(gastoEl.value)||0 : 0;
+    const donde = await chequeRechazar(c, motivo, gasto);
+    Toast.show(donde?'success':'info', 'Cheque rechazado', donde ? 'Se reabrió la deuda automáticamente.' : 'No había cliente/proveedor asociado: revisalo a mano.');
+    Modal.close();
+    router();
+  };
+}
+async function abrirEndosarChequeModal(c){
+  const proveedores = (await DB.getAll('proveedores')).filter(p=>p.activo!==false).sort((a,b)=>a.nombre.localeCompare(b.nombre,'es',{sensitivity:'base'}));
+  Modal.open(
+    'Endosar a un proveedor — ' + chequeTituloCorto(c),
+    `
+    <div class="card" style="padding:10px 14px; margin-bottom:12px;"><div class="apl-muted" style="font-size:12px;">Monto del cheque</div><div style="font-size:18px; font-weight:700;">$${c.monto.toLocaleString('es-AR')}</div></div>
+    <div class="field"><label>Proveedor</label><select class="select-input" id="end-proveedor"><option value="">Seleccioná...</option>${proveedores.map(p=>`<option value="${p.id}">${Utils.escapeHTML(p.nombre)}</option>`).join('')}</select></div>
+    <div id="end-facturas"></div>
+    <p class="apl-muted" style="font-size:11.5px;">No mueve Caja: el cheque cambia de manos, no se convierte en efectivo.</p>
+    <div class="modal-actions"><button class="btn btn-ghost" id="end-cancel">Cancelar</button><button class="btn btn-accent" id="end-save">Confirmar endoso</button></div>
+    `,
+    { width:'480px' }
+  );
+  document.getElementById('end-cancel').onclick = () => Modal.close();
+  const selProv = document.getElementById('end-proveedor');
+  const cont = document.getElementById('end-facturas');
+  let pendientes = [];
+  selProv.onchange = async () => {
+    const provId = Number(selProv.value);
+    if(!provId){ cont.innerHTML=''; pendientes=[]; return; }
+    pendientes = excluirComprasBorrador(await DB.getAllByIndex('compras','proveedorId', provId)).filter(cc=>(cc.total-cc.montoPagado)>0.009).sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
+    cont.innerHTML = pendientes.length ? `
+      <div class="apl-muted" style="font-size:12px; margin-bottom:6px;">Facturas a cubrir con este cheque (opcional; el resto queda a cuenta):</div>
+      <div class="doc-list" style="max-height:180px; overflow-y:auto; border:1px solid var(--border-soft); border-radius:10px; margin-bottom:10px;">
+        ${pendientes.map(cc=>{
+          const saldo = cc.total-cc.montoPagado;
+          return `<label style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-bottom:1px solid var(--border-soft); cursor:pointer;">
+            <input type="checkbox" class="end-check" data-id="${cc.id}" data-saldo="${saldo.toFixed(2)}">
+            <span style="flex:1; font-size:12.5px;">${parsearFechaSegura(cc.fecha).toLocaleDateString('es-AR')} — ${cc.numeroFactura?'Factura Nº '+Utils.escapeHTML(cc.numeroFactura):'#'+cc.id}</span>
+            <span class="font-mono">$${saldo.toLocaleString('es-AR')}</span>
+          </label>`;
+        }).join('')}
+      </div>` : `<p class="apl-muted" style="font-size:12px;">Este proveedor no tiene facturas pendientes: el cheque queda como pago a cuenta.</p>`;
+  };
+  document.getElementById('end-save').onclick = async () => {
+    const provId = Number(selProv.value);
+    if(!provId){ Toast.show('error','Falta el proveedor',''); return; }
+    const checks = Array.from(document.querySelectorAll('.end-check:checked'));
+    let restante = c.monto;
+    const aplicaciones = [];
+    for(const chk of checks){
+      if(restante<=0.009) break;
+      const saldo = Number(chk.dataset.saldo);
+      const aplicado = Math.min(restante, saldo);
+      aplicaciones.push({ compraId:Number(chk.dataset.id), monto:aplicado });
+      restante -= aplicado;
+    }
+    if(restante>0.009) aplicaciones.push({ adelanto:true, monto:restante });
+    await chequeEndosar(c, provId, aplicaciones);
+    Toast.show('success','Cheque endosado', chequeTituloCorto(c));
+    Modal.close();
+    router();
+  };
+}
+async function openChequeManualModal(){
+  const clientes = (await DB.getAll('clientes')).filter(c=>c.activo!==false).sort((a,b)=>clienteNombreCompleto(a).localeCompare(clienteNombreCompleto(b),'es',{sensitivity:'base'}));
+  Modal.open(
+    'Cargar cheque manual',
+    `
+    <p class="apl-muted" style="font-size:12px;">Para un cheque de terceros que un cliente te entrega directamente (no ligado a una venta o service puntual), o para dejar registro de un cheque emitido fuera de un pago a proveedor.</p>
+    <div class="field"><label>Tipo</label><select class="select-input" id="cm-tipo"><option value="recibido">Recibido (de un cliente)</option><option value="emitido">Emitido (a un proveedor)</option></select></div>
+    <div class="field" id="cm-cliente-wrap"><label>Cliente (opcional)</label><select class="select-input" id="cm-cliente"><option value="">Sin cliente asociado</option>${clientes.map(c=>`<option value="${c.id}">${Utils.escapeHTML(clienteNombreCompleto(c))}</option>`).join('')}</select></div>
+    <div class="field-row">
+      <div class="field"><label>Banco</label><input type="text" id="cm-banco" placeholder="Ej: Banco Nación"></div>
+      <div class="field"><label>Número</label><input type="text" id="cm-numero"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Fecha de cobro/pago</label><input type="date" id="cm-fechaCobro" value="${Utils.hoyLocal()}"></div>
+      <div class="field"><label>Monto</label><input type="number" min="0.01" step="0.01" id="cm-monto"></div>
+    </div>
+    <div class="field"><label>Titular</label><input type="text" id="cm-titular"></div>
+    <div class="field"><label>Observaciones</label><textarea class="textarea-input" id="cm-obs"></textarea></div>
+    <div class="modal-actions"><button class="btn btn-ghost" id="cm-cancel">Cancelar</button><button class="btn btn-accent" id="cm-save">Cargar cheque</button></div>
+    `,
+    { width:'480px' }
+  );
+  const selTipo = document.getElementById('cm-tipo');
+  const clienteWrap = document.getElementById('cm-cliente-wrap');
+  selTipo.onchange = () => { clienteWrap.style.display = selTipo.value==='recibido' ? '' : 'none'; };
+  document.getElementById('cm-cancel').onclick = () => Modal.close();
+  document.getElementById('cm-save').onclick = async () => {
+    const tipo = selTipo.value;
+    const banco = document.getElementById('cm-banco').value.trim();
+    const numero = document.getElementById('cm-numero').value.trim();
+    const fechaCobro = document.getElementById('cm-fechaCobro').value;
+    const monto = Number(document.getElementById('cm-monto').value);
+    if(!banco || !numero || !fechaCobro || !monto || monto<=0){ Toast.show('error','Faltan datos','Completá banco, número, fecha y monto.'); return; }
+    const clienteId = tipo==='recibido' ? (Number(document.getElementById('cm-cliente').value)||null) : null;
+    await crearCheque({
+      tipo, banco, numero, fechaCobro, monto, clienteId,
+      titular: document.getElementById('cm-titular').value.trim(),
+      observaciones: document.getElementById('cm-obs').value.trim(),
+      estado: tipo==='recibido' ? 'Cartera' : 'Entregado',
+      referencia:'manual'
+    });
+    Toast.show('success','Cheque cargado', `$${monto.toLocaleString('es-AR')}`);
+    Modal.close();
+    router();
+  };
+}
+
 async function viewCuentasCorrientesList(){
   const clientes = (await DB.getAll('clientes')).filter(c=>c.activo!==false);
   const saldos = await Promise.all(clientes.map(async c => ({ cliente:c, saldo: await saldoCuentaCorriente(c.id) })));
