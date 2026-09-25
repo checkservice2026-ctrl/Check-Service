@@ -10153,7 +10153,7 @@ function stockBadgeHTML(p){
 // Se mantiene fuera de viewProductosList/bindProductosListEvents para que sobreviva
 // a los re-render de router() (ej: al guardar la edición de un producto) y así
 // el buscador y los filtros no se pierdan.
-let productosFiltroState = { q:'', categoria:'', estado:'activos', critico:false };
+let productosFiltroState = { q:'', categoria:'', estado:'activos', critico:false, equivalentes:'' };
 
 async function viewProductosList(){
   const productos = (await DB.getAll('productos')).sort((a,b)=>a.nombre.localeCompare(b.nombre));
@@ -10205,12 +10205,17 @@ async function viewProductosList(){
         <option value="inactivos" ${productosFiltroState.estado==='inactivos'?'selected':''}>Dados de baja</option>
       </select>
       <label class="checkbox-inline"><input type="checkbox" id="prod-filtro-critico" ${productosFiltroState.critico?'checked':''}> Solo stock crítico</label>
+      <select class="toolbar-select" id="prod-filtro-equivalentes">
+        <option value="" ${!productosFiltroState.equivalentes?'selected':''}>Equivalentes: todos</option>
+        <option value="con" ${productosFiltroState.equivalentes==='con'?'selected':''}>Con equivalentes cargados</option>
+        <option value="sin" ${productosFiltroState.equivalentes==='sin'?'selected':''}>Sin equivalentes cargados</option>
+      </select>
     </div>
     <div class="card" style="padding:0; overflow-x:auto;">
       <table class="data-table" id="productos-table">
         <thead><tr><th></th><th>Código</th><th>Nombre</th><th>Categoría</th><th>Marca</th><th>Precio venta</th><th>Stock</th><th></th><th style="text-align:right;">Acciones</th></tr></thead>
         <tbody>
-          ${productos.length ? productos.map(p => `<tr data-id="${p.id}" data-categoria="${p.categoria}" data-estado="${p.activo!==false?'activos':'inactivos'}" data-critico="${p.stockActual<=p.stockMinimo?'1':'0'}" data-search="${Utils.escapeHTML((p.codigo+' '+p.nombre+' '+(marcasMapa[p.marcaId]?marcasMapa[p.marcaId].nombre:'')).toLowerCase())}">
+          ${productos.length ? productos.map(p => `<tr data-id="${p.id}" data-categoria="${p.categoria}" data-estado="${p.activo!==false?'activos':'inactivos'}" data-critico="${p.stockActual<=p.stockMinimo?'1':'0'}" data-equivalentes="${(p.equivalentes&&p.equivalentes.length)?'con':'sin'}" data-search="${Utils.escapeHTML((p.codigo+' '+p.nombre+' '+(marcasMapa[p.marcaId]?marcasMapa[p.marcaId].nombre:'')).toLowerCase())}">
               <td><div class="prod-thumb">${p.imagen?`<img src="${p.imagen}">`:svgIcon('productos')}</div></td>
               <td class="font-mono" style="font-size:12px;">${Utils.escapeHTML(p.codigo)}</td>
               <td style="font-weight:700;">${Utils.escapeHTML(p.nombre)}</td>
@@ -10288,19 +10293,22 @@ function bindProductosListEvents(){
     const cat = document.getElementById('prod-filtro-categoria').value;
     const estado = document.getElementById('prod-filtro-estado').value;
     const soloCritico = document.getElementById('prod-filtro-critico').checked;
-    productosFiltroState = { q, categoria:cat, estado, critico:soloCritico };
+    const equivalentes = document.getElementById('prod-filtro-equivalentes').value;
+    productosFiltroState = { q, categoria:cat, estado, critico:soloCritico, equivalentes };
     document.querySelectorAll('#productos-table tbody tr[data-id]').forEach(tr=>{
       const matchQ = !q || tr.dataset.search.includes(q);
       const matchCat = !cat || tr.dataset.categoria === cat;
       const matchEstado = estado==='todos' || tr.dataset.estado===estado;
       const matchCritico = !soloCritico || tr.dataset.critico === '1';
-      tr.style.display = (matchQ && matchCat && matchEstado && matchCritico) ? '' : 'none';
+      const matchEquivalentes = !equivalentes || tr.dataset.equivalentes === equivalentes;
+      tr.style.display = (matchQ && matchCat && matchEstado && matchCritico && matchEquivalentes) ? '' : 'none';
     });
   }
   document.getElementById('prod-search').addEventListener('input', applyFilters);
   document.getElementById('prod-filtro-categoria').addEventListener('change', applyFilters);
   document.getElementById('prod-filtro-estado').addEventListener('change', applyFilters);
   document.getElementById('prod-filtro-critico').addEventListener('change', applyFilters);
+  document.getElementById('prod-filtro-equivalentes').addEventListener('change', applyFilters);
   // Reaplica el filtro guardado apenas se renderiza la lista (después de guardar
   // una edición, dar de baja, marcar favorito, etc. el buscador ya viene precargado
   // en el input, pero hay que re-ejecutar el filtrado para ocultar las filas).
