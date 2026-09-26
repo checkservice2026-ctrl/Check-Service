@@ -1575,6 +1575,17 @@ const DB_VERSION = 26; // v26: store 'cheques' (cheques recibidos de clientes y 
    una línea abajo) cada vez que se entrega una nueva versión, para tener
    registro de qué se cambió y cuándo sin depender del nombre del archivo.
    Historial:
+     v18.43 — Fix crítico: anular, reactivar o editar una venta/service cobrados con Cheque, o
+       anular/reactivar una compra pagada con Cheque, registraban movimientos de Caja inventados
+       (el cheque en Cartera nunca había tocado Caja) y dejaban el cheque asociado huérfano,
+       pudiendo acreditarse/rechazarse igual como si la venta siguiera vigente. Ahora estas
+       acciones actúan sobre el cheque asociado (Anulado/Cartera/Entregado, con reversión real de
+       Caja solo si ya estaba Acreditado) en vez de tocar Caja directamente. De paso: el selector
+       de medio de pago de "Editar venta" no tenía la opción "Cheque" y caía en "Efectivo" en
+       silencio si se guardaba sin tocarlo; "Ajustar saldo de Caja" no permitía imputar la
+       diferencia del bucket bancario a "Cheque"; y reactivar una compra con pagos mixtos
+       (Efectivo + Cheque) reingresaba a Caja el monto total pagado en vez de solo la parte real
+       revertida en la anulación.
      v18.40 — Nuevo módulo Cheques (dentro de "Compras y Finanzas"): cheques recibidos de clientes y emitidos a proveedores, con su ciclo de vida completo (Cartera → Depositado → Acreditado, o Rechazado, o Endosado a un proveedor sin pasar por Caja; Entregado → Debitado para los emitidos, o Rechazado). Rechazar o anular un cheque reabre automáticamente la deuda del cliente o del proveedor. "Cheque" ahora es un medio de pago más en el POS y en el cobro de Servicios (con fecha estimada de cobro y banco/número/titular) y en el pago a proveedores; mientras el cheque está en cartera no impacta en Caja — recién lo hace al acreditarse/debitarse. Pestaña de Vencimientos y KPIs de saldo en cartera/por cobrar/vencido, más una tarjeta de "Cheques en cartera" en la vista de Caja con link directo al módulo.
      v18.39 — Aplicaciones: se ve la foto del producto vinculado (kit de repuestos, pestaña "Por código", chips de "Por vehículo"/"Árbol" y formulario de carga); sin foto se muestra un ícono discreto. Al cargar un código (repuesto nuevo o "+ Alt." para un equivalente) ahora se puede elegir un SKU ya cargado en Stock desde un buscador desplegable (con foto, nombre y stock), igual que en Servicios/Cotizaciones, en vez de tipear el código a ciegas; se sigue pudiendo escribir un código manual si no está en Stock.
      v18.38 — Aplicaciones: deja de ser una isla. Nueva pestaña "Consulta rápida" (patente o marca/modelo/año → filtros, lubricante y stock), motor de coincidencias vehículo→aplicación, y el kit de repuestos aparece en la ficha del Vehículo, en Servicios, en Cotizaciones y en el POS (botón "Repuestos por vehículo"). Cada repuesto muestra stock/precio del producto vinculado (por vínculo, código o nombre), alerta de reposición y equivalentes. Nuevos tipos (bujías, pastillas, correas, batería), lubricante con viscosidad/capacidad/especificación, varios códigos por tipo (Original/Alternativo/Económico) con equivalencias entre marcas. Búsqueda por palabras sueltas, sin tildes y por año; filtros por marca/tipo/stock, orden por columna, duplicar aplicación y pestaña Reposición.
@@ -1601,7 +1612,7 @@ const DB_VERSION = 26; // v26: store 'cheques' (cheques recibidos de clientes y 
      v18.17 — Backup automático: ahora corre 2 veces por día (10:00 y 19:50 hora Argentina), cada uno con su propio archivo y control de "ya se hizo hoy".
      v18.16 — Retiros de socios (nuevo submódulo dentro de Caja) + versión visible en la app.
      v18.15 — punto de partida de este historial. */
-const APP_VERSION = 'v18.40';
+const APP_VERSION = 'v18.43';
 const SESSION_KEY = 'cs_session';
 const REMEMBER_KEY = 'cs_remember_user';
 const THEME_KEY = 'cs_theme';
@@ -14617,6 +14628,20 @@ async function revertirCobrosHistorial(h, motivo){
       await registrarMovimientoCtaCte(h.clienteId, { tipo:'pago', concepto:motivo, monto:m.monto, referencia:refHist });
     }
   }
+  // Un cobro con Cheque nunca generó un ingreso en Caja (ver rph-save): si el
+  // service tenía uno asociado, hay que resolverlo aparte contra el módulo
+  // Cheques en vez de dejarlo huérfano apuntando a un historial eliminado.
+  const cheque = (await DB.getAll('cheques')).find(c=>c.tipo==='recibido' && c.referencia===refHist);
+  if(cheque){
+    if(cheque.estado==='Acreditado'){
+      await registrarMovimientoCaja({ tipo:'egreso', concepto:motivo, monto:cheque.monto, medioPago:'Cheque', referencia:`cheque:${cheque.id}` });
+      await chequeAgregarHistorial(cheque, 'Acreditado', `${motivo} — el cheque ya estaba acreditado: se revirtió el ingreso en Caja.`);
+    }else if(cheque.estado==='Cartera' || cheque.estado==='Depositado'){
+      await chequeAgregarHistorial(cheque, 'Anulado', motivo);
+    }else{
+      Toast.show('warn','Revisá el cheque asociado', `${chequeTituloCorto(cheque)} está en estado "${CHEQUE_ESTADO_INFO[cheque.estado]?CHEQUE_ESTADO_INFO[cheque.estado].label:cheque.estado}": no se modificó automáticamente.`, 8000);
+    }
+  }
 }
 
 /* -----------------------------------------------------------------------
@@ -16039,10 +16064,38 @@ async function revertirEfectosCompra(compra, motivo){
     await registrarMovimientoCaja({ tipo:'ingreso', concepto:motivo, monto:pago.monto, medioPago:pago.medioPago, referencia:`compra:${compra.id}` });
   }
 }
-/* Aplica (o reaplica) los efectos de una compra: ingresa el stock de sus
+/* Cheques emitidos que se usaron para pagar (parcial o totalmente) esta compra
+   (ver aplicaciones en openRegistrarPagoProveedorModal). Un cheque "Entregado"
+   nunca tocó Caja, así que anular la compra no revierte nada ahí — pero si el
+   cheque cubre SOLO esta compra, sí hay que anularlo para que no quede vivo
+   apuntando a una compra que ya no existe. Si cubre más de una factura, se
+   avisa en vez de tocarlo (podría seguir correspondiendo a otra compra). */
+async function revertirChequesEmitidosDeCompra(compra, motivo){
+  const cheques = (await DB.getAll('cheques')).filter(c=>c.tipo==='emitido' && c.estado==='Entregado' && Array.isArray(c.aplicaciones) && c.aplicaciones.some(a=>a.compraId===compra.id));
+  for(const cheque of cheques){
+    const soloEstaCompra = cheque.aplicaciones.length===1 && cheque.aplicaciones[0].compraId===compra.id;
+    if(soloEstaCompra){
+      await chequeAgregarHistorial(cheque, 'Anulado', motivo);
+    }else{
+      Toast.show('warn','Revisá el cheque emitido', `${chequeTituloCorto(cheque)} también cubre otras facturas: no se anuló automáticamente. Revisalo en el módulo Cheques.`, 8000);
+    }
+  }
+}
+/* Contraparte: al reactivar la compra, vuelve a poner "Entregado" el/los
+   cheques emitidos que revertirChequesEmitidosDeCompra había anulado por
+   corresponder únicamente a esta compra. */
+async function reactivarChequesEmitidosDeCompra(compra, motivo){
+  const cheques = (await DB.getAll('cheques')).filter(c=>c.tipo==='emitido' && c.estado==='Anulado' && Array.isArray(c.aplicaciones) && c.aplicaciones.length===1 && c.aplicaciones[0].compraId===compra.id);
+  for(const cheque of cheques){
+    await chequeAgregarHistorial(cheque, 'Entregado', motivo);
+  }
+}
+/* Aplica los efectos de una compra recién editada: ingresa el stock de sus
    ítems y, si tiene un monto pagado, registra un único egreso de Caja por
-   ese monto con el medio de pago indicado. Se usa al reactivar una compra
-   anulada y al confirmar una edición. */
+   ese monto con el medio de pago elegido en el formulario de edición (que no
+   ofrece "Cheque" — ver ce-medioPago). Se usa solo al confirmar una edición;
+   reactivarCompra restaura los movimientos originales por su cuenta, para no
+   reingresar como plata real un pago que se había hecho con Cheque. */
 async function aplicarEfectosCompra(compra, motivo, medioPago='Transferencia'){
   for(const it of compra.items){
     if(it.productoId) await aplicarMovimientoStockProducto(it.productoId, it.cantidad, motivo, true);
@@ -16058,7 +16111,9 @@ async function anularCompra(compra){
   const proveedor = await DB.get('proveedores', compra.proveedorId);
   const ref = compra.numeroFactura ? 'Factura Nº '+compra.numeroFactura : '#'+compra.id;
   if(!confirm(`¿Anular la compra ${ref} a ${proveedor?proveedor.nombre:'(proveedor eliminado)'}? Se va a descontar el stock ingresado${compra.montoPagado>0?' y revertir en Caja los pagos ya registrados' : ''}.`)) return;
-  await revertirEfectosCompra(compra, `Anulación de compra ${ref}`);
+  const motivoAnulacion = `Anulación de compra ${ref}`;
+  await revertirEfectosCompra(compra, motivoAnulacion);
+  await revertirChequesEmitidosDeCompra(compra, motivoAnulacion);
   await DB.put('compras', { ...compra, estado:'anulada', fechaAnulacion:Utils.nowISO() });
   await Audit.log('compra_anulada', `Compra ${ref} a ${proveedor?proveedor.nombre:''} anulada.`);
   Toast.show('success','Compra anulada','');
@@ -16070,8 +16125,20 @@ async function reactivarCompra(compra){
   if(!compraDentroDeLimiteEdicion(compra)){ Toast.show('error','Fuera de plazo',`Esta compra se cargó hace más de ${LIMITE_DIAS_EDICION_COMPRA} días y ya no se puede reactivar.`); return; }
   const proveedor = await DB.get('proveedores', compra.proveedorId);
   const ref = compra.numeroFactura ? 'Factura Nº '+compra.numeroFactura : '#'+compra.id;
-  if(!confirm(`¿Reactivar la compra ${ref}? Se va a volver a ingresar el stock${compra.montoPagado>0?' y a registrar nuevamente el pago en Caja':''}.`)) return;
-  await aplicarEfectosCompra(compra, `Reactivación de compra ${ref}`, compra.medioPago || 'Efectivo');
+  if(!confirm(`¿Reactivar la compra ${ref}? Se va a volver a ingresar el stock${compra.montoPagado>0?' y a restaurar los pagos que tenía registrados':''}.`)) return;
+  const motivoReactivacion = `Reactivación de compra ${ref}`;
+  for(const it of compra.items){
+    if(it.productoId) await aplicarMovimientoStockProducto(it.productoId, it.cantidad, motivoReactivacion, true);
+  }
+  // Restaura, movimiento por movimiento, los pagos reales que la anulación
+  // había revertido en Caja (en vez de un único monto global con un medio de
+  // pago genérico): así un pago hecho con Cheque, que nunca tocó Caja, no se
+  // reingresa por error como si fuera plata real.
+  const reversiones = (await DB.getAll('caja')).filter(m => m.tipo==='ingreso' && m.referencia === `compra:${compra.id}` && m.concepto.startsWith('Anulación de compra'));
+  for(const rev of reversiones){
+    await registrarMovimientoCaja({ tipo:'egreso', concepto:motivoReactivacion, monto:rev.monto, medioPago:rev.medioPago, referencia:`compra:${compra.id}` });
+  }
+  await reactivarChequesEmitidosDeCompra(compra, motivoReactivacion);
   await DB.put('compras', { ...compra, estado:'activa', fechaAnulacion:null });
   await Audit.log('compra_reactivada', `Compra ${ref} a ${proveedor?proveedor.nombre:''} reactivada.`);
   Toast.show('success','Compra reactivada','');
@@ -16977,7 +17044,7 @@ async function eliminarMovimientoCajaManual(id){
 async function openAjustarSaldoCajaModal(){
   const saldoPorMedio = await cajaSaldoPorMedio();
   const saldoEfectivoActual = saldoPorMedio['Efectivo'] || 0;
-  const mediosBancariosDisponibles = MEDIOS_PAGO.filter(m => m!=='Efectivo' && m!=='Cuenta corriente');
+  const mediosBancariosDisponibles = [...MEDIOS_PAGO.filter(m => m!=='Efectivo' && m!=='Cuenta corriente'), 'Cheque'];
   const saldoBancarioActual = Object.keys(saldoPorMedio).filter(m=>m!=='Efectivo').reduce((acc,m)=>acc+saldoPorMedio[m], 0);
   const saldoTotalActual = saldoEfectivoActual + saldoBancarioActual;
 
@@ -21088,14 +21155,60 @@ function bindVentasListEvents(){
   }
 }
 
-/* Revierte el efecto en stock y en Caja/Cuenta Corriente de una venta (usado al editar o anular) */
+/* Busca el cheque "recibido" ligado a una venta puntual (referencia venta:<id>). */
+async function chequeDeVenta(ventaId){
+  return (await DB.getAll('cheques')).find(c=>c.tipo==='recibido' && c.referencia===`venta:${ventaId}`);
+}
+/* Revierte lo que un cheque recibido por una venta había generado, sin pasar
+   por Caja salvo que el cheque ya estuviera Acreditado (ahí sí hay plata real
+   que sacar). Mientras está en Cartera/Depositado nunca tocó Caja, así que
+   alcanza con anularlo. Si ya fue Rechazado/Endosado/Anulado por su cuenta,
+   no se toca (ya se resolvió, o hay que revisarlo a mano). */
+async function revertirChequeVinculadoAVenta(venta, motivo){
+  const cheque = await chequeDeVenta(venta.id);
+  if(!cheque) return;
+  if(cheque.estado==='Acreditado'){
+    await registrarMovimientoCaja({ tipo:'egreso', concepto:motivo, monto:cheque.monto, medioPago:'Cheque', referencia:`cheque:${cheque.id}` });
+    await chequeAgregarHistorial(cheque, 'Acreditado', `${motivo} — el cheque ya estaba acreditado: se revirtió el ingreso en Caja.`);
+  }else if(cheque.estado==='Cartera' || cheque.estado==='Depositado'){
+    await chequeAgregarHistorial(cheque, 'Anulado', motivo);
+  }else{
+    Toast.show('warn','Revisá el cheque asociado', `${chequeTituloCorto(cheque)} está en estado "${CHEQUE_ESTADO_INFO[cheque.estado]?CHEQUE_ESTADO_INFO[cheque.estado].label:cheque.estado}": no se modificó automáticamente. Revisalo en el módulo Cheques si hace falta.`, 8000);
+  }
+}
+/* Contraparte de revertirChequeVinculadoAVenta: restaura el cheque al
+   reactivar o re-confirmar una venta (edición). */
+async function aplicarChequeVinculadoAVenta(venta, motivo){
+  const cheque = await chequeDeVenta(venta.id);
+  if(!cheque){
+    Toast.show('warn','Sin cheque asociado', 'Esta venta figura pagada con Cheque pero no se encontró el cheque original: revisala a mano en el módulo Cheques.', 8000);
+    return;
+  }
+  if(cheque.estado==='Anulado'){
+    const actualizado = await chequeAgregarHistorial(cheque, 'Cartera', motivo);
+    const cambios = {};
+    if(Math.abs((actualizado.monto||0) - venta.total) > 0.009) cambios.monto = venta.total;
+    if((actualizado.clienteId||null) !== (venta.clienteId||null)) cambios.clienteId = venta.clienteId||null;
+    if(Object.keys(cambios).length) await DB.put('cheques', { ...actualizado, ...cambios });
+  }else if(cheque.estado==='Acreditado'){
+    await registrarMovimientoCaja({ tipo:'ingreso', concepto:motivo, monto:cheque.monto, medioPago:'Cheque', referencia:`cheque:${cheque.id}` });
+    await chequeAgregarHistorial(cheque, 'Acreditado', `${motivo} — se volvió a registrar el ingreso en Caja.`);
+  }else{
+    Toast.show('warn','Revisá el cheque asociado', `${chequeTituloCorto(cheque)} está en estado "${CHEQUE_ESTADO_INFO[cheque.estado]?CHEQUE_ESTADO_INFO[cheque.estado].label:cheque.estado}": no se modificó automáticamente.`, 8000);
+  }
+}
+/* Revierte el efecto en stock y en Caja/Cuenta Corriente de una venta (usado al editar o anular).
+   Un cheque en Cartera/Depositado NUNCA impactó Caja al cobrarse (ver finalizarVenta): por eso
+   no se lo puede tratar como los demás medios acá — se maneja aparte, contra el módulo Cheques. */
 async function revertirEfectosVenta(venta, motivo){
   for(const item of venta.items){
     if(item.productoId) await aplicarMovimientoStockProducto(item.productoId, item.cantidad, motivo, true);
   }
   if(venta.medioPago === 'Cuenta corriente' && venta.clienteId){
     await registrarMovimientoCtaCte(venta.clienteId, { tipo:'pago', concepto:motivo, monto:venta.total, referencia:`venta:${venta.id}` });
-  }else if(venta.medioPago !== 'Cuenta corriente'){
+  }else if(venta.medioPago === 'Cheque'){
+    await revertirChequeVinculadoAVenta(venta, motivo);
+  }else{
     await registrarMovimientoCaja({ tipo:'egreso', concepto:motivo, monto:venta.total, medioPago:venta.medioPago, referencia:`venta:${venta.id}` });
   }
 }
@@ -21106,13 +21219,16 @@ async function aplicarEfectosVenta(venta, motivo){
   }
   if(venta.medioPago === 'Cuenta corriente' && venta.clienteId){
     await registrarMovimientoCtaCte(venta.clienteId, { tipo:'cargo', concepto:motivo, monto:venta.total, referencia:`venta:${venta.id}` });
-  }else if(venta.medioPago !== 'Cuenta corriente'){
+  }else if(venta.medioPago === 'Cheque'){
+    await aplicarChequeVinculadoAVenta(venta, motivo);
+  }else{
     await registrarMovimientoCaja({ tipo:'ingreso', concepto:motivo, monto:venta.total, medioPago:venta.medioPago, referencia:`venta:${venta.id}` });
   }
 }
 
 async function anularVenta(venta){
-  if(!confirm(`¿Anular la venta #${venta.numero}? Se va a devolver el stock vendido y se va a revertir el movimiento de ${venta.medioPago==='Cuenta corriente'?'cuenta corriente':'caja'} por $${venta.total.toLocaleString('es-AR')}.`)) return;
+  const impactoTxt = venta.medioPago==='Cuenta corriente' ? 'cuenta corriente' : venta.medioPago==='Cheque' ? 'el cheque asociado (módulo Cheques)' : 'caja';
+  if(!confirm(`¿Anular la venta #${venta.numero}? Se va a devolver el stock vendido y se va a revertir ${venta.medioPago==='Cheque'?impactoTxt:'el movimiento de '+impactoTxt}${venta.medioPago!=='Cheque'?` por $${venta.total.toLocaleString('es-AR')}`:''}.`)) return;
   await revertirEfectosVenta(venta, `Anulación de venta #${venta.numero}`);
   await DB.put('ventas', { ...venta, estado:'anulada', fechaAnulacion:Utils.nowISO() });
   await Audit.log('venta_anulada', `Venta #${venta.numero} anulada.`);
@@ -21164,7 +21280,8 @@ async function openVentaEditarModal(venta){
     <div class="field-row">
       <div class="field"><label>Descuento (%)</label><input type="number" min="0" max="100" id="ve-descuentoPct" value="${venta.descuentoPct||0}"></div>
       <div class="field"><label>Medio de pago</label>
-        <select class="select-input" id="ve-medioPago">${MEDIOS_PAGO.map(m=>`<option value="${m}" ${venta.medioPago===m?'selected':''}>${m}</option>`).join('')}</select>
+        <select class="select-input" id="ve-medioPago">${(MEDIOS_PAGO.includes(venta.medioPago) ? MEDIOS_PAGO : [...MEDIOS_PAGO, venta.medioPago]).map(m=>`<option value="${m}" ${venta.medioPago===m?'selected':''}>${m}</option>`).join('')}</select>
+        ${venta.medioPago==='Cheque'?`<p class="apl-muted" style="font-size:11px; margin:4px 0 0;">Esta venta se cobró con Cheque; al guardar se actualiza el cheque asociado (módulo Cheques) en vez de Caja.</p>`:''}
       </div>
     </div>
     <div style="text-align:right; font-size:14px; font-weight:700; margin:6px 0 14px;">Total: <span id="ve-total">$0</span></div>
