@@ -1593,6 +1593,10 @@ const DB_VERSION = 26; // v26: store 'cheques' (cheques recibidos de clientes y 
        rompía el modal); al restaurar un backup viejo que no tenía el store 'cheques' (u otros
        posteriores), esos datos se limpian en lugar de quedar huérfanos; y al anular una compra
        pagada con un cheque endosado se avisa para revisarlo a mano.
+       Stock → Rotación: un producto que nunca se vendió podía figurar como "Alta rotación" porque
+       el cálculo tomaba como venta cualquier egreso del kardex (ajustes manuales, compras
+       editadas o anuladas, ventas/services corregidos). Ahora se calcula solo con ventas no
+       anuladas y con los productos usados en services, con la fecha real de cada uno.
      v18.40 — Nuevo módulo Cheques (dentro de "Compras y Finanzas"): cheques recibidos de clientes y emitidos a proveedores, con su ciclo de vida completo (Cartera → Depositado → Acreditado, o Rechazado, o Endosado a un proveedor sin pasar por Caja; Entregado → Debitado para los emitidos, o Rechazado). Rechazar o anular un cheque reabre automáticamente la deuda del cliente o del proveedor. "Cheque" ahora es un medio de pago más en el POS y en el cobro de Servicios (con fecha estimada de cobro y banco/número/titular) y en el pago a proveedores; mientras el cheque está en cartera no impacta en Caja — recién lo hace al acreditarse/debitarse. Pestaña de Vencimientos y KPIs de saldo en cartera/por cobrar/vencido, más una tarjeta de "Cheques en cartera" en la vista de Caja con link directo al módulo.
      v18.39 — Aplicaciones: se ve la foto del producto vinculado (kit de repuestos, pestaña "Por código", chips de "Por vehículo"/"Árbol" y formulario de carga); sin foto se muestra un ícono discreto. Al cargar un código (repuesto nuevo o "+ Alt." para un equivalente) ahora se puede elegir un SKU ya cargado en Stock desde un buscador desplegable (con foto, nombre y stock), igual que en Servicios/Cotizaciones, en vez de tipear el código a ciegas; se sigue pudiendo escribir un código manual si no está en Stock.
      v18.38 — Aplicaciones: deja de ser una isla. Nueva pestaña "Consulta rápida" (patente o marca/modelo/año → filtros, lubricante y stock), motor de coincidencias vehículo→aplicación, y el kit de repuestos aparece en la ficha del Vehículo, en Servicios, en Cotizaciones y en el POS (botón "Repuestos por vehículo"). Cada repuesto muestra stock/precio del producto vinculado (por vínculo, código o nombre), alerta de reposición y equivalentes. Nuevos tipos (bujías, pastillas, correas, batería), lubricante con viscosidad/capacidad/especificación, varios códigos por tipo (Original/Alternativo/Económico) con equivalencias entre marcas. Búsqueda por palabras sueltas, sin tildes y por año; filtros por marca/tipo/stock, orden por columna, duplicar aplicación y pestaña Reposición.
@@ -12988,8 +12992,13 @@ function bindStockListEvents(){
 
 /* -----------------------------------------------------------------------
    20-J-bis. ANÁLISIS DE ROTACIÓN DE STOCK
-   Usa el kardex (movimientosStock) para ver, producto por producto, hace
-   cuánto no se vende y cada cuánto se vende en promedio. Parámetros
+   Usa las VENTAS reales (POS, sin las anuladas) y los productos usados en
+   SERVICES para ver, producto por producto, hace cuánto no se vende y cada
+   cuánto se vende en promedio. NO se basa en el kardex (movimientosStock):
+   ahí también quedan como "egreso" los ajustes manuales, las compras
+   editadas o anuladas y las ventas/services corregidos, y cualquiera de
+   esos hacía aparecer como "Alta rotación" a un producto que nunca se
+   vendió. Parámetros
    definidos junto con el usuario: ventana de 60 días para medir velocidad
    de venta reciente, y 45 días sin vender para considerar un producto
    "sin movimiento".
@@ -12999,10 +13008,21 @@ const ROTACION_UMBRAL_SIN_MOVIMIENTO = 45;
 
 async function calcularRotacionStock(){
   const productos = (await DB.getAll('productos')).filter(p=>p.activo!==false);
-  const movimientos = await DB.getAll('movimientosStock');
+  // Una "venta" para la rotación es una salida real: un ítem de una venta no
+  // anulada, o un producto usado en un service. La fecha es la de la venta o
+  // del service (no la de una edición posterior).
   const egresosPorProducto = {};
-  movimientos.filter(m=>m.tipo==='egreso').forEach(m=>{
-    (egresosPorProducto[m.productoId] = egresosPorProducto[m.productoId]||[]).push(m);
+  const registrarSalida = (productoId, fecha, cantidad) => {
+    if(!productoId || !(cantidad > 0)) return;
+    const f = parsearFechaSegura(fecha);
+    if(isNaN(f.getTime())) return;
+    (egresosPorProducto[productoId] = egresosPorProducto[productoId]||[]).push({ fecha:f, cantidad });
+  };
+  (await DB.getAll('ventas')).filter(v=>v.estado!=='anulada').forEach(v=>{
+    (v.items||[]).forEach(it=>registrarSalida(it.productoId, v.fecha, it.cantidad));
+  });
+  (await DB.getAll('historialServicios')).forEach(h=>{
+    (h.itemsVendidos||[]).forEach(it=>registrarSalida(it.productoId, h.fecha, it.cantidad));
   });
 
   const hoy = new Date();
