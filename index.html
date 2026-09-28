@@ -1586,6 +1586,13 @@ const DB_VERSION = 26; // v26: store 'cheques' (cheques recibidos de clientes y 
        diferencia del bucket bancario a "Cheque"; y reactivar una compra con pagos mixtos
        (Efectivo + Cheque) reingresaba a Caja el monto total pagado en vez de solo la parte real
        revertida en la anulación.
+       Revisión general: la deuda que reabre un cheque recibido rechazado ahora aparece como factura
+       pendiente ("Cheque rechazado") en Cuenta Corriente y se puede cobrar puntualmente; el KPI
+       "vencidos sin depositar" ya no cuenta los cheques ya depositados; el nombre del banco en el
+       título de los modales Depositar/Rechazar/Endosar se escapa (antes un carácter especial
+       rompía el modal); al restaurar un backup viejo que no tenía el store 'cheques' (u otros
+       posteriores), esos datos se limpian en lugar de quedar huérfanos; y al anular una compra
+       pagada con un cheque endosado se avisa para revisarlo a mano.
      v18.40 — Nuevo módulo Cheques (dentro de "Compras y Finanzas"): cheques recibidos de clientes y emitidos a proveedores, con su ciclo de vida completo (Cartera → Depositado → Acreditado, o Rechazado, o Endosado a un proveedor sin pasar por Caja; Entregado → Debitado para los emitidos, o Rechazado). Rechazar o anular un cheque reabre automáticamente la deuda del cliente o del proveedor. "Cheque" ahora es un medio de pago más en el POS y en el cobro de Servicios (con fecha estimada de cobro y banco/número/titular) y en el pago a proveedores; mientras el cheque está en cartera no impacta en Caja — recién lo hace al acreditarse/debitarse. Pestaña de Vencimientos y KPIs de saldo en cartera/por cobrar/vencido, más una tarjeta de "Cheques en cartera" en la vista de Caja con link directo al módulo.
      v18.39 — Aplicaciones: se ve la foto del producto vinculado (kit de repuestos, pestaña "Por código", chips de "Por vehículo"/"Árbol" y formulario de carga); sin foto se muestra un ícono discreto. Al cargar un código (repuesto nuevo o "+ Alt." para un equivalente) ahora se puede elegir un SKU ya cargado en Stock desde un buscador desplegable (con foto, nombre y stock), igual que en Servicios/Cotizaciones, en vez de tipear el código a ciegas; se sigue pudiendo escribir un código manual si no está en Stock.
      v18.38 — Aplicaciones: deja de ser una isla. Nueva pestaña "Consulta rápida" (patente o marca/modelo/año → filtros, lubricante y stock), motor de coincidencias vehículo→aplicación, y el kit de repuestos aparece en la ficha del Vehículo, en Servicios, en Cotizaciones y en el POS (botón "Repuestos por vehículo"). Cada repuesto muestra stock/precio del producto vinculado (por vínculo, código o nombre), alerta de reposición y equivalentes. Nuevos tipos (bujías, pastillas, correas, batería), lubricante con viscosidad/capacidad/especificación, varios códigos por tipo (Original/Alternativo/Económico) con equivalencias entre marcas. Búsqueda por palabras sueltas, sin tildes y por año; filtros por marca/tipo/stock, orden por columna, duplicar aplicación y pestaña Reposición.
@@ -4591,6 +4598,16 @@ async function importBackupFile(file){
       if(!DB.storeNames().includes(storeName)) continue;
       await DB.clearStore(storeName);
       for(const item of payload.data[storeName]) await DB.put(storeName, item);
+    }
+    // Un backup viejo puede no traer stores creados en versiones posteriores (p. ej.
+    // 'cheques'). Si se dejan como están, quedarían datos que apuntan a ventas,
+    // servicios o compras que el restore acaba de reemplazar. Se limpian también,
+    // salvo los que nunca deben vaciarse por un archivo incompleto.
+    const NUNCA_LIMPIAR = ['usuarios','configuracion','logs'];
+    for(const storeName of DB.storeNames()){
+      if(STORES_EXCLUIDAS_DE_BACKUP.includes(storeName) || NUNCA_LIMPIAR.includes(storeName)) continue;
+      if(Object.prototype.hasOwnProperty.call(payload.data, storeName)) continue;
+      await DB.clearStore(storeName);
     }
     await Audit.log('backup_importado', `Backup importado desde archivo (${Object.keys(payload.data).length} tablas).`);
     await Config.load();
@@ -16080,6 +16097,12 @@ async function revertirChequesEmitidosDeCompra(compra, motivo){
       Toast.show('warn','Revisá el cheque emitido', `${chequeTituloCorto(cheque)} también cubre otras facturas: no se anuló automáticamente. Revisalo en el módulo Cheques.`, 8000);
     }
   }
+  // Cheques de clientes que se endosaron al proveedor para pagar esta compra: ya están
+  // en manos del proveedor, así que no se tocan solos — pero conviene avisar.
+  const endosados = (await DB.getAll('cheques')).filter(c=>c.tipo==='recibido' && c.estado==='Endosado' && Array.isArray(c.aplicaciones) && c.aplicaciones.some(a=>a.compraId===compra.id));
+  for(const cheque of endosados){
+    Toast.show('warn','Cheque endosado a este proveedor', `${chequeTituloCorto(cheque)} se endosó para pagar esta compra y sigue como "Endosado". Revisá con el proveedor si corresponde recuperarlo o dejarlo a cuenta.`, 9000);
+  }
 }
 /* Contraparte: al reactivar la compra, vuelve a poner "Entregado" el/los
    cheques emitidos que revertirChequesEmitidosDeCompra había anulado por
@@ -18305,6 +18328,10 @@ function chequeVencimientoHTML(cheque){
 function chequeTituloCorto(cheque){
   return `Cheque Nº ${cheque.numero}${cheque.banco?' ('+cheque.banco+')':''}`;
 }
+/* Igual que chequeTituloCorto pero apto para el título de Modal.open, que se inserta como HTML crudo. */
+function chequeTituloCortoHTML(cheque){
+  return Utils.escapeHTML(chequeTituloCorto(cheque));
+}
 
 async function crearCheque(datos){
   const session = Session.get();
@@ -18470,7 +18497,7 @@ async function chequesResumen(){
   const emitidosPendientes = todos.filter(c=>c.tipo==='emitido' && c.estado==='Entregado');
   const hoy = new Date(Utils.hoyLocal()+'T00:00:00');
   const en7dias = new Date(hoy.getTime()+7*86400000);
-  const vencidosSinDepositar = recibidosEnCartera.filter(c=>new Date(c.fechaCobro+'T00:00:00') < hoy);
+  const vencidosSinDepositar = recibidosEnCartera.filter(c=>c.estado==='Cartera' && new Date(c.fechaCobro+'T00:00:00') < hoy); // los ya Depositados esperan acreditarse: no son "sin depositar"
   const porCobrarProximos7 = recibidosEnCartera.filter(c=>{ const f=new Date(c.fechaCobro+'T00:00:00'); return f>=hoy && f<=en7dias; });
   return {
     todos,
@@ -18638,7 +18665,7 @@ function abrirDetalleChequeModal(c){
       <div class="apl-muted" style="font-size:11px;">${Utils.escapeHTML(h.usuarioNombre||'')}</div>
     </div>`).join('');
   Modal.open(
-    chequeTituloCorto(c),
+    chequeTituloCortoHTML(c),
     `
     <div class="card" style="padding:12px 14px; margin-bottom:14px;">
       <div class="field-row">
@@ -18666,7 +18693,7 @@ function abrirDetalleChequeModal(c){
 }
 function abrirDepositarChequeModal(c){
   Modal.open(
-    'Depositar — ' + chequeTituloCorto(c),
+    'Depositar — ' + chequeTituloCortoHTML(c),
     `
     <div class="field"><label>Fecha de depósito</label><input type="date" id="dep-fecha" value="${Utils.hoyLocal()}" max="${Utils.hoyLocal()}"></div>
     <p class="apl-muted" style="font-size:12px;">Esto solo marca el cheque como depositado; el ingreso a Caja se registra cuando lo acredites.</p>
@@ -18684,7 +18711,7 @@ function abrirDepositarChequeModal(c){
 }
 function abrirRechazarChequeModal(c){
   Modal.open(
-    'Rechazar — ' + chequeTituloCorto(c),
+    'Rechazar — ' + chequeTituloCortoHTML(c),
     `
     <p class="apl-muted" style="font-size:12.5px;">${c.tipo==='recibido' ? 'Se va a reabrir la deuda del cliente por este monto.' : 'Se va a reabrir la deuda con el proveedor por este monto.'}</p>
     <div class="field"><label>Motivo</label><input type="text" id="rc-motivo" placeholder="Ej: sin fondos, firma disconforme..."></div>
@@ -18707,7 +18734,7 @@ function abrirRechazarChequeModal(c){
 async function abrirEndosarChequeModal(c){
   const proveedores = (await DB.getAll('proveedores')).filter(p=>p.activo!==false).sort((a,b)=>a.nombre.localeCompare(b.nombre,'es',{sensitivity:'base'}));
   Modal.open(
-    'Endosar a un proveedor — ' + chequeTituloCorto(c),
+    'Endosar a un proveedor — ' + chequeTituloCortoHTML(c),
     `
     <div class="card" style="padding:10px 14px; margin-bottom:12px;"><div class="apl-muted" style="font-size:12px;">Monto del cheque</div><div style="font-size:18px; font-weight:700;">$${c.monto.toLocaleString('es-AR')}</div></div>
     <div class="field"><label>Proveedor</label><select class="select-input" id="end-proveedor"><option value="">Seleccioná...</option>${proveedores.map(p=>`<option value="${p.id}">${Utils.escapeHTML(p.nombre)}</option>`).join('')}</select></div>
@@ -18934,10 +18961,10 @@ async function openLimiteCtaCteModal(clienteId){
    saldo pendiente — originadas en una venta, un service o un lavado. El
    saldo pendiente de cada una se calcula restando los pagos que ya se le
    aplicaron puntualmente (pagos con la MISMA referencia que el cargo). */
-const TIPO_CARGO_CTACTE_LABEL = { historial:'Servicio', venta:'Venta', turno:'Lavado' };
+const TIPO_CARGO_CTACTE_LABEL = { historial:'Servicio', venta:'Venta', turno:'Lavado', cheque:'Cheque rechazado' };
 async function cargosPendientesCliente(clienteId){
   const movs = await DB.getAllByIndex('cuentasCorrientes','clienteId', clienteId);
-  const CARGO_PREFIJOS = ['historial','venta','turno'];
+  const CARGO_PREFIJOS = ['historial','venta','turno','cheque']; // 'cheque' = deuda reabierta por un cheque recibido rechazado/anulado
   const pagosPorReferencia = {};
   movs.filter(m=>m.tipo==='pago').forEach(m=>{
     const prefijo = (m.referencia||'').split(':')[0];
