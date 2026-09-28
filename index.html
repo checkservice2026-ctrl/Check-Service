@@ -1597,6 +1597,10 @@ const DB_VERSION = 26; // v26: store 'cheques' (cheques recibidos de clientes y 
        el cálculo tomaba como venta cualquier egreso del kardex (ajustes manuales, compras
        editadas o anuladas, ventas/services corregidos). Ahora se calcula solo con ventas no
        anuladas y con los productos usados en services, con la fecha real de cada uno.
+       Clientes: todas las listas desplegables de clientes ahora salen ordenadas alfabéticamente
+       (ignorando acentos y mayúsculas). Antes estaban sin orden el formulario de Vehículos, Editar
+       venta y el turno de Lavadero, y el de Cobrar turno ordenaba sin el criterio en español.
+       Helper único: ordenarClientesAlfabeticamente().
      v18.40 — Nuevo módulo Cheques (dentro de "Compras y Finanzas"): cheques recibidos de clientes y emitidos a proveedores, con su ciclo de vida completo (Cartera → Depositado → Acreditado, o Rechazado, o Endosado a un proveedor sin pasar por Caja; Entregado → Debitado para los emitidos, o Rechazado). Rechazar o anular un cheque reabre automáticamente la deuda del cliente o del proveedor. "Cheque" ahora es un medio de pago más en el POS y en el cobro de Servicios (con fecha estimada de cobro y banco/número/titular) y en el pago a proveedores; mientras el cheque está en cartera no impacta en Caja — recién lo hace al acreditarse/debitarse. Pestaña de Vencimientos y KPIs de saldo en cartera/por cobrar/vencido, más una tarjeta de "Cheques en cartera" en la vista de Caja con link directo al módulo.
      v18.39 — Aplicaciones: se ve la foto del producto vinculado (kit de repuestos, pestaña "Por código", chips de "Por vehículo"/"Árbol" y formulario de carga); sin foto se muestra un ícono discreto. Al cargar un código (repuesto nuevo o "+ Alt." para un equivalente) ahora se puede elegir un SKU ya cargado en Stock desde un buscador desplegable (con foto, nombre y stock), igual que en Servicios/Cotizaciones, en vez de tipear el código a ciegas; se sigue pudiendo escribir un código manual si no está en Stock.
      v18.38 — Aplicaciones: deja de ser una isla. Nueva pestaña "Consulta rápida" (patente o marca/modelo/año → filtros, lubricante y stock), motor de coincidencias vehículo→aplicación, y el kit de repuestos aparece en la ficha del Vehículo, en Servicios, en Cotizaciones y en el POS (botón "Repuestos por vehículo"). Cada repuesto muestra stock/precio del producto vinculado (por vínculo, código o nombre), alerta de reposición y equivalentes. Nuevos tipos (bujías, pastillas, correas, batería), lubricante con viscosidad/capacidad/especificación, varios códigos por tipo (Original/Alternativo/Económico) con equivalencias entre marcas. Búsqueda por palabras sueltas, sin tildes y por año; filtros por marca/tipo/stock, orden por columna, duplicar aplicación y pestaña Reposición.
@@ -5505,6 +5509,12 @@ function clienteNombreCompleto(c){
   if(!c) return '';
   return c.tipoCliente === 'Empresa' ? (c.razonSocial||'(Sin razón social)') : `${c.nombre||''} ${c.apellido||''}`.trim() || '(Sin nombre)';
 }
+/* Ordena clientes alfabéticamente por el nombre que se muestra (persona: nombre + apellido,
+   empresa: razón social), ignorando acentos y mayúsculas. Usarlo en TODA lista desplegable
+   de clientes para que el orden sea el mismo en toda la app. No modifica el arreglo original. */
+function ordenarClientesAlfabeticamente(lista){
+  return [...lista].sort((a,b)=>clienteNombreCompleto(a).localeCompare(clienteNombreCompleto(b),'es',{sensitivity:'base'}));
+}
 
 /* -----------------------------------------------------------------------
    20-C-BIS. HELPERS CRM (ficha 360°, timeline, nivel VIP)
@@ -7951,7 +7961,7 @@ function vehiculoFormHTML(v, clientes, clienteIdFijo){
       <label>Cliente</label>
       <select class="select-input" id="vf-clienteId">
         <option value="">Seleccioná un cliente...</option>
-        ${clientes.filter(c=>c.activo!==false).map(c=>`<option value="${c.id}" ${v&&v.clienteId===c.id?'selected':''}>${Utils.escapeHTML(clienteNombreCompleto(c))}</option>`).join('')}
+        ${ordenarClientesAlfabeticamente(clientes.filter(c=>c.activo!==false)).map(c=>`<option value="${c.id}" ${v&&v.clienteId===c.id?'selected':''}>${Utils.escapeHTML(clienteNombreCompleto(c))}</option>`).join('')}
       </select>
     </div>`}
     <div class="field-row">
@@ -21300,7 +21310,7 @@ async function reactivarVenta(venta){
 }
 
 async function openVentaEditarModal(venta){
-  const clientes = (await DB.getAll('clientes')).filter(c=>c.activo!==false);
+  const clientes = ordenarClientesAlfabeticamente((await DB.getAll('clientes')).filter(c=>c.activo!==false));
   const productos = await DB.getAll('productos');
   let items = venta.items.map(it=>({...it}));
 
@@ -21707,7 +21717,7 @@ function bindLavaderoTodosEvents(){
 
 /* ---------- Modal: nuevo/editar turno ---------- */
 async function openTurnoModal(turno=null, fechaPrefill=null){
-  const clientes = (await DB.getAll('clientes')).filter(c=>c.activo!==false);
+  const clientes = ordenarClientesAlfabeticamente((await DB.getAll('clientes')).filter(c=>c.activo!==false));
   const servicios = (await DB.getAll('lavaderoServicios')).filter(s=>s.activo!==false);
   if(!servicios.length){ Toast.show('error','Sin servicios cargados','Creá al menos un servicio en la pestaña "Servicios" antes de agendar turnos.'); return; }
 
@@ -21884,7 +21894,7 @@ async function abrirLavadoTicketModal(turno){
 }
 
 async function openCobrarTurnoModal(turno){
-  const clientes = turno.clienteId ? [] : (await DB.getAll('clientes')).filter(c=>c.activo!==false).sort((a,b)=>clienteNombreCompleto(a).localeCompare(clienteNombreCompleto(b)));
+  const clientes = turno.clienteId ? [] : ordenarClientesAlfabeticamente((await DB.getAll('clientes')).filter(c=>c.activo!==false));
   Modal.open(
     'Cobrar turno — ' + turno.servicioNombre,
     `
