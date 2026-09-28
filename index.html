@@ -1601,6 +1601,16 @@ const DB_VERSION = 26; // v26: store 'cheques' (cheques recibidos de clientes y 
        (ignorando acentos y mayúsculas). Antes estaban sin orden el formulario de Vehículos, Editar
        venta y el turno de Lavadero, y el de Cobrar turno ordenaba sin el criterio en español.
        Helper único: ordenarClientesAlfabeticamente().
+       Cliente sin registrar: en Cotizaciones y en los turnos de Servicios y de Lavadero, el campo
+       para cargar el nombre/WhatsApp a mano solo aparecía después de tocar un cliente cargado y
+       volver a "Cliente sin registrar" — al abrir el formulario nuevo (que ya arranca en esa
+       opción) quedaba oculto porque solo se mostraba/ocultaba al evento 'change' del select, que
+       nunca se disparaba solo. Ahora se evalúa también al abrir el formulario.
+       Nuevo: Stock → "Top filtros", ranking de los 10 filtros que más salieron (sumando lo vendido
+       por Ventas/POS y lo usado en Services, sin ventas anuladas), con rango de fechas a elección
+       (accesos rápidos: Últimos 30 días / Este mes / Mes anterior / Este año / Todo) y stock actual
+       + stock con equivalentes de cada uno. Reutiliza la misma fuente de datos que Rotación de
+       Stock (obtenerEgresosRealesPorProducto, ahora un helper compartido).
      v18.40 — Nuevo módulo Cheques (dentro de "Compras y Finanzas"): cheques recibidos de clientes y emitidos a proveedores, con su ciclo de vida completo (Cartera → Depositado → Acreditado, o Rechazado, o Endosado a un proveedor sin pasar por Caja; Entregado → Debitado para los emitidos, o Rechazado). Rechazar o anular un cheque reabre automáticamente la deuda del cliente o del proveedor. "Cheque" ahora es un medio de pago más en el POS y en el cobro de Servicios (con fecha estimada de cobro y banco/número/titular) y en el pago a proveedores; mientras el cheque está en cartera no impacta en Caja — recién lo hace al acreditarse/debitarse. Pestaña de Vencimientos y KPIs de saldo en cartera/por cobrar/vencido, más una tarjeta de "Cheques en cartera" en la vista de Caja con link directo al módulo.
      v18.39 — Aplicaciones: se ve la foto del producto vinculado (kit de repuestos, pestaña "Por código", chips de "Por vehículo"/"Árbol" y formulario de carga); sin foto se muestra un ícono discreto. Al cargar un código (repuesto nuevo o "+ Alt." para un equivalente) ahora se puede elegir un SKU ya cargado en Stock desde un buscador desplegable (con foto, nombre y stock), igual que en Servicios/Cotizaciones, en vez de tipear el código a ciegas; se sigue pudiendo escribir un código manual si no está en Stock.
      v18.38 — Aplicaciones: deja de ser una isla. Nueva pestaña "Consulta rápida" (patente o marca/modelo/año → filtros, lubricante y stock), motor de coincidencias vehículo→aplicación, y el kit de repuestos aparece en la ficha del Vehículo, en Servicios, en Cotizaciones y en el POS (botón "Repuestos por vehículo"). Cada repuesto muestra stock/precio del producto vinculado (por vínculo, código o nombre), alerta de reposición y equivalentes. Nuevos tipos (bujías, pastillas, correas, batería), lubricante con viscosidad/capacidad/especificación, varios códigos por tipo (Original/Alternativo/Económico) con equivalencias entre marcas. Búsqueda por palabras sueltas, sin tildes y por año; filtros por marca/tipo/stock, orden por columna, duplicar aplicación y pestaña Reposición.
@@ -3231,6 +3241,7 @@ async function router(){
       break;
     case 'stock':
       if(param==='rotacion'){ outlet.innerHTML = await viewStockRotacion(); bindStockRotacionEvents(); }
+      else if(param==='top-filtros'){ outlet.innerHTML = await viewStockTopFiltros(); bindStockTopFiltrosEvents(); }
       else if(param==='ajuste-masivo'){
         if(!canAjustarStock(Session.get().rol)){ outlet.innerHTML = viewNoPermiso(); return; }
         outlet.innerHTML = await viewAjusteMasivoStock(); bindAjusteMasivoStockEvents();
@@ -9755,7 +9766,10 @@ async function openTurnoServicioModal(turno=null, fechaPrefill=null){
     const v = await DB.get('vehiculos', vid);
     document.getElementById('tsf-vehiculoDescripcion').value = `${v.marca} ${v.modelo} (${v.dominio})`;
   });
-  if(turno && turno.clienteId) await actualizarVisibilidadCliente();
+  // Se ejecuta SIEMPRE, no solo al editar un turno existente: en un turno nuevo el
+  // select ya arranca en "Cliente sin registrar" y no dispara 'change', así que sin
+  // esto el campo de nombre manual quedaba oculto hasta tocar otro cliente y volver.
+  await actualizarVisibilidadCliente();
   if(turno && turno.vehiculoId) vehSelect.value = turno.vehiculoId;
 
   document.getElementById('tsf-cancel').onclick = () => Modal.close();
@@ -12926,7 +12940,7 @@ async function viewStockList(){
   const valorInventario = productos.reduce((acc,p)=> acc + (p.precioCosto||0)*(p.stockActual||0), 0);
 
   return `
-    <div class="page-header"><div><h1>Stock</h1><p>Control de inventario en tiempo real</p></div><div style="display:flex; gap:8px; flex-wrap:wrap;">${puedeAjustar?`<a href="#/stock/ajuste-masivo" class="btn btn-accent">${svgIcon('stock')} Ajuste masivo</a>`:''}<a href="#/stock/rotacion" class="btn btn-ghost">${svgIcon('reportes')} Rotación</a></div></div>
+    <div class="page-header"><div><h1>Stock</h1><p>Control de inventario en tiempo real</p></div><div style="display:flex; gap:8px; flex-wrap:wrap;">${puedeAjustar?`<a href="#/stock/ajuste-masivo" class="btn btn-accent">${svgIcon('stock')} Ajuste masivo</a>`:''}<a href="#/stock/rotacion" class="btn btn-ghost">${svgIcon('reportes')} Rotación</a><a href="#/stock/top-filtros" class="btn btn-ghost">${svgIcon('reportes')} Top filtros</a></div></div>
     <div class="grid-kpi">
       <div class="kpi-card" style="--kpi-color:var(--accent)"><div class="kpi-label">Productos activos</div><div class="kpi-value">${productos.length}</div></div>
       <div class="kpi-card" style="--kpi-color:var(--danger)"><div class="kpi-label">Stock crítico</div><div class="kpi-value">${criticos}</div><div class="kpi-sub">en o por debajo del mínimo</div></div>
@@ -13016,24 +13030,32 @@ function bindStockListEvents(){
 const ROTACION_VENTANA_DIAS = 60;
 const ROTACION_UMBRAL_SIN_MOVIMIENTO = 45;
 
-async function calcularRotacionStock(){
-  const productos = (await DB.getAll('productos')).filter(p=>p.activo!==false);
-  // Una "venta" para la rotación es una salida real: un ítem de una venta no
-  // anulada, o un producto usado en un service. La fecha es la de la venta o
-  // del service (no la de una edición posterior).
+/* Salidas reales de stock, producto por producto: un ítem de una venta no anulada (origen
+   'venta') o un producto usado en un service (origen 'servicio'), con la fecha de esa venta
+   o service (no la de una edición posterior). Es la única fuente de "se vendió/se usó" que
+   hay que usar para cualquier ranking o análisis de demanda — el kardex (movimientosStock)
+   NO sirve para esto: ahí también quedan como "egreso" los ajustes manuales, las compras
+   editadas/anuladas y las correcciones de ventas/services (ver Rotación de Stock, v18.43).
+   Devuelve { [productoId]: [{ fecha:Date, cantidad, origen }] }. */
+async function obtenerEgresosRealesPorProducto(){
   const egresosPorProducto = {};
-  const registrarSalida = (productoId, fecha, cantidad) => {
+  const registrarSalida = (productoId, fecha, cantidad, origen) => {
     if(!productoId || !(cantidad > 0)) return;
     const f = parsearFechaSegura(fecha);
     if(isNaN(f.getTime())) return;
-    (egresosPorProducto[productoId] = egresosPorProducto[productoId]||[]).push({ fecha:f, cantidad });
+    (egresosPorProducto[productoId] = egresosPorProducto[productoId]||[]).push({ fecha:f, cantidad, origen });
   };
   (await DB.getAll('ventas')).filter(v=>v.estado!=='anulada').forEach(v=>{
-    (v.items||[]).forEach(it=>registrarSalida(it.productoId, v.fecha, it.cantidad));
+    (v.items||[]).forEach(it=>registrarSalida(it.productoId, v.fecha, it.cantidad, 'venta'));
   });
   (await DB.getAll('historialServicios')).forEach(h=>{
-    (h.itemsVendidos||[]).forEach(it=>registrarSalida(it.productoId, h.fecha, it.cantidad));
+    (h.itemsVendidos||[]).forEach(it=>registrarSalida(it.productoId, h.fecha, it.cantidad, 'servicio'));
   });
+  return egresosPorProducto;
+}
+async function calcularRotacionStock(){
+  const productos = (await DB.getAll('productos')).filter(p=>p.activo!==false);
+  const egresosPorProducto = await obtenerEgresosRealesPorProducto();
 
   const hoy = new Date();
   const corteVentana = new Date(); corteVentana.setDate(corteVentana.getDate()-ROTACION_VENTANA_DIAS);
@@ -13178,6 +13200,123 @@ function bindStockRotacionEvents(){
     const canvasClasif = document.getElementById('rot-chart-clasificacion');
     if(canvasClasif) drawDoughnutChart(canvasClasif, labelsClasif, labelsClasif.map(l=>porClasificacion[l]), labelsClasif.map(l=>CLASIF_COLORES[l]));
   });
+}
+
+/* ---------- Top 10 filtros más vendidos/usados ---------- */
+/* Junta lo vendido por Ventas (POS) y lo usado en Services de la categoría "Filtros" dentro
+   de [desde,hasta] (fechas 'YYYY-MM-DD', inclusive), y arma el ranking + stock disponible
+   (con equivalentes, mismo criterio que la tabla de Servicios → Estadísticas). */
+async function calcularTopFiltros(desde, hasta){
+  const productos = (await DB.getAll('productos')).filter(p=>p.activo!==false && p.categoria==='Filtros');
+  if(!productos.length) return [];
+  const productosById = {}; productos.forEach(p=>productosById[p.id]=p);
+  const todosLosProductos = (await DB.getAll('productos'));
+  const todosPorId = {}; todosLosProductos.forEach(p=>todosPorId[p.id]=p);
+  const egresosPorProducto = await obtenerEgresosRealesPorProducto();
+  const desdeF = parsearFechaSegura(desde), hastaF = parsearFechaSegura(hasta);
+  hastaF.setHours(23,59,59,999);
+
+  const filas = productos.map(p=>{
+    const egresos = (egresosPorProducto[p.id]||[]).filter(e=>e.fecha>=desdeF && e.fecha<=hastaF);
+    const vendidos = egresos.filter(e=>e.origen==='venta').reduce((a,e)=>a+e.cantidad,0);
+    const usados = egresos.filter(e=>e.origen==='servicio').reduce((a,e)=>a+e.cantidad,0);
+    const eqIds = p.equivalentes || [];
+    const equivalentesProductos = eqIds.map(id=>todosPorId[id]).filter(Boolean);
+    const stockTotalEquivalentes = (Number(p.stockActual)||0) + equivalentesProductos.reduce((acc,e)=>acc+(Number(e.stockActual)||0),0);
+    return { producto:p, vendidos, usados, total:vendidos+usados, equivalentesProductos, stockTotalEquivalentes };
+  }).filter(f=>f.total>0);
+
+  filas.sort((a,b)=> b.total - a.total);
+  return filas;
+}
+async function viewStockTopFiltros(){
+  return `
+    <a href="#/stock" class="back-link">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Volver a Stock
+    </a>
+    <div class="page-header"><div><h1>Top filtros</h1><p>Los que más salen entre Ventas (POS) y Services, en el período elegido</p></div></div>
+    <div id="tf-content"></div>
+  `;
+}
+function bindStockTopFiltrosEvents(){
+  const cont = document.getElementById('tf-content');
+  const hoy = Utils.hoyLocal();
+  let desde = hoy.slice(0,4)+'-01-01';
+  let hasta = hoy;
+
+  const RANGOS_RAPIDOS = [
+    { key:'30d', label:'Últimos 30 días', calc:()=>{ const d=new Date(); d.setDate(d.getDate()-29); return [Utils.fechaLocalYMD(d), Utils.hoyLocal()]; } },
+    { key:'mes', label:'Este mes', calc:()=>{ const h=Utils.hoyLocal(); return [h.slice(0,8)+'01', h]; } },
+    { key:'mesant', label:'Mes anterior', calc:()=>{ const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()-1); const ini=Utils.fechaLocalYMD(d); const fin=new Date(d.getFullYear(),d.getMonth()+1,0); return [ini, Utils.fechaLocalYMD(fin)]; } },
+    { key:'anio', label:'Este año', calc:()=>{ const h=Utils.hoyLocal(); return [h.slice(0,4)+'-01-01', h]; } },
+    { key:'todo', label:'Todo', calc:()=>['2000-01-01', Utils.hoyLocal()] }
+  ];
+  let rangoActivo = 'anio';
+
+  async function render(){
+    const filas = await calcularTopFiltros(desde, hasta);
+    const top10 = filas.slice(0,10);
+    cont.innerHTML = `
+      <div class="card" style="padding:16px 18px; margin-bottom:18px;">
+        <div class="cfg-section-title" style="margin-bottom:10px;">Período</div>
+        <div class="an-quickrange" style="margin-bottom:12px;">
+          ${RANGOS_RAPIDOS.map(r=>`<button type="button" class="btn btn-ghost btn-sm tf-rango-btn ${rangoActivo===r.key?'active':''}" data-rango="${r.key}">${r.label}</button>`).join('')}
+        </div>
+        <div class="toolbar-filters">
+          <input type="date" class="toolbar-select" id="tf-desde" value="${desde}">
+          <span style="color:var(--text-muted); font-size:12px;">a</span>
+          <input type="date" class="toolbar-select" id="tf-hasta" value="${hasta}">
+          <button class="btn btn-ghost btn-sm" id="tf-aplicar">Aplicar</button>
+        </div>
+      </div>
+      ${top10.length ? `
+      <div class="report-chart-wrap">
+        <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">Top 10 — unidades (vendidas + usadas)</div>
+        <div class="chart-canvas-box" style="height:280px;"><canvas id="tf-chart"></canvas></div>
+      </div>
+      <div class="card" style="padding:0; overflow-x:auto; margin-top:18px;">
+        <table class="data-table">
+          <thead><tr><th>#</th><th>Filtro</th><th>Vendidos (Ventas)</th><th>Usados (Services)</th><th>Total</th><th>Stock actual</th><th>Stock total (con equivalentes)</th></tr></thead>
+          <tbody>
+            ${top10.map((f,i)=>{
+              const p = f.producto;
+              const bajo = f.stockTotalEquivalentes <= p.stockMinimo;
+              const tituloEq = f.equivalentesProductos.length ? 'Incluye: '+f.equivalentesProductos.map(e=>`${e.nombre} (${e.stockActual})`).join(', ') : 'Sin equivalentes cargados';
+              return `<tr>
+                <td class="font-mono">${i+1}</td>
+                <td style="font-weight:700;">${Utils.escapeHTML(p.nombre)}</td>
+                <td class="font-mono">${f.vendidos}</td>
+                <td class="font-mono">${f.usados}</td>
+                <td class="font-mono" style="font-weight:700;">${f.total}</td>
+                <td class="font-mono">${p.stockActual} ${Utils.escapeHTML(p.unidad)}</td>
+                <td class="font-mono" title="${Utils.escapeHTML(tituloEq)}" style="${bajo?'color:var(--danger); font-weight:700;':''}">${f.stockTotalEquivalentes} ${Utils.escapeHTML(p.unidad)}${bajo?' ⚠️':''}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+      ` : `<div class="empty-state">${svgIcon('stock')}<h3>Sin filtros vendidos o usados en el período</h3><p>Probá con un rango de fechas más amplio.</p></div>`}
+    `;
+    document.querySelectorAll('.tf-rango-btn').forEach(btn=>{
+      btn.onclick = () => {
+        const r = RANGOS_RAPIDOS.find(x=>x.key===btn.dataset.rango);
+        if(!r) return;
+        rangoActivo = r.key;
+        [desde, hasta] = r.calc();
+        render();
+      };
+    });
+    const btnAplicar = document.getElementById('tf-aplicar');
+    if(btnAplicar) btnAplicar.onclick = () => {
+      desde = document.getElementById('tf-desde').value;
+      hasta = document.getElementById('tf-hasta').value;
+      if(desde && hasta){ rangoActivo = null; render(); }
+    };
+    const canvasTop = document.getElementById('tf-chart');
+    if(canvasTop) drawHorizontalBarChart(canvasTop, top10.map(f=>f.producto.nombre), top10.map(f=>f.total), '#17B8A6', 'Unidades');
+  }
+  render();
 }
 
 function openAjusteStockModal(producto){
@@ -20676,7 +20815,10 @@ async function openCotizacionModal(cotizacion=null){
     document.getElementById('cf-vehiculoKilometraje').value = v.kilometraje||'';
     cfSugerirRepuestos();
   });
-  if(cotizacion) await onClienteChange();
+  // Se ejecuta SIEMPRE (no solo al editar): en una cotización nueva el select ya arranca en
+  // "Cliente sin registrar" y no dispara ningún evento 'change', así que sin esta llamada los
+  // campos de nombre/WhatsApp manual quedaban ocultos hasta tocar otro cliente y volver.
+  await onClienteChange();
   if(cotizacion && cotizacion.vehiculoId) vehSelect.value = cotizacion.vehiculoId;
 
   // Repuestos sugeridos del catálogo de Aplicaciones: usa el vehículo registrado del cliente si hay uno
@@ -21787,7 +21929,8 @@ async function openTurnoModal(turno=null, fechaPrefill=null){
     const v = await DB.get('vehiculos', vid);
     document.getElementById('tf-vehiculoDescripcion').value = `${v.marca} ${v.modelo} (${v.dominio})`;
   });
-  if(turno) await actualizarVisibilidadCliente();
+  // Ídem: se ejecuta siempre, no solo al editar (ver comentario análogo más arriba).
+  await actualizarVisibilidadCliente();
   if(turno && turno.vehiculoId) vehSelect.value = turno.vehiculoId;
 
   document.getElementById('tf-servicioId').addEventListener('change', (e)=>{
