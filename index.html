@@ -1575,6 +1575,7 @@ const DB_VERSION = 26; // v26: store 'cheques' (cheques recibidos de clientes y 
    una línea abajo) cada vez que se entrega una nueva versión, para tener
    registro de qué se cambió y cuándo sin depender del nombre del archivo.
    Historial:
+     v18.44 — Servicios: la columna "Vehículo" ahora muestra marca, modelo y año debajo del dominio (y el buscador también encuentra por marca/modelo). Nuevo "Ticket 80 mm" del service (trabajo realizado y repuestos en secciones separadas, con total), disponible en Acciones de la lista de Servicios, en la ficha del vehículo y en el detalle del service.
      v18.43 — Fix crítico: anular, reactivar o editar una venta/service cobrados con Cheque, o
        anular/reactivar una compra pagada con Cheque, registraban movimientos de Caja inventados
        (el cheque en Cartera nunca había tocado Caja) y dejaban el cheque asociado huérfano,
@@ -1637,7 +1638,7 @@ const DB_VERSION = 26; // v26: store 'cheques' (cheques recibidos de clientes y 
      v18.17 — Backup automático: ahora corre 2 veces por día (10:00 y 19:50 hora Argentina), cada uno con su propio archivo y control de "ya se hizo hoy".
      v18.16 — Retiros de socios (nuevo submódulo dentro de Caja) + versión visible en la app.
      v18.15 — punto de partida de este historial. */
-const APP_VERSION = 'v18.43';
+const APP_VERSION = 'v18.44';
 const SESSION_KEY = 'cs_session';
 const REMEMBER_KEY = 'cs_remember_user';
 const THEME_KEY = 'cs_theme';
@@ -8853,6 +8854,7 @@ function historialTimelineCardHTML(h, vehiculo, puedeGestionar, verCosto, client
       <div class="timeline-actions">
         ${accionesFilaHTML(`
           <button class="btn btn-ghost btn-sm btn-ver-historial" data-id="${h.id}">Ver detalle</button>
+          <button class="btn btn-ghost btn-sm btn-ticket-historial" data-id="${h.id}">Ticket 80 mm</button>
           ${puedeGestionar?`<button class="btn btn-ghost btn-sm btn-editar-historial" data-id="${h.id}">Editar</button>`:''}
           ${puedeGestionar?`<button class="btn btn-ghost btn-sm btn-salida-historial" data-id="${h.id}">${entregado?'Reingresar':'Dar salida'}</button>`:''}
           ${puedeGestionar?botonAvisarRetiroHTML(h, cliente, vehiculo):''}
@@ -8886,6 +8888,12 @@ function bindHistorialCardEvents(){
   bindBotonesAvisarRetiro();
   document.querySelectorAll('.btn-ver-historial').forEach(btn=>{
     btn.onclick = async () => openHistorialDetailModal(await DB.get('historialServicios', Number(btn.dataset.id)));
+  });
+  document.querySelectorAll('.btn-ticket-historial').forEach(btn=>{
+    btn.onclick = async () => {
+      const h = await DB.get('historialServicios', Number(btn.dataset.id));
+      await abrirHistorialTicketModal(h);
+    };
   });
   document.querySelectorAll('.btn-editar-historial').forEach(btn=>{
     btn.onclick = async () => {
@@ -9379,6 +9387,47 @@ async function openHistorialModal(historial, vehiculo, prefill){
   };
 }
 
+/* Ticket térmico 80 mm del service (comprobante para el cliente). Mismo
+   esquema que el resto de los tickets: #print-ticket-area + .ticket-preview
+   (75 mm de ancho útil) y window.print(). */
+function historialTicketHTML(h, veh, cli, cfg){
+  const items = historialItemsRealizados(h);
+  const money = n => '$' + Number(n||0).toLocaleString('es-AR');
+  const vehTxt = veh ? (veh.dominio + ((veh.marca||veh.modelo)?' · '+((veh.marca||'')+' '+(veh.modelo||'')).trim():'')) : '';
+  return `
+    <div class="ticket-preview cot-ticket" id="hs-ticket-content">
+      ${cfg.logo?`<div class="tp-logo"><img src="${cfg.logo}"></div>`:''}
+      <div style="text-align:center; font-weight:700;">${Utils.escapeHTML(cfg.nombreEmpresa||'')}</div>
+      <hr>
+      <div class="tp-row"><span>Fecha:</span><span>${parsearFechaSegura(h.fecha).toLocaleDateString('es-AR')}</span></div>
+      ${vehTxt?`<div>${Utils.escapeHTML(vehTxt)}</div>`:''}
+      <hr>
+      ${items.length?`<div class="tp-row" style="font-weight:700;"><span>TRABAJO REALIZADO</span><span></span></div>
+      ${items.map(it=>`<div class="tp-row"><span>- ${Utils.escapeHTML(it.label)}</span><span></span></div>`).join('')}<hr>`:''}
+      ${(h.itemsVendidos&&h.itemsVendidos.length)?`<div class="tp-row" style="font-weight:700;"><span>REPUESTOS</span><span></span></div>
+      ${h.itemsVendidos.map(it=>`<div class="tp-row"><span>${it.cantidad} x ${Utils.escapeHTML(it.descripcion||'')}</span><span>${money(it.cantidad*it.precioUnitario)}</span></div>`).join('')}<hr>`:''}
+      <div class="tp-row" style="font-weight:700; font-size:14px;"><span>TOTAL</span><span>${money(h.precio)}</span></div>
+    </div>
+  `;
+}
+async function abrirHistorialTicketModal(h){
+  if(!h) return;
+  const cfg = Config.cache || await Config.load();
+  const veh = h.vehiculoId ? await DB.get('vehiculos', h.vehiculoId) : null;
+  const cli = h.clienteId ? await DB.get('clientes', h.clienteId) : null;
+  Modal.open(
+    'Ticket de service — ' + (veh?veh.dominio:'#'+h.id),
+    `<div id="print-ticket-area">${historialTicketHTML(h, veh, cli, cfg)}</div>
+     <div class="modal-actions">
+       <button class="btn btn-ghost" id="hs-ticket-cerrar">Cerrar</button>
+       <button class="btn btn-accent" id="hs-ticket-imprimir">Imprimir (80 mm)</button>
+     </div>`,
+    { width:'380px' }
+  );
+  document.getElementById('hs-ticket-imprimir').onclick = () => window.print();
+  document.getElementById('hs-ticket-cerrar').onclick = () => Modal.close();
+}
+
 function openHistorialDetailModal(h){
   const items = historialItemsRealizados(h);
   const session = Session.get();
@@ -9387,6 +9436,7 @@ function openHistorialDetailModal(h){
     'Detalle del service — ' + parsearFechaSegura(h.fecha).toLocaleDateString('es-AR'),
     `<div style="display:flex; flex-direction:column; gap:12px;">
       <div style="display:flex; gap:6px; flex-wrap:wrap;">${historialEntregaBadge(h)}${estadoPagoBadge(historialEstadoPagoEfectivo(h))}${historialGarantiaBadge(h)} <span class="badge badge-neutral">${h.kilometraje?Number(h.kilometraje).toLocaleString('es-AR')+' km':''}</span></div>
+      <div id="hd-vehiculo"></div>
       <div><b>Aceite:</b> ${Utils.escapeHTML(h.aceiteMarca||'—')} ${Utils.escapeHTML(h.aceiteTipo||'')} ${h.aceiteCantidadLts?'· '+h.aceiteCantidadLts+'L':''}</div>
       ${items.length?`<div><b>Ítems realizados:</b><div class="timeline-chips">${items.map(it=>`<span class="tag-chip">${it.label}</span>`).join('')}</div></div>`:''}
       ${(h.itemsVendidos&&h.itemsVendidos.length)?`<div><b>Repuestos y mano de obra:</b>
@@ -9401,10 +9451,15 @@ function openHistorialDetailModal(h){
       ${(h.montoPagado||0)>0?`<div><b>Cobrado:</b> $${Number(h.montoPagado||0).toLocaleString('es-AR')}${historialSaldoPendiente(h)>0.009?` · Saldo: $${historialSaldoPendiente(h).toLocaleString('es-AR')}`:''}</div>`:''}
       <div><b>Próximo service:</b> ${historialProximoTexto(h)}</div>
     </div>
-    <div class="modal-actions"><button class="btn btn-ghost" id="hd-close">Cerrar</button></div>`,
+    <div class="modal-actions"><button class="btn btn-ghost" id="hd-close">Cerrar</button><button class="btn btn-accent" id="hd-ticket">Ticket 80 mm</button></div>`,
     { width:'520px' }
   );
   document.getElementById('hd-close').onclick = () => Modal.close();
+  document.getElementById('hd-ticket').onclick = () => abrirHistorialTicketModal(h);
+  DB.get('vehiculos', h.vehiculoId).then(v=>{
+    const el = document.getElementById('hd-vehiculo');
+    if(el && v) el.innerHTML = `<b>Vehículo:</b> <span class="font-mono">${Utils.escapeHTML(v.dominio)}</span> · ${Utils.escapeHTML(((v.marca||'')+' '+(v.modelo||'')).trim())}${v.anio?' · '+v.anio:''}`;
+  }).catch(()=>{});
 }
 
 /* -----------------------------------------------------------------------
@@ -9435,7 +9490,7 @@ async function viewHistorialList(){
     <div class="toolbar-filters">
       <div class="toolbar-search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        <input type="text" id="hist-search" placeholder="Buscar por dominio, cliente o aceite...">
+        <input type="text" id="hist-search" placeholder="Buscar por dominio, vehículo, cliente o aceite...">
       </div>
       <select class="toolbar-select" id="hist-filtro-empleado">
         <option value="">Todos los empleados</option>
@@ -9453,9 +9508,9 @@ async function viewHistorialList(){
             const margen = (h.precio||0)-(h.costo||0);
             const saldo = historialSaldoPendiente(h);
             const entregado = historialEstadoEntregaEfectivo(h) === 'Entregado';
-            return `<tr data-id="${h.id}" data-empleado="${h.empleadoId||''}" data-fecha="${h.fecha}" data-search="${Utils.escapeHTML(((veh?veh.dominio:'')+' '+(cli?clienteNombreCompleto(cli):'')+' '+(h.aceiteMarca||'')).toLowerCase())}">
+            return `<tr data-id="${h.id}" data-empleado="${h.empleadoId||''}" data-fecha="${h.fecha}" data-search="${Utils.escapeHTML(((veh?veh.dominio+' '+(veh.marca||'')+' '+(veh.modelo||''):'')+' '+(cli?clienteNombreCompleto(cli):'')+' '+(h.aceiteMarca||'')).toLowerCase())}">
               <td class="font-mono" style="font-size:12px;">${parsearFechaSegura(h.fecha).toLocaleDateString('es-AR')}</td>
-              <td>${veh?`<a href="#/vehiculos/${veh.id}" class="vmc-dominio font-mono">${Utils.escapeHTML(veh.dominio)}</a>`:'—'}</td>
+              <td>${veh?`<a href="#/vehiculos/${veh.id}" class="vmc-dominio font-mono">${Utils.escapeHTML(veh.dominio)}</a><div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">${Utils.escapeHTML(((veh.marca||'')+' '+(veh.modelo||'')).trim()||'—')}${veh.anio?' · '+veh.anio:''}</div>`:'—'}</td>
               <td>${cli?`<a href="#/clientes/${cli.id}">${Utils.escapeHTML(clienteNombreCompleto(cli))}</a>`:'—'}</td>
               <td>${h.kilometraje?Number(h.kilometraje).toLocaleString('es-AR'):'—'}</td>
               <td style="font-size:12px;">${Utils.escapeHTML(h.aceiteMarca||'')} ${Utils.escapeHTML(h.aceiteTipo||'')}</td>
@@ -9466,6 +9521,7 @@ async function viewHistorialList(){
               <td style="text-align:right; white-space:nowrap;">
                 ${accionesFilaHTML(`
                   <button class="btn btn-ghost btn-sm btn-ver-historial" data-id="${h.id}">Ver</button>
+                  <button class="btn btn-ghost btn-sm btn-ticket-historial" data-id="${h.id}">Ticket 80 mm</button>
                   ${puedeGestionar?`<button class="btn btn-ghost btn-sm btn-editar-historial" data-id="${h.id}">Editar</button><button class="btn btn-ghost btn-sm btn-salida-historial" data-id="${h.id}">${entregado?'Reingresar':'Dar salida'}</button>`:''}
                   ${puedeGestionar?botonAvisarRetiroHTML(h, cli, veh):''}
                   ${(canCobrarHistorial(session.rol) && saldo>0.009)?`<button class="btn btn-accent btn-sm btn-cobrar-historial" data-id="${h.id}">Cobrar</button>`:''}
